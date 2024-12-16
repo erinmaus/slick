@@ -1,0 +1,35 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "lua-local",
+			"request": "launch",
+			"name": "Demo",
+			"program": {
+				"command": "./run.sh"
+			},
+			"args": [
+				".",
+			],
+			"scriptRoots": [
+				"${workspaceFolder}/nomicon",
+				"${workspaceFolder}/tests"
+			],
+		},
+		{
+			"type": "lua-local",
+			"request": "launch",
+			"name": "Test",
+			"program": {
+				"command": "./tests.sh"
+			},
+			"args": [
+				".",
+			],
+			"scriptRoots": [
+				"${workspaceFolder}/nomicon",
+				"${workspaceFolder}/tests"
+			]
+		},
+	]
+}
