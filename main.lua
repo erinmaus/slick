@@ -1,19 +1,29 @@
-local seidel = require("slick.geometry.seidel.seidel")
+local delaunay = require("slick.geometry.triangulation.delaunay")
 
-local s = seidel.new({ rng = love.math.newRandomGenerator(0) })
+local d = delaunay.new()
 
 -- shape 1
-s:addPoint(337, 182)
-s:addPoint(173, 518)
-s:addPoint(173, 518)
-s:addPoint(453, 695)
-s:addPoint(684, 470)
-s:addPoint(589, 208)
+local shape = {
+    337, 182,
+    173, 518,
+    173, 518,
+    453, 695,
+    684, 470,
+    589, 208
+}
 
 -- shape 2
-s:addPoint(365, 261)
-s:addPoint(278, 452)
-s:addPoint(407, 559)
-s:addPoint(515, 332)
+local edges = {
+    365, 261,
+    278, 452,
+    407, 559,
+    515, 332
+}
 
-s:generate("even-odd")
+local result = d:triangulate(shape, edges)
+
+for _, triangle in ipairs(result) do
+    print(">", triangle[1], triangle[2], triangle[3])
+end
+
+love.event.quit()

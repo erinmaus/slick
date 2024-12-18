@@ -1,3 +1,5 @@
+local slicktable = require("slick.util.slicktable")
+
 --- @class slick.util.pool
 --- @field type { new: function }
 --- @field used table
@@ -11,7 +13,7 @@ local metatable = { __index = pool }
 function pool.new(poolType)
     return setmetatable({
         type = poolType,
-        used = setmetatable({}, { __mode = "k" }),
+        used = {},
         free = {}
     }, metatable)
 end
@@ -25,10 +27,12 @@ function pool:allocate(...)
         result = self.type.new()
         result:init(...)
 
-        table.insert(self.used, result)
+        self.used[result] = true
     else
         result = table.remove(self.free, #self.free)
         result:init(...)
+
+        self.used[result] = true
     end
     return result
 end
@@ -36,6 +40,7 @@ end
 --- Returns an instance to the pool.
 --- @param t any the type to return to the pool
 function pool:deallocate(t)
+    self.used[t] = nil
     table.insert(self.free, t)
 end
 
@@ -44,16 +49,14 @@ end
 --- @see slick.util.pool.allocate
 function pool:reset()
     for v in pairs(self.used) do
-        table.remove(self.used, v)
-        self.used[v] = nil
+        self:deallocate(v)
     end
 end
 
---- Clears all free instances in the free instance list.
+--- Clears all tracking for free and used instances.
 function pool:clear()
-    while #self.free > 0 do
-        table.remove(self.free, #self.free)
-    end
+    slicktable.clear(self.used)
+    slicktable.clear(self.free)
 end
 
 return pool
