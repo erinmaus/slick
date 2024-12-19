@@ -17,7 +17,8 @@ local slicktable = require("slick.util.slicktable")
 local defaultTriangulationOptions = {
     refine = true,
     interior = true,
-    exterior = false
+    exterior = false,
+    polygonization = true
 }
 
 --- @alias slick.geometry.triangulation.intersectFunction fun(intersection: slick.geometry.triangulation.intersection)
@@ -32,6 +33,7 @@ local defaultCleanupOptions = {
 }
 
 --- @alias slick.geometry.triangulation.delaunaySortedPoint { point: slick.geometry.point, id: number, newID: number?, dissolve: boolean? }
+--- @alias slick.geometry.triangulation.delaunayWorkingPolygon { vertices: number[], merged: boolean? }
 
 --- @class slick.geometry.triangulation.delaunay
 --- @field private epsilon number
@@ -58,8 +60,8 @@ local defaultCleanupOptions = {
 --- @field private cachedTriangle number[]
 --- @field private triangulation { n: number, triangles: number[][], sorted: number[][], unsorted: number[][] }
 --- @field private filter { flags: number[], neighbors: number[], constraints: boolean[], current: number[], next: number[] }
---- @field private index { n: number, vertices: number[][], stack: number[] }
---- @field private userdata any[]
+--- @field private index { n: number, vertices: number[][], triangles: number[][], stack: number[] }
+--- @field private polygonization { n: number, polygons: slick.geometry.triangulation.delaunayWorkingPolygon[], edges: slick.geometry.triangulation.edge[], pending: slick.geometry.triangulation.edge[], edgesToPolygons: slick.geometry.triangulation.delaunayWorkingPolygon[][] }
 local delaunay = {}
 local metatable = { __index = delaunay }
 
@@ -152,7 +154,7 @@ function delaunay.new(t)
             if a.point:lessThan(b.point, epsilon) then
                 return -1
             elseif a.point:equal(b.point, epsilon) then
-                return a.id - b.id
+                return 0
             end
 
             return 1
@@ -199,7 +201,8 @@ function delaunay.new(t)
         cachedTriangle = { 0, 0, 0 },
         triangulation = { n = 0, triangles = {}, sorted = {}, unsorted = {} },
         filter = { flags = {}, neighbors = {}, constraints = {}, current = {}, next = {} },
-        index = { n = 0, vertices = {}, stack = {} }
+        index = { n = 0, vertices = {}, triangles = {}, stack = {} },
+        polygonization = { n = 0, polygons = {}, edges = {}, pending = {}, edgesToPolygons = {} }
     }, metatable)
 end
 
@@ -234,7 +237,7 @@ function delaunay:_dedupePoints(dissolve, userdata)
                     if e.a == index then
                         e:init(start, e.b)
                     elseif e.b == index then
-                        e:init(edge.a, start)
+                        e:init(e.a, start)
                     end
 
                     local edgeIndex = search.lessThan(edges, e, edge.compare)
@@ -299,8 +302,8 @@ function delaunay:_stepClean(intersect, userdata)
         local point = sortedPoints[i]
 
         if not point.dissolve then
-            for i = #edges, 1, -1 do
-                local e = edges[i]
+            for j = #edges, 1, -1 do
+                local e = edges[j]
                 local a = points[e.a]
                 local b = points[e.b]
 
@@ -315,7 +318,7 @@ function delaunay:_stepClean(intersect, userdata)
                         table.insert(temporaryEdges, newEdge1)
                         table.insert(temporaryEdges, newEdge2)
 
-                        table.remove(edges, i)
+                        table.remove(edges, j)
                         self.edgesPool:deallocate(e)
                     end
                 end
@@ -343,12 +346,12 @@ function delaunay:_stepClean(intersect, userdata)
                 local a2 = points[otherEdge.a]
                 local b2 = points[otherEdge.b]
 
-                local intersection, x, y = slickmath.intersection(a1, b1, a2, b2, self.epsilon)
+                local intersection, x, y, u, v = slickmath.intersection(a1, b1, a2, b2, self.epsilon)
                 
                 if intersection then
                     isDirty = true
 
-                    if not (x and y) then
+                    if not (x and y) or not (u and v) then
                         -- Edges are collinear. Delete the other edge.
                         -- TODO: Split edge?
 
@@ -378,20 +381,23 @@ function delaunay:_stepClean(intersect, userdata)
                         self.intersection:init(#points)
 
                         self.intersection:setLeftEdge(
-                            a1, b1,
+                            a1, b1, u,
                             userdata and userdata[selfEdge.a],
                             userdata and userdata[selfEdge.b])
                             
                         self.intersection:setRightEdge(
-                            a2, b2,
+                            a2, b2, v,
                             userdata and userdata[otherEdge.a],
                             userdata and userdata[otherEdge.b])
-                            
-                        self.intersection:computeDelta(self.epsilon)
+
                         self.intersection.result:init(point.x, point.y)
 
                         intersect(self.intersection)
                         point:init(self.intersection.result.x, self.intersection.result.y)
+
+                        if userdata then
+                            table.insert(userdata, self.intersection.resultIndex, self.intersection.resultUserdata)
+                        end
                         
                         table.remove(edges, math.max(i, j))
                         table.remove(edges, math.min(i, j))
@@ -423,8 +429,11 @@ end
 function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, outUserdata)
     options = options or defaultCleanupOptions
 
-    local dissolve = options.dissolve == nil and defaultCleanupOptions.dissolve or options.dissolve
-    local intersect = options.intersect == nil and defaultCleanupOptions.intersect or options.intersect
+    local dissolveFunc = options.dissolve == nil and defaultCleanupOptions.dissolve or options.dissolve
+    dissolveFunc = dissolveFunc or dissolve.default
+    
+    local intersectFunc = options.intersect == nil and defaultCleanupOptions.intersect or options.intersect
+    intersectFunc = intersectFunc or intersection.default
 
     self:reset()
 
@@ -463,9 +472,9 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
     local continue
     repeat
         table.sort(self.sortedPoints, self.sortedPointLessFunc)
-        self:_dedupePoints(dissolve, userdata)
+        self:_dedupePoints(dissolveFunc, userdata)
         self:_dedupeEdges()
-        continue = self:_stepClean(intersect, userdata)
+        continue = self:_stepClean(intersectFunc, userdata)
     until not continue
 
     slicktable.clear(points)
@@ -515,12 +524,15 @@ end
 --- @param edges number[]
 --- @param options slick.geometry.triangulation.delaunayTriangulationOptions
 --- @param result number[][]?
-function delaunay:triangulate(points, edges, options, result)
+--- @param polygons number[][]?
+--- @return number[][], number, number[][]?, number?
+function delaunay:triangulate(points, edges, options, result, polygons)
     options = options or defaultTriangulationOptions
 
     local refine = options.refine == nil and defaultTriangulationOptions.refine or options.refine
     local interior = options.interior == nil and defaultTriangulationOptions.interior or options.interior
     local exterior = options.exterior == nil and defaultTriangulationOptions.exterior or options.exterior
+    local polygonization = options.polygonization == nil and defaultTriangulationOptions.polygonization or options.polygonization
 
     self:reset()
 
@@ -549,7 +561,7 @@ function delaunay:triangulate(points, edges, options, result)
     self:_sweep()
     self:_triangulate()
 
-    if refine or interior or exterior then
+    if refine or interior or exterior or polygonization then
         self:_buildIndex()
 
         if refine then
@@ -582,7 +594,13 @@ function delaunay:triangulate(points, edges, options, result)
         end
     end
 
-    return result, #triangles
+    local polygonCount
+    if polygonization then
+        polygons = polygons or {}
+        polygons, polygonCount = self:_polygonize(polygons)
+    end
+
+    return result, #triangles, polygons, polygonCount
 end
 
 --- @private
@@ -700,8 +718,12 @@ function delaunay:_flipTriangle(i, j)
         assert(b, "cannot flip triangle (no opposite vertex for JI)")
     end
 
+    --- @cast a number
+    --- @cast b number
+
     self:_removeTriangleFromIndex(i, j, a)
     self:_removeTriangleFromIndex(j, i, b)
+
     self:_addTriangleToIndex(i, b, a)
     self:_addTriangleToIndex(j, a, b)
 end
@@ -976,15 +998,283 @@ function delaunay:_materialize()
 
     for i = 1, self.index.n do
         local vertices = self.index.vertices[i]
+        local triangles = self.index.triangles[i]
+        if not triangles then
+            triangles = {}
+            table.insert(self.index.triangles, triangles)
+        end
+
         for j = 1, #vertices, 2 do
             local s = vertices[j]
             local t = vertices[j + 1]
 
             if i < math.min(s, t) then
                 self:_addTriangle(i, s, t)
+                table.insert(triangles, self.triangulation.n)
             end
         end
     end
+end
+
+--- @private
+function delaunay:_buildPolygons()
+    local polygons = self.polygonization.polygons
+    local triangles = self.triangulation.triangles
+    local edges = self.polygonization.edges
+    local pending = self.polygonization.pending
+    local edgesToPolygons = self.polygonization.edgesToPolygons
+
+    for i, triangle in ipairs(triangles) do
+        local polygon = polygons[i]
+        if not polygon then
+            polygon = {
+                vertices = {},
+                merged = false
+            }
+
+            table.insert(polygons, polygon)
+        else
+            slicktable.clear(polygon.vertices)
+            polygon.merged = false
+        end
+
+        for j, vertex in ipairs(triangle) do
+            table.insert(polygon.vertices, vertex)
+
+            local a = vertex
+            local b = triangle[j % #triangle + 1]
+            self.cachedEdge:init(a, b)
+            
+            local index = search.first(edges, self.cachedEdge, edge.compare)
+            if not index then
+                index = search.lessThan(edges, self.cachedEdge, edge.compare) + 1
+                table.insert(edges, index, self:_newEdge(a, b))
+                table.insert(pending, edges[index])
+            end
+        end
+    end
+    
+    for i = 1, #triangles do
+        local polygon = polygons[i]
+        local vertices = polygon.vertices
+        for j, vertex in ipairs(vertices) do
+            local a = vertex
+            local b = vertices[j % #vertices + 1]
+            self.cachedEdge:init(a, b)
+
+            local index = search.first(edges, self.cachedEdge, edge.compare)
+            if index then
+                local edgePolygons = edgesToPolygons[index]
+                if not edgePolygons then
+                    edgePolygons = {}
+                    edgesToPolygons[index] = edgePolygons
+                end
+
+                table.insert(edgePolygons, polygon)
+            else
+                if self.debug then
+                    assert(false, "critical logic error (edge not found)")
+                end
+            end
+        end
+    end
+
+    self.polygonization.n = #triangles
+end
+
+--- @private
+--- @param polygon slick.geometry.triangulation.delaunayWorkingPolygon
+--- @param otherPolygon slick.geometry.triangulation.delaunayWorkingPolygon?
+function delaunay:_replacePolygon(polygon, otherPolygon)
+    local edges = self.polygonization.edges
+    local edgesToPolygons = self.polygonization.edgesToPolygons
+    
+    local vertices = polygon.vertices
+    for i, vertex in ipairs(vertices) do
+        local a = vertex
+        local b = vertices[i % #vertices + 1]
+
+        self.cachedEdge:init(a, b)
+
+        local index = search.first(edges, self.cachedEdge, edge.compare)
+        local polygonsWithEdge = edgesToPolygons[index]
+        if polygonsWithEdge then
+            local hasOtherPolygon = false
+            for j = #polygonsWithEdge, 1, -1 do
+                if polygonsWithEdge[j] == polygon then
+                elseif polygonsWithEdge[j] == otherPolygon then
+                    hasOtherPolygon = true
+                end
+            end
+
+            if not hasOtherPolygon and otherPolygon then
+                table.insert(polygonsWithEdge, otherPolygon)
+            end
+        end
+    end
+end
+
+--- @private
+--- @param destinationPolygon slick.geometry.triangulation.delaunayWorkingPolygon
+--- @param sourcePolygon slick.geometry.triangulation.delaunayWorkingPolygon
+--- @param destinationPolygonVertexIndex number
+--- @param sourcePolygonVertexIndex number
+function delaunay:_mergePolygons(destinationPolygon, sourcePolygon, destinationPolygonVertexIndex, sourcePolygonVertexIndex)
+    local destinationVertices = destinationPolygon.vertices
+    local sourceVertices = sourcePolygon.vertices
+
+    for i = 1, #sourceVertices - 2 do
+        local sourceIndex = (i + sourcePolygonVertexIndex) % #sourceVertices + 1
+        table.insert(destinationVertices, destinationPolygonVertexIndex + i, sourceVertices[sourceIndex])
+    end
+
+    if self.debug then
+        local points = self.points
+
+        -- Make sure the polygon is convex.
+        local currentSign
+        for i, index1 in ipairs(destinationVertices) do
+            local index2 = destinationVertices[(i % #destinationVertices) + 1]
+            local index3 = destinationVertices[((i + 1) % #destinationVertices) + 1]
+
+            local p1 = points[index1]
+            local p2 = points[index2]
+            local p3 = points[index3]
+
+            local sign = slickmath.direction(p1, p2, p3, self.epsilon)
+            if not currentSign then
+                currentSign = sign
+            end
+
+            assert(currentSign == sign and sign ~= 0, "critical logic error (created concave polygon during polygonization)")
+        end
+    end
+
+    self:_replacePolygon(sourcePolygon, destinationPolygon)
+
+    sourcePolygon.merged = true
+end
+
+--- @private
+--- @param destinationPolygon slick.geometry.triangulation.delaunayWorkingPolygon
+--- @param sourcePolygon slick.geometry.triangulation.delaunayWorkingPolygon
+--- @return boolean
+--- @return number
+--- @return integer
+--- @return integer
+function delaunay:_canMergePolygons(destinationPolygon, sourcePolygon)
+    local destinationVertices = destinationPolygon.vertices
+    local sourceVertices = sourcePolygon.vertices
+    for j = 1, #destinationVertices do
+        local a = destinationVertices[j]
+        local b = destinationVertices[j % #destinationVertices + 1]
+        local c = destinationVertices[(j - 2) % #destinationVertices + 1]
+        local d = destinationVertices[(j + 1) % #destinationVertices + 1]
+
+        for k = 1, #sourceVertices do
+            local s = sourceVertices[k]
+            local t = sourceVertices[k % #sourceVertices + 1]
+
+            if a == t and b == s then
+                local p = sourceVertices[(k + 1) % #sourceVertices + 1]
+                local q = sourceVertices[(k + #sourceVertices - 2) % #sourceVertices + 1]
+
+                local p1 = self.points[c]
+                local p2 = self.points[a]
+                local p3 = self.points[p]
+                local p4 = self.points[q]
+
+                local t1 = self.points[b]
+                local t2 = self.points[d]
+
+                local s1 = self.points[destinationVertices[1]]
+                local s2 = self.points[destinationVertices[2]]
+                local s3 = self.points[destinationVertices[3]]
+
+                local signP1 = slickmath.direction(p1, p2, p3, self.epsilon)
+                local signP2 = slickmath.direction(p4, t1, t2, self.epsilon)
+                local signS = slickmath.direction(s1, s2, s3, self.epsilon)
+
+                if signP1 == signP2 and signP1 == signS then
+                    local angle = slickmath.angle(p1, p2, p3, self.epsilon)
+
+                    return true, angle, j, k
+                end
+            end
+        end
+    end
+
+    return false, 0, 1, 1
+end
+
+--- @private
+--- @param result number[][]
+--- @return number[][], integer
+function delaunay:_polygonize(result)
+    self:_buildPolygons()
+
+    local pendingEdges = self.polygonization.pending
+    local edges = self.polygonization.edges
+    local edgesToPolygons = self.polygonization.edgesToPolygons
+
+    while #pendingEdges > 0 do
+        local e = table.remove(pendingEdges, #pendingEdges)
+        local index = search.first(edges, e, edge.compare)
+
+        local bestMagnitude
+        local sourcePolygonIndex, destinationPolygonIndex
+        local sourcePolygonVertexIndex, destinationPolygonVertexIndex
+
+        -- This might look N^2 but there's only ever two polygons that share an edge so it's just... O(1)
+        local polygons = edgesToPolygons[index]
+        for i = 1, #polygons do
+            for j = i + 1, #polygons do
+                local canMerge, magnitude, s, t = self:_canMergePolygons(polygons[i], polygons[j])
+                 if canMerge then
+                    if magnitude > (bestMagnitude or -math.huge) then
+                        bestMagnitude = magnitude
+                        destinationPolygonIndex = i
+                        sourcePolygonIndex = j
+                        destinationPolygonVertexIndex = s
+                        sourcePolygonVertexIndex = t
+                    end
+                end
+            end
+        end
+
+        if bestMagnitude then
+            local destinationPolygon = polygons[destinationPolygonIndex]
+            local sourcePolygon = polygons[sourcePolygonIndex]
+            
+            self:_mergePolygons(destinationPolygon, sourcePolygon, destinationPolygonVertexIndex, sourcePolygonVertexIndex)
+        end
+    end
+
+    local polygons = self.polygonization.polygons
+
+    local index = 0
+    for i = 1, self.polygonization.n do
+        if not polygons[i].merged then
+            index = index + 1
+
+            local outputPolygon = result[index]
+            if not outputPolygon then
+                outputPolygon = {}
+                table.insert(result, outputPolygon)
+            else
+                slicktable.clear(outputPolygon)
+            end
+
+            local inputPolygon = polygons[i]
+            for _, vertex in ipairs(inputPolygon.vertices) do
+                table.insert(outputPolygon, vertex)
+            end
+
+            self:_replacePolygon(inputPolygon, nil)
+        end
+    end
+
+    return result, index
 end
 
 function delaunay:reset()
@@ -1012,6 +1302,22 @@ function delaunay:reset()
 
     self.index.n = 0
     slicktable.clear(self.index.stack)
+
+    self.polygonization.n = 0
+    slicktable.clear(self.polygonization.edges)
+    slicktable.clear(self.polygonization.pending)
+
+    for i = 1, #self.polygonization.edgesToPolygons do
+        slicktable.clear(self.polygonization.edgesToPolygons[i])
+    end
+
+    for i = 1, #self.index.vertices do
+        slicktable.clear(self.index.vertices[i])
+    end
+
+    for i = 1, #self.index.triangles do
+        slicktable.clear(self.index.triangles[i])
+    end
 end
 
 function delaunay:clear()
@@ -1022,6 +1328,9 @@ function delaunay:clear()
     self.edgesPool:clear()
     self.sweepPool:clear()
     self.hullsPool:clear()
+
+    slicktable.clear(self.polygonization.polygons)
+    slicktable.clear(self.polygonization.edgesToPolygons)
 
     slicktable.clear(self.sortedPoints)
     slicktable.clear(self.index.vertices)

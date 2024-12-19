@@ -28,10 +28,10 @@ function point.compare(E)
     --- @param a slick.geometry.point
     --- @param b slick.geometry.point
     return function(a, b)
-        if slickmath.lessThan(a.x, b.x, E) then
+        if slickmath.less(a.x, b.x, E) then
             return -1
         elseif slickmath.equal(a.x, b.x, E) then
-            if slickmath.lessThan(a.y, b.y, E) then
+            if slickmath.less(a.y, b.y, E) then
                 return -1
             elseif slickmath.equal(a.y, b.y, E) then
                 return 0
@@ -39,6 +39,17 @@ function point.compare(E)
         end
 
         return 1
+    end
+end
+
+--- @alias slick.geometry.pointLessFunc fun(a: slick.geometry.point, b: slick.geometry.point): boolean
+
+--- @param E number
+--- @return slick.geometry.pointLessFunc
+function point.less(E)
+    local compare = point.compare(E)
+    return function(a, b)
+        return compare(a, b) < 0
     end
 end
 
@@ -169,6 +180,20 @@ end
 function point:divideScalar(other, result)
     result.x = self.x / other
     result.y = self.y / other
+end
+
+--- @return number
+function point:length()
+    return math.sqrt(self.x ^ 2 + self.y ^ 2)
+end
+
+--- Warning does not check for 0 length.
+--- @param result slick.geometry.point
+function point:normalize(result)
+    local length = self:length()
+
+    result.x = self.x / length
+    result.y = self.y / length
 end
 
 return point

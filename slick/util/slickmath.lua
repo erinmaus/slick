@@ -2,16 +2,49 @@ local slickmath = {}
 
 slickmath.EPSILON = 0.01
 
+function slickmath.angle(a, b, c, E)
+    local abx = a.x - b.x
+    local aby = a.y - b.y
+    local cbx = c.x - b.x
+    local cby = c.y - b.y
+
+    local abLength = math.sqrt(abx ^ 2 + aby ^ 2)
+    local cbLength = math.sqrt(cbx ^ 2 + cby ^ 2)
+
+    if slickmath.equal(abLength, 0, E) or slickmath.equal(cbLength, 0, E) then
+        return 0
+    end
+
+    local abNormalX = abx / abLength
+    local abNormalY = aby / abLength
+    local cbNormalX = cbx / cbLength
+    local cbNormalY = cby / cbLength
+
+    local dot = abNormalX * cbNormalX + abNormalY * cbNormalY
+    if not (dot >= -1 and dot <= 1) then
+        return 0
+    end
+
+    return math.acos(dot)
+end
+
+--- @param a slick.geometry.point
+--- @param b slick.geometry.point
+--- @return number
+function slickmath.cross(a, b, c)
+    local left = (a.y - c.y) * (b.x - c.x)
+    local right = (a.x - c.x) * (b.y - c.y)
+
+    return left - right
+end
+
 --- @param a slick.geometry.point
 --- @param b slick.geometry.point
 --- @param c slick.geometry.point
 --- @param E number
 --- @return -1 | 0 | 1
 function slickmath.direction(a, b, c, E)
-    local left = (a.y - c.y) * (b.x - c.x)
-    local right = (a.x - c.x) * (b.y - c.y)
-    local result = left - right
-    
+    local result = slickmath.cross(a, b, c)
     return slickmath.sign(result, E)
 end
 
@@ -40,17 +73,10 @@ end
 
 --- @param a slick.geometry.point
 --- @param b slick.geometry.point
---- @return number
-function slickmath.cross(a, b)
-    return a.x * b.y - a.y * b.x
-end
-
---- @param a slick.geometry.point
---- @param b slick.geometry.point
 --- @param c slick.geometry.point
 --- @param d slick.geometry.point
 --- @param E number
---- @return boolean, number?, number?
+--- @return boolean, number?, number?, number?, number?
 function slickmath.intersection(a, b, c, d, E)
     local bax = b.x - a.x
     local bay = b.y - a.y
@@ -68,11 +94,11 @@ function slickmath.intersection(a, b, c, d, E)
         local cbx = c.x - b.x
         local cby = c.y - b.y
 
-        return slickmath.sign(cax, E) ~= slickmath.sign(cbx, E) or slickmath.sign(cay, E) ~= slickmath.sign(cby, E), nil, nul
+        return slickmath.sign(cax, E) ~= slickmath.sign(cbx, E) or slickmath.sign(cay, E) ~= slickmath.sign(cby, E), nil, nil, nil, nil
     end
 
     if slickmath.equal(baCrossDc, 0, E) then
-        return false, nil, nil
+        return false, nil, nil, nil, nil
     end
 
     local p = 1 / baCrossDc
@@ -80,10 +106,10 @@ function slickmath.intersection(a, b, c, d, E)
     local v = caCrossDc * p
 
     if u > -E and u < (1 + E) and v > -E and v < (1 + E) then
-        return true, a.x + v * bax, a.y + v * bay
+        return true, a.x + v * bax, a.y + v * bay, u, v
     end
 
-    return false, nil, nil
+    return false, nil, nil, nil, nil
 end
 
 --- @param value number
