@@ -34,8 +34,8 @@ do
                 lastIndex = #result.points / 2
             else
                 if mode == "shape" or mode == "hole" then
-                    table.insert(result.points, lastIndex)
-                    table.insert(result.points, startIndex)
+                    table.insert(result.edges, lastIndex)
+                    table.insert(result.edges, startIndex)
                 end
 
                 mode = line:lower()
