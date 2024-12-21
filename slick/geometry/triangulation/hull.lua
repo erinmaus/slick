@@ -31,7 +31,7 @@ end
 function hull.sweep(hull, sweep)
     local direction
 
-    if slickmath.less(hull.a.x, sweep.data.a.x) then
+    if hull.a.x < sweep.data.a.x then
         direction = slickmath.direction(hull.a, hull.b, sweep.data.a)
     else
         direction = slickmath.direction(sweep.data.b, sweep.data.a, hull.a)
@@ -41,7 +41,7 @@ function hull.sweep(hull, sweep)
         return direction
     end
 
-    if slickmath.less(sweep.data.b.x, hull.b.x) then
+    if sweep.data.b.x < hull.b.x then
         direction = slickmath.direction(hull.a, hull.b, sweep.data.b)
     else
         direction = slickmath.direction(sweep.data.b, sweep.data.a, hull.b)

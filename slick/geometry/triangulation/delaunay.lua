@@ -147,8 +147,18 @@ end
 
 --- @param e slick.geometry.triangulation.delaunaySortedEdge
 --- @param x number
+--- @return slick.util.search.compareResult
 local function _compareSortedEdgeX(e, x)
     return slickmath.sign(e.segment:right() - x)
+end
+
+--- @param e slick.geometry.triangulation.delaunaySortedEdge
+--- @param p slick.geometry.point
+--- @return slick.util.search.compareResult
+local function _compareSortedEdgePoint(e, p)
+    local left = e.segment:left()
+    
+    return slickmath.sign(left - p.x)
 end
 
 --- @param t { epsilon?: number }?
@@ -221,9 +231,13 @@ function delaunay:_dedupePoints(dissolve, userdata)
             self.dissolve:init(sortedPoint.point, sortedPoint.id, userdata and userdata[sortedPoint.id])
             dissolve(self.dissolve)
 
+            local start = search.lessThan(sortedEdges, nextPoint.point, _compareSortedEdgePoint) + 1
+            local stop = search.greaterThan(sortedEdges, nextPoint.point, _compareSortedEdgePoint, start) - 1
+
             local pointIndex = nextPoint.id
-            for j = #edges, 1, -1 do
-                local e = edges[j]
+            for i = stop, start, -1 do
+                local sortedEdge = sortedEdges[i]
+                local e = sortedEdge.edge
 
                 if e.a == pointIndex or e.b == pointIndex then
                     local sortedEdgeStart, sortedEdgeStop
@@ -322,14 +336,14 @@ function delaunay:_dedupeEdges()
     local index = 1
     while index < #sortedEdges do
         local e = sortedEdges[index]
-
+        
         local start = index
         local stop = search.last(sortedEdges, e, delaunaySortedEdge.compare, start)
-
+        
         for i = stop, start + 1, -1 do
             self.sortedEdgesPool:deallocate(table.remove(sortedEdges, i))
         end
-
+        
         index = index + 1
     end
 
@@ -341,10 +355,46 @@ local function _greater(a, b)
 end
 
 --- @private
+function delaunay:_splitEdgesAgainstPoints()
+    local points = self.points
+    local sortedPoints = self.sortedPoints
+    local edges = self.edges
+    local sortedEdges = self.sortedEdges
+
+    for i = 1, #sortedPoints do
+        local sortedPoint = sortedPoints[i]
+
+        local start = search.lessThan(sortedEdges, sortedPoint.point, _compareSortedEdgePoint) + 1
+        local stop = search.greaterThan(sortedEdges, sortedPoint.point, _compareSortedEdgePoint, start) - 1
+
+        for i = stop, start, -1 do
+            local sortedEdge = sortedEdges[i]
+            local e = sortedEdge.edge
+            local a = points[e.a]
+            local b = points[e.b]
+
+            if e.a ~= sortedPoint.id and e.b ~= sortedPoint.id then
+                local intersection, x, y = slickmath.intersection(a, b, sortedPoint.point, sortedPoint.point)
+                if intersection and not (x and y) then
+                    local newEdge1 = self:_newEdge(e.a, sortedPoint.id)
+                    local newEdge2 = self:_newEdge(sortedPoint.id, e.b)
+
+                    local index = search.first(edges, e, edge.compare)
+                    table.remove(edges, index)
+
+                    table.insert(edges, search.lessThan(edges, newEdge1, edge.compare) + 1, newEdge1)
+                    table.insert(edges, search.lessThan(edges, newEdge2, edge.compare) + 1, newEdge2)
+                end
+            end
+        end
+    end
+end
+
+--- @private
 --- @param intersect slick.geometry.triangulation.intersectFunction
 --- @param userdata any[]?
 --- @return boolean
-function delaunay:_stepClean(intersect, userdata)
+function delaunay:_splitEdgesAgainstEdges(intersect, userdata)
     local isDirty = false
 
     local points = self.points
@@ -358,31 +408,6 @@ function delaunay:_stepClean(intersect, userdata)
     slicktable.clear(temporaryEdges)
     slicktable.clear(pendingEdges)
     slicktable.clear(activeEdges)
-
-    -- Split edges that a point is collinear with
-    for i = 1, #sortedPoints do
-        local sortedPoint = sortedPoints[i]
-        for j = #edges, 1, -1 do
-            local e = edges[j]
-            local a = points[e.a]
-            local b = points[e.b]
-
-            if e.a ~= sortedPoint.id and e.b ~= sortedPoint.id then
-                local intersection, x, y = slickmath.intersection(a, b, sortedPoint.point, sortedPoint.point)
-                if intersection and not (x and y) then
-                    isDirty = true
-
-                    local newEdge1 = self:_newEdge(e.a, sortedPoint.id)
-                    local newEdge2 = self:_newEdge(sortedPoint.id, e.b)
-
-                    table.insert(temporaryEdges, newEdge1)
-                    table.insert(temporaryEdges, newEdge2)
-
-                    table.insert(pendingEdges, j)
-                end
-            end
-        end
-    end
 
     local rightEdge = sortedEdges[1] and sortedEdges[1].segment:right() or math.huge
     table.insert(activeEdges, sortedEdges[1])
@@ -558,21 +583,26 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
     repeat
         continue = false
 
-        self:_dedupePoints(dissolveFunc, userdata)
-        self:_dedupeEdges()
+        if self:_dedupePoints(dissolveFunc, userdata) then
+            self:_splitEdgesAgainstPoints()
+        end
 
-        continue = self:_stepClean(intersectFunc, userdata)
+        self:_dedupeEdges()
+        continue = self:_splitEdgesAgainstEdges(intersectFunc, userdata)
     until not continue
 
     table.sort(self.sortedPoints, _lessSortedPointID)
 
     outPoints = outPoints or {}
     outEdges = outEdges or {}
-    outUserdata = outUserdata or {}
 
     slicktable.clear(outPoints)
     slicktable.clear(outEdges)
-    slicktable.clear(outUserdata)
+
+    if userdata then
+        outUserdata = outUserdata or {}
+        slicktable.clear(outUserdata)
+    end
 
     local currentPointIndex = 1
     for i = 1, #self.sortedPoints do
@@ -583,7 +613,7 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
         table.insert(outPoints, sortedPoint.point.x)
         table.insert(outPoints, sortedPoint.point.y)
 
-        if userdata then
+        if userdata and outUserdata then
             table.insert(outUserdata, userdata[sortedPoint.id])
         end
     end
@@ -1378,8 +1408,6 @@ function delaunay:reset()
     slicktable.clear(self.sortedEdges)
     slicktable.clear(self.sweeps)
     slicktable.clear(self.hulls)
-    
-    self.sortedEdgeCount = 0
     
     self.triangulation.n = 0
     slicktable.clear(self.triangulation.sorted)

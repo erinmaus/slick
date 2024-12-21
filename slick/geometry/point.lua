@@ -28,17 +28,12 @@ end
 --- @param b slick.geometry.point
 --- @return slick.util.search.compareResult
 function point.compare(a, b)
-    if slickmath.less(a.x, b.x) then
-        return -1
-    elseif slickmath.equal(a.x, b.x) then
-        if slickmath.less(a.y, b.y) then
-            return -1
-        elseif slickmath.equal(a.y, b.y) then
-            return 0
-        end
+    local result = slickmath.sign(a.x - b.x)
+    if result ~= 0 then
+        return result
     end
 
-    return 1
+    return slickmath.sign(a.y - b.y)
 end
 
 --- @param a slick.geometry.point
@@ -71,7 +66,7 @@ end
 --- @param other slick.geometry.point
 --- @return boolean
 function point:equal(other)
-    return slickmath.equal(self.x, other.x) and slickmath.equal(self.y, other.y)
+    return self.x == other.x and self.y == other.y
 end
 
 --- @param other slick.geometry.point
@@ -83,8 +78,7 @@ end
 --- @param other slick.geometry.point
 --- @return boolean
 function point:greaterThan(other)
-    return slickmath.greater(self.x, other.x) or 
-           (slickmath.equal(self.x, other.x) and slickmath.greater(self.y, other.y))
+    return self.x > other.x or (self.x == other.x and self.y > other.y)
 end
 
 --- @param other slick.geometry.point
@@ -96,8 +90,7 @@ end
 --- @param other slick.geometry.point
 --- @return boolean
 function point:lessThan(other)
-    return slickmath.less(self.x, other.x) or
-           (slickmath.equal(self.x, other.x) and slickmath.less(self.y, other.y))
+    return self.x < other.x or (self.x == other.x and self.y < other.y)
 end
 
 --- @param other slick.geometry.point

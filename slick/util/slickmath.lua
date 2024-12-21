@@ -11,7 +11,7 @@ function slickmath.angle(a, b, c)
     local abLength = math.sqrt(abx ^ 2 + aby ^ 2)
     local cbLength = math.sqrt(cbx ^ 2 + cby ^ 2)
 
-    if slickmath.equal(abLength, 0) or slickmath.equal(cbLength, 0) then
+    if abLength == 0 or cbLength == 0 then
         return 0
     end
 
@@ -141,34 +141,13 @@ end
 --- @param value number
 --- @return -1 | 0 | 1
 function slickmath.sign(value)
-    if slickmath.greater(value, 0) then
+    if value > 0 then
         return 1
-    elseif slickmath.less(value, 0) then
+    elseif value < 0 then
         return -1
     end
-
+    
     return 0
-end
-
---- @param a number
---- @param b number
---- @return boolean
-function slickmath.equal(a, b)
-    return a == b
-end
-
---- @param a number
---- @param b number
---- @return boolean
-function slickmath.greater(a, b)
-    return a > b
-end
-
---- @param a number
---- @param b number
---- @return boolean
-function slickmath.less(a, b)
-    return a < b
 end
 
 --- @param min number
