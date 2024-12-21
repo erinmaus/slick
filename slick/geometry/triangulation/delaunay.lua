@@ -514,41 +514,6 @@ function delaunay:_stepClean(intersect, userdata)
     return isDirty
 end
 
-function delaunay:_debugVerify(points, edges)
-    for i = 1, #points, 2 do
-        for j = i + 2, #points, 2 do
-            local ax, ay = unpack(points, i, i + 1)
-            local bx, by = unpack(points, j, j + 1)
-
-            local a = self:_newPoint(ax, ay)
-            local b = self:_newPoint(bx, by)
-
-            assert(a:distance(b) > self.epsilon)
-        end
-    end
-
-    for i = 1, #edges, 2 do
-        local a1, a2 = unpack(edges, i, i + 1)
-        assert(a1 ~= a2)
-
-        for j = i + 2, #edges, 2 do
-            local b1, b2 = unpack(edges, j, j + 1)
-            assert(b1 ~= b2)
-
-            if a1 ~= b1 and a1 ~= b2 and a2 ~= b1 and a2 ~= b2 then
-                local p1 = self:_newPoint(points[(a1 - 1) * 2 + 1], points[(a1 - 1) * 2 + 2])
-                local p2 = self:_newPoint(points[(a2 - 1) * 2 + 1], points[(a2 - 1) * 2 + 2])
-                local p3 = self:_newPoint(points[(b1 - 1) * 2 + 1], points[(b1 - 1) * 2 + 2])
-                local p4 = self:_newPoint(points[(b2 - 1) * 2 + 1], points[(b2 - 1) * 2 + 2])
-
-                local i, x, y, u, v = slickmath.intersection(p1, p2, p3, p4)
-
-                assert(not i)
-            end
-        end
-    end
-end
-
 --- @param points number[]
 --- @param edges number[]
 --- @param userdata any[]?
@@ -639,8 +604,6 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
             table.insert(outEdges, pointB.newID)
         end
     end
-
-    self:_debugVerify(outPoints, outEdges)
 
     return outPoints, outEdges, outUserdata
 end
@@ -738,8 +701,10 @@ function delaunay:_sweep()
             a, b = b, a
         end
 
-        self:_addSweep(sweep.TYPE_EDGE_START, self:_newSegment(a, b), i)
-        self:_addSweep(sweep.TYPE_EDGE_STOP, self:_newSegment(b, a), i)
+        if a.x ~= b.x then
+            self:_addSweep(sweep.TYPE_EDGE_START, self:_newSegment(a, b), i)
+            self:_addSweep(sweep.TYPE_EDGE_STOP, self:_newSegment(b, a), i)
+        end
     end
 
     table.sort(self.sweeps, sweep.less)

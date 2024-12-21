@@ -176,7 +176,7 @@ end
 --- @param other slick.geometry.point
 --- @return number
 function point:distance(other)
-    return math.sqrt((self.x - other.x) ^ 2 + (self.x - other.x) ^ 2)
+    return math.sqrt((self.x - other.x) ^ 2 + (self.y - other.y) ^ 2)
 end
 
 --- Warning does not check for 0 length.
