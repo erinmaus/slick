@@ -320,7 +320,7 @@ function delaunay:_dedupeEdges()
             table.remove(edges, index)
         else
             local start = index
-            local stop = search.last(edges, e, edge.compare, start)
+            local stop = search.last(edges, e, edge.compare) or start
 
             for i = stop, start + 1, -1 do
                 table.remove(edges, i)
@@ -429,7 +429,6 @@ function delaunay:_splitEdgesAgainstEdges(intersect, userdata)
         
         local intersected = false
         for j, otherEdge in ipairs(activeEdges) do
-            
             local overlaps = selfEdge.segment:overlap(otherEdge.segment)
             local connected = (selfEdge.edge.a == otherEdge.edge.a or selfEdge.edge.a == otherEdge.edge.b or selfEdge.edge.b == otherEdge.edge.a or selfEdge.edge.b == otherEdge.edge.b)
             
@@ -438,14 +437,8 @@ function delaunay:_splitEdgesAgainstEdges(intersect, userdata)
                 local b1 = points[selfEdge.edge.b]
                 local a2 = points[otherEdge.edge.a]
                 local b2 = points[otherEdge.edge.b]
-
-                assert(a1:equal(selfEdge.segment.a) or a1:equal(selfEdge.segment.b))
-                assert(b1:equal(selfEdge.segment.a) or b1:equal(selfEdge.segment.b))
-                assert(a2:equal(otherEdge.segment.a) or a2:equal(otherEdge.segment.b))
-                assert(b2:equal(otherEdge.segment.a) or b2:equal(otherEdge.segment.b))
                 
                 local intersection, x, y, u, v = slickmath.intersection(a1, b1, a2, b2)
-
                 if intersection and x and y and u and v then
 
                     intersected = true
@@ -589,6 +582,8 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
 
         self:_dedupeEdges()
         continue = self:_splitEdgesAgainstEdges(intersectFunc, userdata)
+
+        print("step...", "edges", #self.sortedEdges, "pts", #self.sortedPoints)
     until not continue
 
     table.sort(self.sortedPoints, _lessSortedPointID)

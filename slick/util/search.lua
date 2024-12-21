@@ -102,11 +102,9 @@ end
 --- @param stop number?
 --- @return number?
 function search.last(array, value, compare, start, stop)
-    local result = upper(array, value, compare, start, stop)
-    result = (result and result - 1) or stop or #array
+    local result = search.greaterThan(array, value, compare, start, stop) - 1
 
-    local minimum = start or 1
-    if result < minimum then
+    if result < (start or 1) then
         return nil
     end
 
@@ -157,7 +155,7 @@ function search.lessThanEqual(array, value, compare, start, stop)
     return result
 end
 
---- Finds the first value less greater than `value` and returns the index of that value
+--- Finds the first value greater than `value` and returns the index of that value
 --- @generic T
 --- @generic O
 --- @param array T[]
