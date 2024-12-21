@@ -11,8 +11,12 @@ local metatable = {
     end
 }
 
-function point.new()
-    return setmetatable({ x = 0, y = 0 }, metatable)
+
+--- @param x number?
+--- @param y number?
+--- @return slick.geometry.point
+function point.new(x, y)
+    return setmetatable({ x = x or 0, y = y or 0 }, metatable)
 end
 
 function point:init(x, y)
@@ -20,44 +24,34 @@ function point:init(x, y)
     self.y = y
 end
 
---- @alias slick.geometry.pointCompareFunc fun(a: slick.geometry.point, b: slick.geometry.point): slick.util.search.compareResult
-
---- @param E number
---- @return slick.geometry.pointCompareFunc
-function point.compare(E)
-    --- @param a slick.geometry.point
-    --- @param b slick.geometry.point
-    return function(a, b)
-        if slickmath.less(a.x, b.x, E) then
+--- @param a slick.geometry.point
+--- @param b slick.geometry.point
+--- @return slick.util.search.compareResult
+function point.compare(a, b)
+    if slickmath.less(a.x, b.x) then
+        return -1
+    elseif slickmath.equal(a.x, b.x) then
+        if slickmath.less(a.y, b.y) then
             return -1
-        elseif slickmath.equal(a.x, b.x, E) then
-            if slickmath.less(a.y, b.y, E) then
-                return -1
-            elseif slickmath.equal(a.y, b.y, E) then
-                return 0
-            end
+        elseif slickmath.equal(a.y, b.y) then
+            return 0
         end
-
-        return 1
     end
+
+    return 1
 end
 
---- @alias slick.geometry.pointLessFunc fun(a: slick.geometry.point, b: slick.geometry.point): boolean
-
---- @param E number
---- @return slick.geometry.pointLessFunc
-function point.less(E)
-    local compare = point.compare(E)
-    return function(a, b)
-        return compare(a, b) < 0
-    end
+--- @param a slick.geometry.point
+--- @param b slick.geometry.point
+--- @return boolean
+function point.less(a, b)
+    return point.compare(a, b) < 0
 end
 
 --- @param other slick.geometry.point
---- @param E number
 --- @return slick.geometry.point
-function point:higher(other, E)
-    if self:greaterThan(other, E) then
+function point:higher(other)
+    if self:greaterThan(other) then
         return self
     end
 
@@ -65,10 +59,9 @@ function point:higher(other, E)
 end
 
 --- @param other slick.geometry.point
---- @param E number
 --- @return slick.geometry.point
-function point:lower(other, E)
-    if self:lessThan(other, E) then
+function point:lower(other)
+    if self:lessThan(other) then
         return self
     end
 
@@ -76,54 +69,47 @@ function point:lower(other, E)
 end
 
 --- @param other slick.geometry.point
---- @param E number
 --- @return boolean
-function point:equal(other, E)
-    return slickmath.equal(self.x, other.x, E) and slickmath.equal(self.y, other.y, E)
+function point:equal(other)
+    return slickmath.equal(self.x, other.x) and slickmath.equal(self.y, other.y)
 end
 
 --- @param other slick.geometry.point
---- @param E number
 --- @return boolean
-function point:notEqual(other, E)
-    return not point:equal(other, E)
+function point:notEqual(other)
+    return not point:equal(other)
 end
 
 --- @param other slick.geometry.point
---- @param E number
 --- @return boolean
-function point:greaterThan(other, E)
-    return slickmath.greater(self.x, other.x, E) or 
-           (slickmath.equal(self.x, other.x, E) and slickmath.greater(self.y, other.y, E))
+function point:greaterThan(other)
+    return slickmath.greater(self.x, other.x) or 
+           (slickmath.equal(self.x, other.x) and slickmath.greater(self.y, other.y))
 end
 
 --- @param other slick.geometry.point
---- @param E number
 --- @return boolean
-function point:greaterThanEqual(other, E)
-    return self:greaterThan(other, E) or self:equal(other, E)
+function point:greaterThanEqual(other)
+    return self:greaterThan(other) or self:equal(other)
 end
 
 --- @param other slick.geometry.point
---- @param E number
 --- @return boolean
-function point:lessThan(other, E)
-    return slickmath.less(self.x, other.x, E) or
-           (slickmath.equal(self.x, other.x, E) and slickmath.less(self.y, other.y, E))
+function point:lessThan(other)
+    return slickmath.less(self.x, other.x) or
+           (slickmath.equal(self.x, other.x) and slickmath.less(self.y, other.y))
 end
 
 --- @param other slick.geometry.point
---- @param E number
 --- @return boolean
-function point:lessThanOrEqual(other, E)
-    return self:lessThan(other, E) or self:equal(other, E)
+function point:lessThanOrEqual(other)
+    return self:lessThan(other) or self:equal(other)
 end
 
 --- @param segment slick.geometry.segment
---- @param E number
 --- @return boolean left true if this point is to the left of segment, false otherwise
-function point:left(segment, E)
-    return slickmath.direction(segment.a, segment.b, self, E) < 0
+function point:left(segment)
+    return slickmath.direction(segment.a, segment.b, self) < 0
 end
 
 --- @param other slick.geometry.point
@@ -185,6 +171,12 @@ end
 --- @return number
 function point:length()
     return math.sqrt(self.x ^ 2 + self.y ^ 2)
+end
+
+--- @param other slick.geometry.point
+--- @return number
+function point:distance(other)
+    return math.sqrt((self.x - other.x) ^ 2 + (self.x - other.x) ^ 2)
 end
 
 --- Warning does not check for 0 length.

@@ -2,7 +2,7 @@ local slickmath = {}
 
 slickmath.EPSILON = 0.01
 
-function slickmath.angle(a, b, c, E)
+function slickmath.angle(a, b, c)
     local abx = a.x - b.x
     local aby = a.y - b.y
     local cbx = c.x - b.x
@@ -11,7 +11,7 @@ function slickmath.angle(a, b, c, E)
     local abLength = math.sqrt(abx ^ 2 + aby ^ 2)
     local cbLength = math.sqrt(cbx ^ 2 + cby ^ 2)
 
-    if slickmath.equal(abLength, 0, E) or slickmath.equal(cbLength, 0, E) then
+    if slickmath.equal(abLength, 0) or slickmath.equal(cbLength, 0) then
         return 0
     end
 
@@ -41,11 +41,10 @@ end
 --- @param a slick.geometry.point
 --- @param b slick.geometry.point
 --- @param c slick.geometry.point
---- @param E number
 --- @return -1 | 0 | 1
-function slickmath.direction(a, b, c, E)
+function slickmath.direction(a, b, c)
     local result = slickmath.cross(a, b, c)
-    return slickmath.sign(result, E)
+    return slickmath.sign(result)
 end
 
 --- Checks if `d` is inside the circumscribed circle created by `a`, `b`, and `c`
@@ -53,9 +52,8 @@ end
 --- @param b slick.geometry.point
 --- @param c slick.geometry.point
 --- @param d slick.geometry.point
---- @param E number
 --- @return -1 | 0 | 1
-function slickmath.inside(a, b, c, d, E)
+function slickmath.inside(a, b, c, d)
     local ax = a.x - d.x
     local ay = a.y - d.y
     local bx = b.x - d.x
@@ -68,57 +66,84 @@ function slickmath.inside(a, b, c, d, E)
     local k = (cx * cx + cy * cy) * (ax * by - bx * ay)
     local result = i - j + k
     
-    return slickmath.sign(result, E)
+    return slickmath.sign(result)
+end
+
+local function _collinear(a, b, c, d)
+    local abl = math.min(a, b)
+    local abh = math.max(a, b)
+
+    local cdl = math.min(c, d)
+    local cdh = math.max(c, d)
+
+    if cdh < abl or abh < cdl then
+        return false
+    end
+
+    return true
 end
 
 --- @param a slick.geometry.point
 --- @param b slick.geometry.point
 --- @param c slick.geometry.point
 --- @param d slick.geometry.point
---- @param E number
 --- @return boolean, number?, number?, number?, number?
-function slickmath.intersection(a, b, c, d, E)
+function slickmath.intersection(a, b, c, d)
+    local acdSign = slickmath.direction(a, c, d)
+    local bcdSign = slickmath.direction(b, c, d)
+    if (acdSign < 0 and bcdSign < 0) or (acdSign > 0 and bcdSign > 0) then
+        return false
+    end
+    
+    local cabSign = slickmath.direction(c, a, b)
+    local dabSign = slickmath.direction(d, a, b)
+    if (cabSign < 0 and dabSign < 0) or (cabSign > 0 and dabSign > 0) then
+        return false
+    end
+
+    if acdSign == 0 and bcdSign == 0 and cabSign == 0 and dabSign == 0 then
+        return _collinear(a.x, b.x, c.x, d.x) and _collinear(a.y, b.y, c.y, d.y)
+    end
+
     local bax = b.x - a.x
     local bay = b.y - a.y
     local dcx = d.x - c.x
     local dcy = d.y - c.y
 
-    local cax = c.x - a.x
-    local cay = c.y - a.y
-
-    local caCrossBa = cax * bay - cay * bax
-    local caCrossDc = cax * dcy - cay * dcx
-    local baCrossDc = bax * dcy - bay * dcx
-
-    if slickmath.equal(caCrossBa, 0, E) then
-        local cbx = c.x - b.x
-        local cby = c.y - b.y
-
-        return slickmath.sign(cax, E) ~= slickmath.sign(cbx, E) or slickmath.sign(cay, E) ~= slickmath.sign(cby, E), nil, nil, nil, nil
+    local baCrossDC = bax * dcy - bay * dcx
+    local dcCrossBA = dcx * bay - dcy * bax
+    if baCrossDC == 0 or dcCrossBA == 0 then
+        return false
     end
 
-    if slickmath.equal(baCrossDc, 0, E) then
-        return false, nil, nil, nil, nil
+    local acx = a.x - c.x
+    local acy = a.y - c.y
+
+    local bdx = c.x - a.x
+    local bdy = c.y - a.y
+
+    local dcCrossAC = dcx * acy - dcy * acx
+    local dcCrossCA = dcx * bdy - dcy * bdx
+
+    local u = dcCrossAC / baCrossDC
+    local v = dcCrossCA / dcCrossBA
+
+    if u < 0 or u > 1 or v < 0 or v > 1 then
+        return false
     end
 
-    local p = 1 / baCrossDc
-    local u = caCrossBa * p 
-    local v = caCrossDc * p
+    local rx = a.x + bax * u
+    local ry = a.y + bay * u
 
-    if u > -E and u < (1 + E) and v > -E and v < (1 + E) then
-        return true, a.x + v * bax, a.y + v * bay, u, v
-    end
-
-    return false, nil, nil, nil, nil
+    return true, rx, ry, u, v
 end
 
 --- @param value number
---- @param E number
 --- @return -1 | 0 | 1
-function slickmath.sign(value, E)
-    if slickmath.greater(value, 0, E) then
+function slickmath.sign(value)
+    if slickmath.greater(value, 0) then
         return 1
-    elseif slickmath.less(value, 0, E) then
+    elseif slickmath.less(value, 0) then
         return -1
     end
 
@@ -127,26 +152,23 @@ end
 
 --- @param a number
 --- @param b number
---- @param E number
 --- @return boolean
-function slickmath.equal(a, b, E)
-    return math.abs(a - b) < E
+function slickmath.equal(a, b)
+    return a == b
 end
 
 --- @param a number
 --- @param b number
---- @param E number
 --- @return boolean
-function slickmath.greater(a, b, E)
-    return a > b + E
+function slickmath.greater(a, b)
+    return a > b
 end
 
 --- @param a number
 --- @param b number
---- @param E number
 --- @return boolean
-function slickmath.less(a, b, E)
-    return a < b - E
+function slickmath.less(a, b)
+    return a < b
 end
 
 --- @param min number

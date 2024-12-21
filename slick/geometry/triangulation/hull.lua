@@ -18,45 +18,40 @@ function hull.new()
     }, metatable)
 end
 
---- @alias slick.geometry.triangulation.hullPointCompareFunc fun(hull: slick.geometry.triangulation.hull, point: slick.geometry.point): slick.util.search.compareResult
---- @alias slick.geometry.triangulation.hullSweepCompareFunc fun(hull: slick.geometry.triangulation.hull, sweep: slick.geometry.triangulation.sweep): slick.util.search.compareResult
-
---- @param E number
---- @return slick.geometry.triangulation.hullPointCompareFunc
-function hull.point(E)
-    return function(hull, point)
-        return slickmath.direction(hull.a, hull.b, point, E)
-    end
+--- @param hull slick.geometry.triangulation.hull
+--- @param point slick.geometry.point
+--- @return slick.util.search.compareResult
+function hull.point(hull, point)
+    return slickmath.direction(hull.a, hull.b, point)
 end
 
---- @param E number
---- @return slick.geometry.triangulation.hullSweepCompareFunc
-function hull.sweep(E)
-    return function(hull, sweep)
-        local direction
+--- @param hull slick.geometry.triangulation.hull
+--- @param sweep slick.geometry.triangulation.sweep
+--- @return slick.util.search.compareResult
+function hull.sweep(hull, sweep)
+    local direction
 
-        if slickmath.less(hull.a.x, sweep.data.a.x, E) then
-            direction = slickmath.direction(hull.a, hull.b, sweep.data.a, E)
-        else
-            direction = slickmath.direction(sweep.data.b, sweep.data.a, hull.a, E)
-        end
-
-        if direction ~= 0 then
-            return direction
-        end
-
-        if slickmath.less(sweep.data.b.x, hull.b.x, E) then
-            direction = slickmath.direction(hull.a, hull.b, sweep.data.b, E)
-        else
-            direction = slickmath.direction(sweep.data.b, sweep.data.a, hull.b, E)
-        end
-
-        if direction ~= 0 then
-            return direction
-        end
-
-        return hull.index - sweep.index
+    if slickmath.less(hull.a.x, sweep.data.a.x) then
+        direction = slickmath.direction(hull.a, hull.b, sweep.data.a)
+    else
+        direction = slickmath.direction(sweep.data.b, sweep.data.a, hull.a)
     end
+
+    if direction ~= 0 then
+        return direction
+    end
+
+    if slickmath.less(sweep.data.b.x, hull.b.x) then
+        direction = slickmath.direction(hull.a, hull.b, sweep.data.b)
+    else
+        direction = slickmath.direction(sweep.data.b, sweep.data.a, hull.b)
+    end
+
+    if direction ~= 0 then
+        return direction
+    end
+
+    return hull.index - sweep.index
 end
 
 --- @param a slick.geometry.point

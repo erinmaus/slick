@@ -17,6 +17,10 @@ end
 
 do
     local basePath = PATH:gsub("%.", "/")
+    if basePath == "" then
+        basePath = "."
+    end
+
     local pathPrefix = string.format("%s/?.lua;%s/?/init.lua", basePath, basePath)
 
     local oldLuaPath = package.path

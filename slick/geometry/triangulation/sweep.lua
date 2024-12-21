@@ -39,34 +39,29 @@ local function _getPointFromData(data)
     assert(false, "expected 'slick.geometry.point' or 'slick.geometry.segment'")
 end
 
---- @alias slick.geometry.triangulation.sweepCompareFunc fun(a: slick.geometry.triangulation.sweep, b: slick.geometry.triangulation.sweep): boolean
-
---- @param E number
---- @return slick.geometry.triangulation.sweepCompareFunc
-function sweep.less(E)
-    --- @param a slick.geometry.triangulation.sweep
-    --- @param b slick.geometry.triangulation.sweep
-    return function(a, b)
-        if a.point:lessThan(b.point, E) then
+--- @param a slick.geometry.triangulation.sweep
+--- @param b slick.geometry.triangulation.sweep
+--- @return boolean
+function sweep.less(a, b)
+    if a.point:lessThan(b.point) then
+        return true
+    elseif a.point:equal(b.point) then
+        if a.type < b.type then
             return true
-        elseif a.point:equal(b.point, E) then
-            if a.type < b.type then
-                return true
-            elseif a.type == b.type then
-                if a.type == sweep.TYPE_EDGE_START or a.type == sweep.TYPE_EDGE_STOP then
-                    local direction = slickmath.direction(a.point, b.point, b.data.b, E)
-                    if direction ~= 0 then
-                        return direction < 0
-                    end
+        elseif a.type == b.type then
+            if a.type == sweep.TYPE_EDGE_START or a.type == sweep.TYPE_EDGE_STOP then
+                local direction = slickmath.direction(a.point, b.point, b.data.b)
+                if direction ~= 0 then
+                    return direction < 0
                 end
-                
-                return a.index < b.index
-            else
-                return false
             end
+            
+            return a.index < b.index
         else
             return false
         end
+    else
+        return false
     end
 end
 
