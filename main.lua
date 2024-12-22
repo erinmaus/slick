@@ -1,6 +1,39 @@
 local slick = require("slick")
 
-local shapes = {}
+local shapes = {
+    {
+        name = "custom",
+
+        points = {
+            337, 182,
+            538, 282,
+            589, 208,
+            684, 470,
+            453, 695,
+            173, 518,
+
+            -- Hole
+            365, 261,
+            515, 332,
+            407, 559,
+            278, 452
+        },
+
+        edges = {
+            1, 2,
+            2, 3,
+            3, 4,
+            4, 5,
+            5, 6,
+            6, 1,
+
+            7, 8,
+            8, 9,
+            9, 10,
+            10, 7
+        }
+    }
+}
 do
     local items = love.filesystem.getDirectoryItems("test/data")
 
@@ -62,7 +95,7 @@ local options = {
     polygonization = true
 }
 
-local index = 15
+local index = 1
 local shape, edges
 local triangles, trianglesCount
 local polygons, polygonCount
