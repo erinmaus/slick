@@ -16,6 +16,13 @@ function delaunaySortedPoint.new()
     }, metatable)
 end
 
+--- @param s slick.geometry.triangulation.delaunaySortedPoint
+--- @param p slick.geometry.point
+--- @return slick.util.search.compareResult
+function delaunaySortedPoint.comparePoint(s, p)
+    return point.compare(s.point, p)
+end
+
 --- @param a slick.geometry.triangulation.delaunaySortedPoint
 --- @param b slick.geometry.triangulation.delaunaySortedPoint
 --- @return slick.util.search.compareResult

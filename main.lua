@@ -39,7 +39,9 @@ do
                 end
 
                 mode = line:lower()
-                startIndex = #result.points / 2
+
+                startIndex = #result.points / 2 + 1
+                lastIndex = nil
             end
         end
 
@@ -56,28 +58,28 @@ local minX, minY, maxX, maxY
 local options = {
     refine = true,
     interior = true,
-    exterior = true,
+    exterior = false,
     polygonization = true
 }
 
-local index = 7
+local index = 15
 local shape, edges
 local triangles, trianglesCount
 local polygons, polygonCount
 local time, memory
 
+local triangulator = slick.geometry.triangulation.delaunay.new()
 local function build()
     collectgarbage("stop")
-    local timeBefore = love.timer.getTime()
     local memoryBefore = collectgarbage("count")
-    local triangulator = slick.geometry.triangulation.delaunay.new()
-    shape, edges = triangulator:clean(shapes[index].points, shapes[index].edges)
-    triangles, trianglesCount, polygons, polygonCount = triangulator:triangulate(shape, edges, options)
-    local memoryAfter = collectgarbage("count")
+    local timeBefore = love.timer.getTime()
+    shape, edges = triangulator:clean(shapes[index].points, shapes[index].edges, nil, nil, shape, edges)
+    triangles, trianglesCount, polygons, polygonCount = triangulator:triangulate(shape, edges, options, triangles, polygons)
     local timeAfter = love.timer.getTime()
+    local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
 
-    time = timeAfter - timeBefore
+    time = (timeAfter - timeBefore) * 1000
     memory = memoryAfter - memoryBefore
 
     minX = nil
@@ -199,9 +201,6 @@ function love.draw()
         end
     end
 
-    love.graphics.setColor(0, 1, 0, 1)
-    love.graphics.setLineWidth(1)
-
     if love.keyboard.isDown("e") then
         for i = 1, #edges, 2 do
             local edge1 = edges[i]
@@ -213,7 +212,11 @@ function love.draw()
             local x1, y1 = unpack(shape, edge1, edge1 + 1)
             local x2, y2 = unpack(shape, edge2, edge2 + 1)
 
+            love.graphics.setColor(0, 1, 0, 1)
             love.graphics.line(x1, y1, x2, y2)
+
+            love.graphics.setColor(1, 1, 1, 1)
+            love.graphics.print(edges[i], x1, y1)
         end
     end
     
