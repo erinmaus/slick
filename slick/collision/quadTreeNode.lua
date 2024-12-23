@@ -4,6 +4,7 @@ local slicktable = require("slick.util.slicktable")
 --- @class slick.collision.quadTreeNode
 --- @field tree slick.collision.quadTree
 --- @field level number
+--- @field count number
 --- @field parent slick.collision.quadTreeNode?
 --- @field children slick.collision.quadTreeNode[]
 --- @field data any[]
@@ -17,6 +18,7 @@ function quadTreeNode.new()
     return setmetatable({
         level = 0,
         bounds = rectangle.new(),
+        count = 0,
         children = {},
         data = {},
         uniqueData = {}
@@ -41,7 +43,7 @@ function quadTreeNode:init(tree, parent, x1, y1, x2, y2)
     slicktable.clear(self.uniqueData)
 end
 
---- private
+--- @private
 --- @param parent slick.collision.quadTreeNode?
 --- @param x1 number
 --- @param y1 number
@@ -115,14 +117,6 @@ function quadTreeNode:ascend(func)
     if self.tree.root ~= self then
         self.tree.root:_visit(func, self)
     end
-end
-
-local _depth = 0
-
---- @private
---- @param node slick.collision.quadTreeNode
-function quadTreeNode._collectDepth(node)
-    _depth = math.max(_depth, node.level)
 end
 
 --- Expands this node to fit 'bounds'.
@@ -204,16 +198,19 @@ end
 --- @param data any
 --- @param bounds slick.geometry.rectangle
 function quadTreeNode:insert(data, bounds)
-    if #self.children == 0 and #self.data < self.tree.maxData then
+    if (#self.children == 0 and #self.data < self.tree.maxData) or self.level >= self.tree.maxLevels then
         assert(self.uniqueData[data] == nil, "data is already in node")
 
         self.uniqueData[data] = true
         table.insert(self.data, data)
 
+        self.count = self.count + 1
+
         return
     end
 
     if #self.children == 0 and #self.data >= self.tree.maxData then
+        self.count = 0
         self:split()
     end
 
@@ -222,6 +219,8 @@ function quadTreeNode:insert(data, bounds)
             child:insert(data, bounds)
         end
     end
+
+    self.count = self.count + 1
 end
 
 --- @param data any
@@ -234,10 +233,27 @@ function quadTreeNode:remove(data, bounds)
             end
         end
 
+        self.count = self.count - 1
+
         return
     end
 
     assert(self.uniqueData[data] ~= nil, "data is not in node")
+
+    for i, d in ipairs(self.data) do
+        if d == data then
+            table.remove(self.data, i)
+            self.count = self.count - 1            
+
+            if self.parent and self.parent.count <= self.tree.maxData then
+                self.parent:collapse()
+            end
+
+            return
+        end
+    end
+
+    assert(false, "critical logic error: unique data set and data array de-synced")
 end
 
 --- Splits the node into children nodes.
@@ -272,11 +288,14 @@ function quadTreeNode:split()
 end
 
 local _collectResult = { n = 0, unique = {}, data = {} }
+
+--- @private
+--- @param node slick.collision.quadTreeNode
 function quadTreeNode._collect(node)
     for _, data in ipairs(node.data) do
         if not _collectResult.unique[data] then
             _collectResult.unique[data] = true
-            table.insert(_collectResult, data)
+            table.insert(_collectResult.data, data)
 
             _collectResult.n = _collectResult.n + 1
         end
@@ -307,12 +326,17 @@ function quadTreeNode:collapse()
     if _collectResult.n <= self.tree.maxData then
         self:_snip()
 
-        for _, data in _collectResult.data do
+        for _, data in ipairs(_collectResult.data) do
             self.uniqueData[data] = true
             table.insert(self.data, data)
         end
 
-        self.parent:collapse()
+        self.count = #self.data
+
+        if self.parent and self.parent.count < self.tree.maxData then
+            self.parent:collapse()
+        end
+
         return true
     end
 

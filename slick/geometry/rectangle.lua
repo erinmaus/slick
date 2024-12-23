@@ -54,7 +54,7 @@ end
 --- @param other slick.geometry.rectangle
 --- @return boolean
 function rectangle:overlaps(other)
-    return self:left() <= other:left() and self:right() >= other:left() and
+    return self:left() <= other:right() and self:right() >= other:left() and
            self:top() <= other:bottom() and self:bottom() >= other:top()
 end
 

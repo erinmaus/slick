@@ -25,12 +25,13 @@ local metatable = { __index = quadTree }
 --- @field height number?
 --- @field maxLevels number?
 --- @field maxData number?
+--- @field expand boolean?
 local defaultOptions = {
     x = -1024,
     y = -1024,
     width = 2048,
     height = 2048,
-    maxLevels = 16,
+    maxLevels = 8,
     maxData = 8,
     expand = true
 }
@@ -65,6 +66,24 @@ function quadTree.new(options)
     return result
 end
 
+--- Returns the exact bounds of all data in the quad tree.
+--- @return number x1
+--- @return number y1
+--- @return number x2
+--- @return number y2
+function quadTree:computeExactBounds()
+    local left, right, top, bottom
+
+    for _, r in pairs(self.data) do
+        left = math.min(left or r:left(), r:left())
+        right = math.max(right or r:right(), r:right())
+        top = math.min(top or r:top(), r:top())
+        bottom = math.max(bottom or r:bottom(), r:bottom())
+    end
+
+    return left, top, right, bottom
+end
+
 --- Returns the maximum left of the quad tree.
 --- @return number
 function quadTree:left()
@@ -87,6 +106,13 @@ end
 --- @return number
 function quadTree:bottom()
     return self.bounds:bottom()
+end
+
+--- Returns true if quad tree has `data`
+--- @param data any
+--- @return boolean
+function quadTree:has(data)
+    return self.data[data] ~= nil
 end
 
 --- @private
@@ -177,8 +203,8 @@ function quadTree:insert(data, a, b, c, d)
     local r = _getRectangle(a, b, c, d)
     self:_tryExpand(r)
 
+    self.data[data] = self:_newRectangle(r:left(), r:top(), r:right(), r:bottom())
     self.root:insert(data, r)
-    self.data[r] = self:_newRectangle(r:left(), r:top(), r:right(), r:bottom())
 end
 
 --- Removes `data` from the tree.
