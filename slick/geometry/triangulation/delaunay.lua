@@ -1565,8 +1565,8 @@ function delaunay:_addPoint(x, y)
 end
 
 --- @private
---- @param a number
---- @param b number
+--- @param edgeA number
+--- @param edgeB number
 function delaunay:_addEdge(edgeA, edgeB)
     local e = self:_newEdge(edgeA, edgeB)
     table.insert(self.edges, search.lessThan(self.edges, e, edge.compare) + 1, e)
