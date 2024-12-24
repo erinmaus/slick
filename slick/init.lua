@@ -1,5 +1,8 @@
 local PATH = (...):gsub("[^%.]+$", "")
 
+--- @module "slick.collision"
+local collision
+
 --- @module "slick.geometry"
 local geometry
 
@@ -10,6 +13,7 @@ local shape
 local util
 
 local function load()
+    collision = require("slick.collision")
     geometry = require("slick.geometry")
     shape = require("slick.shape")
     util = require("slick.util")
@@ -47,6 +51,7 @@ do
 end
 
 return {
+    collision = collision,
     geometry = geometry,
     shape = shape,
     util = util,
