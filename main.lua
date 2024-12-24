@@ -95,11 +95,7 @@ local options = {
     polygonization = true
 }
 
-<<<<<<< HEAD
 local index = 1
-=======
-local index = 7
->>>>>>> 18ade21 (Wrapping up quad trees.)
 local shape, edges
 local triangles, trianglesCount
 local polygons, polygonCount
