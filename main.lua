@@ -34,6 +34,7 @@ local shapes = {
         }
     }
 }
+
 do
     local items = love.filesystem.getDirectoryItems("test/data")
 
@@ -95,11 +96,7 @@ local options = {
     polygonization = true
 }
 
-<<<<<<< HEAD
 local index = 1
-=======
-local index = 7
->>>>>>> 18ade21 (Wrapping up quad trees.)
 local shape, edges
 local triangles, trianglesCount
 local polygons, polygonCount
@@ -108,6 +105,15 @@ local deletedPoints = {}
 
 --- @type slick.collision.quadTree
 local quadTree
+
+--- @type slick.collision.polygon
+local selfPolygon = slick.collision.polygon.new(-50, -50, 100, -50, 100, 100, -50, 100)
+local otherPolygons = {}
+
+local query = slick.collision.shapeCollisionResolutionQuery.new()
+
+local collision = false
+local offset = slick.geometry.point.new()
 
 local triangulator = slick.geometry.triangulation.delaunay.new()
 local function build()
@@ -119,6 +125,23 @@ local function build()
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
+
+    if polygons then
+        slick.util.table.clear(otherPolygons)
+
+        for i = 1, polygonCount do
+            local polygonIndices = polygons[i]
+            local polygonVertices = {}
+
+            for i = 1, #polygonIndices do
+                local x, y = unpack(shape, (polygonIndices[i] - 1) * 2 + 1, (polygonIndices[i] - 1) * 2 + 2)
+                table.insert(polygonVertices, x)
+                table.insert(polygonVertices, y)
+            end
+
+            table.insert(otherPolygons, slick.collision.polygon.new(unpack(polygonVertices)))
+        end
+    end
 
     time = (timeAfter - timeBefore) * 1000
     memory = memoryAfter - memoryBefore
@@ -151,21 +174,26 @@ end
 
 build()
 
-local showPolygons = false
-local showTriangles = true
+local showPolygons = true
+local showTriangles = false
 local showQuadTree = false
 
 function love.keypressed(key)
+    local rebuild = false
+
     if key == "1" then
         options.refine = not options.refine
+        rebuild = true
     end
 
     if key == "2" then
         options.interior = not options.interior
+        rebuild = true
     end
 
     if key == "3" then
         options.exterior = not options.exterior
+        rebuild = true
     end
 
     if key == "t" then
@@ -182,41 +210,67 @@ function love.keypressed(key)
 
     if key == "left" then
         index = ((index - 2) % #shapes) + 1
+        rebuild = true
     end
     
     if key == "right" or key == "space" then
         index = (index % #shapes) + 1
+        rebuild = true
     end
 
-    
-    build()
+    if rebuild then
+        build()
+    end
 end
 
 function love.mousemoved(x, y)
-    if not love.mouse.isDown(1) then
-        return
-    end
-
     local w1 = maxX - minX
     local h1 = maxY - minY
     local w2 = love.graphics.getWidth()
     local h2 = love.graphics.getHeight()
 
-    local tx = x + minX - (w2 - w1) / 2
-    local ty = y + minY - (h2 - h1) / 2
+    local ox = minX - (w2 - w1) / 2
+    local oy = minY - (h2 - h1) / 2
+    local tx = x + ox
+    local ty = y + oy
 
-    local query = slick.collision.quadTreeQuery.new(quadTree)
-    local r = slick.geometry.rectangle.new(tx - 8, ty - 8, tx + 8, ty + 8)
-    if query:perform(r) then
-        for _, hit in ipairs(query.results) do
-            quadTree:remove(hit)
-            deletedPoints[hit] = true
+    local transform = slick.geometry.transform.new(tx, ty)
+    selfPolygon:transform(transform)
+
+    collision = false
+
+    local largestDistance = -math.huge
+    offset:init(0, 0)
+    for i = 1, #otherPolygons do
+        query:perform(selfPolygon, otherPolygons[i], slick.geometry.point.new(), slick.geometry.point.new())
+
+        if query.collision then
+            collision = true
+
+            if query.depth > largestDistance then
+                collision = true
+                largestDistance = query.depth
+                query.normal:multiplyScalar(query.depth, offset)
+                offset.x = offset.x
+                offset.y = offset.y
+            end
+        end
+    end
+
+
+    if love.mouse.isDown(1) then
+        local query = slick.collision.quadTreeQuery.new(quadTree)
+        local r = slick.geometry.rectangle.new(tx - 8, ty - 8, tx + 8, ty + 8)
+        if query:perform(r) then
+            for _, hit in ipairs(query.results) do
+                quadTree:remove(hit)
+                deletedPoints[hit] = true
+            end
         end
     end
 end
 
 function love.draw()
-    love.graphics.push("all")
     love.graphics.print(string.format("%d (%s): %f ms, %f kb", index, shapes[index].name, time, memory), 0, 0)
     love.graphics.print(string.format("%d polygons, %d triangles, %d points", polygonCount or 0, trianglesCount, math.floor(#shape / 2)), 0, 16)
     love.graphics.print(table.concat({
@@ -224,13 +278,14 @@ function love.draw()
         string.format("2) interior? %s", options.interior and "yes" or "no"),
         string.format("3) exterior? %s", options.exterior and "yes" or "no"),
     }, "\n"), 0, 32)
-
+    
     local w1 = maxX - minX
     local h1 = maxY - minY
     local w2 = love.graphics.getWidth()
     local h2 = love.graphics.getHeight()
     
     --love.graphics.translate(w2 / 2, h2 / 2)
+    love.graphics.push("all")
     love.graphics.translate(-minX, -minY)
     love.graphics.translate(w1 / 2, h1 / 2)
     love.graphics.translate((w2 - w1) / 2, (h2 - h1) / 2)
@@ -238,7 +293,7 @@ function love.draw()
     
     love.graphics.setLineJoin("none")
     love.graphics.setLineWidth(1)
-
+    
     if showPolygons then
         for index = 1, polygonCount or 0 do
             local polygon = polygons[index]
@@ -324,7 +379,25 @@ function love.draw()
             love.graphics.circle("fill", x, y, 2)
         end
     end
-
+    
+    do
+        local vertices = {}
+        for i = 1, selfPolygon.vertexCount do
+            table.insert(vertices, selfPolygon.vertices[i].x)
+            table.insert(vertices, selfPolygon.vertices[i].y)
+        end
+        
+        love.graphics.setColor(1, 0.5, 0.0, 0.5)
+        love.graphics.polygon("fill", vertices)
+        
+        if collision then
+            love.graphics.setColor(1, 1, 1, 0.5)
+            love.graphics.push("all")
+            love.graphics.translate(offset.x, offset.y)
+            love.graphics.polygon("line", vertices)
+            love.graphics.pop()
+        end
+    end
     love.graphics.pop()
 end
 

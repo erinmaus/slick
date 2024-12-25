@@ -6,16 +6,12 @@ local collision
 --- @module "slick.geometry"
 local geometry
 
---- @module "slick.shape"
-local shape
-
 --- @module "slick.util"
 local util
 
 local function load()
     collision = require("slick.collision")
     geometry = require("slick.geometry")
-    shape = require("slick.shape")
     util = require("slick.util")
 end
 
@@ -53,6 +49,5 @@ end
 return {
     collision = collision,
     geometry = geometry,
-    shape = shape,
     util = util,
 }
