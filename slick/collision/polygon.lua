@@ -1,27 +1,33 @@
 local point = require("slick.geometry.point")
+local rectangle = require("slick.geometry.rectangle")
 local transform = require("slick.geometry.transform")
 local slickmath = require("slick.util.slickmath")
 
 --- @class slick.collision.polygon
+--- @field entity slick.entity
 --- @field vertexCount number
 --- @field normalCount number
 --- @field center slick.geometry.point
 --- @field vertices slick.geometry.point[]
+--- @field bounds slick.geometry.rectangle
 --- @field private preTransformedVertices slick.geometry.point[]
 --- @field normals slick.geometry.point[]
 --- @field private preTransformedNormals slick.geometry.point[]
 local polygon = {}
 local metatable = { __index = polygon }
 
+--- @param entity slick.entity
 --- @param x1 number
 --- @param y1 number
 --- @param ... number
 --- @return slick.collision.polygon
-function polygon.new(x1, y1, ...)
+function polygon.new(entity, x1, y1, ...)
     local result = setmetatable({
+        entity = entity,
         vertexCount = 0,
         normalCount = 0,
         center = point.new(),
+        bounds = rectangle.new(),
         vertices = {},
         preTransformedVertices = {},
         normals = {},
@@ -109,6 +115,7 @@ end
 --- @param transform slick.geometry.transform
 function polygon:transform(transform)
     self.center:init(0, 0)
+
     for i = 1, self.vertexCount do
         local preTransformedVertex = self.preTransformedVertices[i]
         local postTransformedVertex = self.vertices[i]
@@ -121,6 +128,11 @@ function polygon:transform(transform)
         postTransformedVertex:add(self.center, self.center)
     end
     self.center:divideScalar(self.vertexCount, self.center)
+
+    self.bounds:init(self.vertices[1].x, self.vertices[1].y, self.vertices[1].x, self.vertices[1].y)
+    for i = 2, self.vertexCount do
+        self.bounds:expand(self.vertices[i].x, self.vertices[i].y)
+    end
 
     for i = 1, self.normalCount do
         local preTransformedNormal = self.preTransformedNormals[i]

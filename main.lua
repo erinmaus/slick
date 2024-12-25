@@ -107,7 +107,7 @@ local deletedPoints = {}
 local quadTree
 
 --- @type slick.collision.polygon
-local selfPolygon = slick.collision.polygon.new(-50, -50, 100, -50, 100, 100, -50, 100)
+local selfPolygon = slick.collision.polygon.new(nil, -50, -50, 100, -50, 100, 100, -50, 100)
 local otherPolygons = {}
 
 local query = slick.collision.shapeCollisionResolutionQuery.new()
@@ -256,7 +256,6 @@ function love.mousemoved(x, y)
             end
         end
     end
-
 
     if love.mouse.isDown(1) then
         local query = slick.collision.quadTreeQuery.new(quadTree)

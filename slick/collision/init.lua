@@ -1,14 +1,18 @@
---- @alias slick.collision.shape {
+--- @alias slick.collision.shapeInterface {
+---     entity: slick.entity,
 ---     vertexCount: number,
 ---     normalCount: number,
 ---     center: slick.geometry.point,
 ---     vertices: slick.geometry.point[],
 ---     normals: slick.geometry.point[],
----     transform: fun(self: slick.collision.shape, transform: slick.geometry.transform),
----     getAxes: fun(self: slick.collision.shape, query: slick.collision.shapeCollisionResolutionQueryShape),
----     project: fun(self: slick.collision.shape, query: slick.collision.shapeCollisionResolutionQueryShape, axis: slick.geometry.point, interval: slick.collision.interval)
+---     bounds: slick.geometry.rectangle,
+---     transform: fun(self: slick.collision.shapeInterface, transform: slick.geometry.transform),
+---     getAxes: fun(self: slick.collision.shapeInterface, query: slick.collision.shapeCollisionResolutionQueryShape),
+---     project: fun(self: slick.collision.shapeInterface, query: slick.collision.shapeCollisionResolutionQueryShape, axis: slick.geometry.point, interval: slick.collision.interval)
 --- }
 
+--- @alias slick.collision.shape slick.collision.circle | slick.collision.polygon
+--- @alias slick.collision.shapelike slick.collision.shape | slick.collision.shapeGroup | slick.collision.shapeInterface
 
 local collision = {
     circle = require("slick.collision.circle"),
@@ -16,7 +20,7 @@ local collision = {
     quadTreeNode = require("slick.collision.quadTreeNode"),
     quadTreeQuery = require("slick.collision.quadTreeQuery"),
     polygon = require("slick.collision.polygon"),
-    shapeCollisionResolutionQuery = require("slick.collision.shapeCollisionResolutionQuery")
+    shapeCollisionResolutionQuery = require("slick.collision.shapeCollisionResolutionQuery"),
 }
 
 return collision

@@ -2,6 +2,7 @@ local point = require("slick.geometry.point")
 local transform = require("slick.geometry.transform")
 
 --- @class slick.collision.circle
+--- @field entity slick.entity
 --- @field count number
 --- @field vertices slick.geometry.point[]
 --- @field normals slick.geometry.point[]
@@ -12,12 +13,14 @@ local transform = require("slick.geometry.transform")
 local circle = {}
 local metatable = { __index = circle }
 
+--- @param entity slick.entity
 --- @param x number
 --- @param y number
 --- @param radius number
 --- @return slick.collision.circle
-function circle.new(x, y, radius)
+function circle.new(entity, x, y, radius)
     local result = setmetatable({
+        entity = entity,
         count = 0,
         vertices = {},
         normals = {},

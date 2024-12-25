@@ -5,7 +5,7 @@ local segment = require "slick.geometry.segment"
 local util = require "slick.util"
 
 --- @alias slick.collision.shapeCollisionResolutionQueryShape {
----     shape: slick.collision.shape?,
+---     shape: slick.collision.shapeInterface?,
 ---     axesCount: number,
 ---     axes: slick.geometry.point[],
 ---     interval: slick.collision.interval,
@@ -44,12 +44,12 @@ function shapeCollisionResolutionQuery.new()
     }, metatable)
 end
 
---- @return slick.collision.shape
+--- @return slick.collision.shapeInterface
 function shapeCollisionResolutionQuery:getSelfShape()
     return self.currentShape.shape
 end
 
---- @return slick.collision.shape
+--- @return slick.collision.shapeInterface
 function shapeCollisionResolutionQuery:getOtherShape()
     return self.otherShape.shape
 end
@@ -146,8 +146,8 @@ local _cachedSelfVelocity = point.new()
 local _cachedPendingAxis = point.new()
 local _cachedDirection = point.new()
 
---- @param selfShape slick.collision.shape
---- @param otherShape slick.collision.shape
+--- @param selfShape slick.collision.shapeInterface
+--- @param otherShape slick.collision.shapeInterface
 --- @param selfVelocity slick.geometry.point
 --- @param otherVelocity slick.geometry.point
 function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVelocity, otherVelocity)
@@ -286,7 +286,7 @@ function shapeCollisionResolutionQuery:_handleAxis(axis, velocity)
     return true
 end
 
---- @param shape slick.collision.shape
+--- @param shape slick.collision.shapeInterface
 --- @param point slick.geometry.point
 --- @return slick.geometry.point?
 function shapeCollisionResolutionQuery:getClosestVertex(shape, point)

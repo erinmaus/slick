@@ -51,6 +51,15 @@ function rectangle:bottom()
     return self.bottomRight.y
 end
 
+--- @param x number
+--- @param y number
+function rectangle:expand(x, y)
+    self.topLeft.x = math.min(self.topLeft.x, x)
+    self.topLeft.y = math.min(self.topLeft.y, y)
+    self.bottomRight.x = math.max(self.bottomRight.x, x)
+    self.bottomRight.y = math.max(self.bottomRight.y, y)
+end
+
 --- @param other slick.geometry.rectangle
 --- @return boolean
 function rectangle:overlaps(other)
