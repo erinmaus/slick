@@ -59,7 +59,7 @@ function entity:_updateQuadTree()
     end
 end
 
---- @param ... slick.collision.shapelike
+--- @param ... slick.collision.shapeDefinition
 function entity:setShapes(...)
     if self.world then
         for _, shape in ipairs(self.shapes.shapes) do

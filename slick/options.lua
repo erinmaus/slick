@@ -4,6 +4,7 @@
 --- @field quadTreeX number?
 --- @field quadTreeY number?
 --- @field quadTreeMaxLevels number?
+--- @field quadTreeMaxData number?
 --- @field quadTreeExpand boolean?
 --- @field sharedCache slick.cache?
 local defaultOptions = {

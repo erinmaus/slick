@@ -136,7 +136,7 @@ end
 --- Copies this transform to `other`.
 --- @param other slick.geometry.transform
 function transform:copy(other)
-    assert(not self.immutable)
+    assert(not other.immutable)
 
     other.x = self.x
     other.y = self.y

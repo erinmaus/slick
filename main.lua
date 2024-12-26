@@ -118,6 +118,11 @@ local offset = slick.geometry.point.new()
 local contactPoints = {}
 local queryTime = 0
 
+--- @type slick.world
+local world
+local worldGeometry = {}
+local player = { x = 0, y = 0 }
+
 local triangulator = slick.geometry.triangulation.delaunay.new()
 local function build()
     collectgarbage("stop")
@@ -128,25 +133,6 @@ local function build()
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
-
-    if polygons then
-        slick.util.table.clear(otherPolygons)
-
-        for i = 1, polygonCount do
-            local polygonIndices = polygons[i]
-            local polygonVertices = {}
-
-            for i = 1, #polygonIndices do
-                local x, y = unpack(shape, (polygonIndices[i] - 1) * 2 + 1, (polygonIndices[i] - 1) * 2 + 2)
-                table.insert(polygonVertices, x)
-                table.insert(polygonVertices, y)
-            end
-
-            table.insert(otherPolygons, slick.collision.polygon.new(nil, unpack(polygonVertices)))
-
-            --break
-        end
-    end
 
     time = (timeAfter - timeBefore) * 1000
     memory = memoryAfter - memoryBefore
@@ -175,6 +161,34 @@ local function build()
         
         quadTree:insert(i, x - 1, y - 1, x + 1, y + 1)
     end
+
+    local polygonShapes = {}
+    if polygons then
+        slick.util.table.clear(otherPolygons)
+
+        for i = 1, polygonCount do
+            local polygonIndices = polygons[i]
+            local polygonVertices = {}
+
+            for i = 1, #polygonIndices do
+                local x, y = unpack(shape, (polygonIndices[i] - 1) * 2 + 1, (polygonIndices[i] - 1) * 2 + 2)
+                table.insert(polygonVertices, x)
+                table.insert(polygonVertices, y)
+            end
+
+            local shape = slick.shape.newPolygon(polygonVertices)
+            table.insert(polygonShapes, shape)
+
+            -- break
+        end
+    end
+
+    world = slick.newWorld(
+        maxX - minX + 2048,
+        maxX - minX + 2048,
+        { quadTreeX = minX - 1024, quadTreeY = minY - 1024 })
+    world:add(worldGeometry, 0, 0, slick.shape.newShapeGroup(unpack(polygonShapes)))
+    world:add(player, 0, 0, slick.shape.newPolygon({ 0, 0, 100, 0, 100, 100, 0, 100 }))
 end
 
 build()
@@ -228,7 +242,7 @@ function love.keypressed(key)
     end
 end
 
-function love.mousemoved(x, y)
+function love.mousepressed(x, y, button)
     local w1 = maxX - minX
     local h1 = maxY - minY
     local w2 = love.graphics.getWidth()
@@ -239,10 +253,23 @@ function love.mousemoved(x, y)
     local tx = x + ox
     local ty = y + oy
 
-    if love.mouse.isDown(1) then
-        selfPolygonTransform:setTransform(tx, ty)
-        selfPolygon:transform(selfPolygonTransform)
+    if button == 1 then
+        world:update(player, tx, ty)
+        player.x = tx
+        player.y = ty
     end
+end
+
+function love.mousemoved(x, y)
+    local w1 = maxX - minX
+    local h1 = maxY - minY
+    local w2 = love.graphics.getWidth()
+    local h2 = love.graphics.getHeight()
+
+    local ox = minX - (w2 - w1) / 2
+    local oy = minY - (h2 - h1) / 2
+    local tx = x + ox
+    local ty = y + oy
 
     collision = false
 
@@ -293,6 +320,35 @@ function love.mousemoved(x, y)
                 deletedPoints[hit] = true
             end
         end
+    end
+end
+
+
+function love.update(deltaTime)
+    local normal = slick.geometry.point.new()
+
+    if love.keyboard.isDown("a") then
+        normal.x = normal.x - 1
+    end
+
+    if love.keyboard.isDown("d") then
+        normal.x = normal.x + 1
+    end
+
+    if love.keyboard.isDown("w") then
+        normal.y = normal.y - 1
+    end
+
+    if love.keyboard.isDown("s") then
+        normal.y = normal.y + 1
+    end
+
+    if normal:lengthSquared() > 0 then
+        normal:normalize(normal)
+        normal:multiplyScalar(deltaTime * 100, normal)
+
+        local x, y = player.x + normal.x, player.y + normal.y
+        player.x, player.y = world:move(player, x, y, function() return "slide" end)
     end
 end
 
@@ -409,7 +465,9 @@ function love.draw()
     end
     
     do
+        local selfPolygon = world:get(player).shapes.shapes[1]
         local vertices = {}
+
         for i = 1, selfPolygon.vertexCount do
             table.insert(vertices, selfPolygon.vertices[i].x)
             table.insert(vertices, selfPolygon.vertices[i].y)

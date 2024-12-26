@@ -1,5 +1,6 @@
 local point = require("slick.geometry.point")
 local rectangle = require("slick.geometry.rectangle")
+local segment = require("slick.geometry.segment")
 local transform = require("slick.geometry.transform")
 local slickmath = require("slick.util.slickmath")
 
@@ -156,6 +157,29 @@ end
 --- @param interval slick.collision.interval
 function polygon:project(query, axis, interval)
     query:project(axis, interval)
+end
+
+local _cachedDistanceSegment = segment.new()
+
+--- @param p slick.geometry.point
+function polygon:distance(p)
+    local minDistance = math.huge
+
+    for i = 1, self.vertexCount do
+        local j = i % self.vertexCount + 1
+
+        _cachedDistanceSegment:init(self.vertices[i], self.vertices[j])
+        local distanceSquared = _cachedDistanceSegment:distanceSquared(p)
+        if distanceSquared < minDistance then
+            minDistance = distanceSquared
+        end
+    end
+
+    if minDistance < math.huge then
+        return math.sqrt(minDistance)
+    end
+
+    return math.huge
 end
 
 return polygon

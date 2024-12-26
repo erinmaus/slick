@@ -31,10 +31,6 @@ local SIDE_RIGHT = 1
 --- @field otherOffset slick.geometry.point
 --- @field contactPointsCount number
 --- @field contactPoints slick.geometry.point[]
---- @field currentSegmentCount number
---- @field currentSegments slick.geometry.segment[]
---- @field otherSegmentCount number
---- @field otherSegments slick.geometry.segment[]
 --- @field private firstTime number
 --- @field private lastTime number
 --- @field private currentShape slick.collision.shapeCollisionResolutionQueryShape
@@ -67,10 +63,6 @@ function shapeCollisionResolutionQuery.new()
         contactPoints = { point.new() },
         currentShape = _newQueryShape(),
         otherShape = _newQueryShape(),
-        currentSegmentCount = 0,
-        currentSegments = { segment.new() },
-        otherSegmentCount = 0,
-        otherSegment = { segment.new() }
     }, metatable)
 end
 

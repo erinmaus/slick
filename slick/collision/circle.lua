@@ -64,4 +64,9 @@ function circle:project(query, axis, interval)
     interval:set(d - self.radius, d + self.radius)
 end
 
+--- @param p slick.geometry.point
+function circle:distance(p)
+    return math.max(0, p:distance(self.center) - self.radius)
+end
+
 return circle

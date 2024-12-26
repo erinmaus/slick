@@ -1,19 +1,24 @@
 local cache = require("slick.cache")
-local entity = require("slick.entity")
-local defaultOptions = require("slick.options")
 local quadTree = require("slick.collision.quadTree")
+local entity = require("slick.entity")
 local transform = require("slick.geometry.transform")
-local quadTreeQuery = require("slick.collision.quadTreeQuery")
-local worldQuery    = require("slick.worldQuery")
+local defaultOptions = require("slick.options")
+local responses = require("slick.responses")
+local worldQuery = require("slick.worldQuery")
+local slicktable = require("slick.util.slicktable")
+local util       = require("slick.util")
 
---- @alias slick.filterQueryFunc fun(item: any, other: any): string | false
+--- @alias slick.worldFilterQueryFunc fun(item: any, other: any, shape: slick.collision.shape, otherShape: slick.collision.shape): string | false
+--- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, filter: slick.worldFilterQueryFunc): number, number, slick.worldQueryResponse[], number, slick.worldQuery
 
 --- @class slick.world
 --- @field cache slick.cache
 --- @field quadTree slick.collision.quadTree
+--- @field private responses table<string, slick.worldResponseFunc>
 --- @field private entities slick.entity[]
 --- @field private itemToEntity table<any, number>
 --- @field private freeList number[]
+--- @field private cachedWorldQuery slick.worldQuery
 local world = {}
 local metatable = { __index = world }
 
@@ -36,31 +41,60 @@ function world.new(width, height, options)
         expand = options.quadTreeExpand == nil and defaultOptions.quadTreeExpand or options.quadTreeExpand,
     }
 
-    local self = {
+    local self = setmetatable({
         cache = cache.new(options),
         quadTreeOptions = quadTreeOptions,
         quadTree = quadTree.new(quadTreeOptions),
         entities = {},
         itemToEntity = {},
         freeList = {},
-        visited = {}
-    }
+        visited = {},
+        responses = {}
+    }, metatable)
 
-    self.quadTreeQuery = quadTreeQuery.new(self.quadTree)
+    
+    self:addResponse("slide", responses.slide)
+    self:addResponse("touch", responses.touch)
+    self:addResponse("cross", responses.cross)
 
-    return setmetatable(self, metatable)
+    self.cachedWorldQuery = worldQuery.new(self)
+
+    return self
 end
 
 local _cachedTransform = transform.new()
 
+--- @overload fun(e: slick.entity, x: number, y: number, shape: slick.collision.shapelike): slick.entity
+--- @overload fun(e: slick.entity, transform: slick.geometry.transform, shape: slick.collision.shapelike): slick.entity
+--- @return slick.geometry.transform, slick.collision.shapeDefinition
+local function _getTransformShapes(e, a, b, c)
+    if type(a) == "number" and type(b) == "number" then
+        e.transform:copy(_cachedTransform)
+        _cachedTransform:setTransform(a, b)
+
+        --- @cast c slick.collision.shapeDefinition
+        return _cachedTransform, c
+    end
+
+    assert(util.is(a, transform))
+
+    --- @cast a slick.geometry.transform
+    --- @cast b slick.collision.shapeDefinition
+    return a, b
+end
+
 --- @param item any
 --- @return slick.entity
---- @overload fun(item: any, x: number, y: number, shape: slick.collision.shapelike): slick.entity
---- @overload fun(item: any, transform: slick.geometry.transform, shape: slick.collision.shapelike): slick.entity
+--- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): slick.entity
+--- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): slick.entity
 function world:add(item, a, b, c)
     assert(not self:has(item), "item exists in world")
 
-    local e, i
+    --- @type slick.entity
+    local e
+
+    --- @type number
+    local i
     if #self.freeList > 0 then
         i = table.remove(self.freeList)
         e = self.entities[i]
@@ -69,21 +103,13 @@ function world:add(item, a, b, c)
         table.insert(self.entities, e)
         i = #self.entities
     end
-        
+
     e:init(item)
-    if type(a) == "number" and type(b) == "number" then
-        _cachedTransform:setTransform(a, b)
-        e:setTransform(_cachedTransform)
 
-        --- @cast c slick.collision.shapelike
-        entity:setShapes(c)
-    else
-        --- @cast a slick.geometry.transform
-        entity:setTransform(a)
-
-        --- @cast b slick.collision.shapelike
-        entity:setShapes(b)
-    end
+    local transform, shapes = _getTransformShapes(e, a, b, c)
+    e:setTransform(transform)
+    e:setShapes(shapes)
+    e:add(self)
 
     self.itemToEntity[item] = i
     return entity
@@ -97,6 +123,23 @@ function world:has(item)
     return self:get(item) ~= nil
 end
 
+--- @overload fun(item: any, x: number, y: number, shape: slick.collision.shapeDefinition): slick.entity
+--- @overload fun(item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): slick.entity
+function world:update(item, a, b, c)
+    local e = self:get(item)
+
+    local transform, shapes = _getTransformShapes(e, a, b, c)
+    if shapes then
+        e:setShapes(shapes)
+    end
+    e:setTransform(transform)
+end
+
+--- @param deltaTime number
+function world:frame(deltaTime)
+    -- Nothing for now.
+end
+
 --- @param item any
 function world:remove(item)
     local entityIndex = self.itemToEntity[item]
@@ -108,12 +151,72 @@ function world:remove(item)
     return entity
 end
 
+--- @param item any
+--- @param x number
+--- @param y number
+--- @param filter slick.worldFilterQueryFunc
+--- @param query slick.worldQuery?
+--- @return slick.worldQueryResponse[], number, slick.worldQuery
 function world:project(item, x, y, filter, query)
-    -- query = query or worldQuery.new()
+    query = query or worldQuery.new(self)
+    local e = self:get(item)
 
-    -- local e = self:get(item)
+    query:perform(e, x, y, filter)
 
-    -- self.quadTreeQuery:perform(_cachedbounds)
+    return query.results, #query.results, query
+end
+
+local _cachedVisited = {}
+
+--- @type slick.worldFilterQueryFunc
+local _cachedFilterFunc
+
+--- comment
+--- @param item any
+--- @param other any
+--- @param shape slick.collision.shape
+--- @param otherShape slick.collision.shape
+--- @return string | false
+local function _visitFilter(item, other, shape, otherShape)
+    if _cachedVisited[otherShape] then
+        return false
+    end
+
+    return _cachedFilterFunc(item, other, shape, otherShape)
+end
+
+--- @param item any
+--- @param x number
+--- @param y number
+--- @param filter slick.worldFilterQueryFunc
+--- @param query slick.worldQuery?
+function world:check(item, x, y, filter, query)
+    query = query or worldQuery.new(self)
+    local cachedQuery = self.cachedWorldQuery
+
+    _cachedFilterFunc = filter
+    slicktable.clear(_cachedVisited)
+
+    self:project(item, x, y, _visitFilter, cachedQuery)
+    while #cachedQuery.results > 0 do
+        local result = cachedQuery.results[1]
+        query:push(result)
+
+        _cachedVisited[result.otherShape] = true
+
+        local response = self:getResponse(result.response)
+        
+        x, y = response(self, cachedQuery, query.results[#query.results], x, y, _visitFilter)
+    end
+
+    return x, y, query.results, #query.results, query
+end
+
+function world:move(item, x, y, filter, query)
+    local actualX, actualY, _, _, query = self:check(item, x, y, filter, query)
+    self:update(item, x, y)
+
+    return actualX, actualY, query.results, #query.results, query
 end
 
 --- @package
@@ -128,6 +231,29 @@ function world:_removeShape(shape)
     if self.quadTree:has(shape) then
         self.quadTree:remove(shape)
     end
+end
+
+--- @param name string
+--- @param response slick.worldResponseFunc
+function world:addResponse(name, response)
+    assert(not self.responses[name])
+
+    self.responses[name] = response
+end
+
+--- @param name string
+function world:removeResponse(name)
+    assert(self.responses[name])
+
+    self.responses[name] = nil
+end
+
+function world:getResponse(name)
+    if not self.responses[name] then
+        error(string.format("Unknown collision type: %s", name))
+    end
+
+    return self.responses[name]
 end
 
 return world

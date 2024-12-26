@@ -15,6 +15,9 @@ local geometry
 --- @module "slick.options"
 local defaultOptions
 
+--- @module "slick.responses"
+local responses
+
 --- @module "slick.shape"
 local shape
 
@@ -36,6 +39,7 @@ local function load()
     entity = require("slick.entity")
     geometry = require("slick.geometry")
     defaultOptions = require("slick.options")
+    responses = require("slick.responses")
     shape = require("slick.shape")
     util = require("slick.util")
     world = require("slick.world")
@@ -103,6 +107,7 @@ return {
     world = world,
     worldQuery = worldQuery,
     worldQueryResponse = worldQueryResponse,
+    responses = responses,
 
     newCache = newCache,
     newWorld = newWorld

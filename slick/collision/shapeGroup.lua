@@ -3,12 +3,12 @@ local util = require("slick.util")
 
 --- @class slick.collision.shapeGroup
 --- @field entity slick.entity
---- @field shapes slick.collision.shapelike[]
+--- @field shapes slick.collision.shape[]
 local shapeGroup = {}
 local metatable = { __index = shapeGroup }
 
 --- @param entity slick.entity
---- @param ... slick.collision.shapelike
+--- @param ... slick.collision.shapeDefinition
 --- @return slick.collision.shapeGroup
 function shapeGroup.new(entity, ...)
     local result = setmetatable({
@@ -16,19 +16,29 @@ function shapeGroup.new(entity, ...)
         shapes = {}
     }, metatable)
 
-    result:_addShapes(...)
+    result:_addShapeDefinitions(...)
 
     return result
 end
 
 --- @private
---- @param shape slick.collision.shapelike?
---- @param ... slick.collision.shapelike
-function shapeGroup:_addShapes(shape, ...)
-    if not shape then
+--- @param shapeDefinition slick.collision.shapeDefinition?
+--- @param ... slick.collision.shapeDefinition
+function shapeGroup:_addShapeDefinitions(shapeDefinition, ...)
+    if not shapeDefinition then
         return
     end
 
+    local shape = shapeDefinition.type.new(self.entity, unpack(shapeDefinition.arguments, 1, shapeDefinition.n))
+    self:_addShapes(shape)
+
+    self:_addShapeDefinitions(...)
+end
+
+--- @private
+--- @param shape slick.collision.shapelike
+---@param ... slick.collision.shapelike
+function shapeGroup:_addShapes(shape, ...)
     if util.is(shape, shapeGroup) then
         --- @cast shape slick.collision.shapeGroup
         self:_addShapes(unpack(shape.shapes))
