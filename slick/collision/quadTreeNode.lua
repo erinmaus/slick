@@ -125,6 +125,8 @@ end
 function quadTreeNode:expand(bounds)
     assert(not self.parent, "can only expand root node")
     assert(not bounds:overlaps(self.bounds), "bounds is within quad tree")
+    assert(bounds:left() > -math.huge and bounds:right() < math.huge, "x axis infinite")
+    assert(bounds:top() > -math.huge and bounds:bottom() < math.huge, "y axis infinite")
 
     local halfWidth = (self:right() - self:left()) / 2
     local halfHeight = (self:bottom() - self:top()) / 2

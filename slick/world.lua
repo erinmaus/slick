@@ -123,8 +123,8 @@ function world:has(item)
     return self:get(item) ~= nil
 end
 
---- @overload fun(item: any, x: number, y: number, shape: slick.collision.shapeDefinition): slick.entity
---- @overload fun(item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): slick.entity
+--- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): slick.entity
+--- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): slick.entity
 function world:update(item, a, b, c)
     local e = self:get(item)
 
@@ -190,6 +190,7 @@ end
 --- @param y number
 --- @param filter slick.worldFilterQueryFunc
 --- @param query slick.worldQuery?
+--- @return number, number, slick.worldQueryResponse[], number, slick.worldQuery
 function world:check(item, x, y, filter, query)
     query = query or worldQuery.new(self)
     local cachedQuery = self.cachedWorldQuery
@@ -205,7 +206,6 @@ function world:check(item, x, y, filter, query)
         _cachedVisited[result.otherShape] = true
 
         local response = self:getResponse(result.response)
-        
         x, y = response(self, cachedQuery, query.results[#query.results], x, y, _visitFilter)
     end
 
@@ -214,7 +214,7 @@ end
 
 function world:move(item, x, y, filter, query)
     local actualX, actualY, _, _, query = self:check(item, x, y, filter, query)
-    self:update(item, x, y)
+    self:update(item, actualX, actualY)
 
     return actualX, actualY, query.results, #query.results, query
 end

@@ -44,16 +44,13 @@ function worldQuery:perform(entity, x, y, filter)
 
     for _, otherShape in ipairs(self.quadTreeQuery.results) do
         --- @cast otherShape slick.collision.shapeInterface
-        if otherShape.entity ~= entity and otherShape.bounds:overlaps(entity.bounds) then
+        if otherShape.entity ~= entity then
             for _, shape in ipairs(entity.shapes.shapes) do
-                if shape.bounds:overlaps(otherShape.bounds) then
-                    local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
-
-                    if response then
-                        self.collisionQuery:perform(shape, otherShape, _cachedSelfVelocity, _cachedOtherVelocity)
-                        if self.collisionQuery.collision then
-                            self:_addCollision(shape, otherShape, response)
-                        end
+                local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
+                if response then
+                    self.collisionQuery:perform(shape, otherShape, _cachedSelfVelocity, _cachedOtherVelocity)
+                    if self.collisionQuery.collision then
+                        self:_addCollision(shape, otherShape, response)
                     end
                 end
             end
@@ -82,12 +79,12 @@ function worldQuery:_beginQuery(entity, x, y)
     self:reset()
 
     entity.transform:copy(_cachedTransform)
-    _cachedTransform:setTransform(_cachedTransform.x + x, _cachedTransform.y + y)
+    _cachedTransform:setTransform(-_cachedTransform.x + x, -_cachedTransform.y + y)
 
     _cachedTopLeft:init(_cachedTransform:transformPoint(entity.bounds:left(), entity.bounds:top()))
     _cachedTopRight:init(_cachedTransform:transformPoint(entity.bounds:right(), entity.bounds:top()))
-    _cachedBottomRight:init(_cachedTransform:transformPoint(entity.bounds:left(), entity.bounds:bottom()))
-    _cachedBottomLeft:init(_cachedTransform:transformPoint(entity.bounds:right(), entity.bounds:bottom()))
+    _cachedBottomRight:init(_cachedTransform:transformPoint(entity.bounds:right(), entity.bounds:bottom()))
+    _cachedBottomLeft:init(_cachedTransform:transformPoint(entity.bounds:left(), entity.bounds:bottom()))
 
     _cachedBounds:init(_cachedTopLeft.x, _cachedTopLeft.y, _cachedTopLeft.x, _cachedTopLeft.x)
     _cachedBounds:expand(_cachedTopRight.x, _cachedTopRight.y)
@@ -110,6 +107,10 @@ end
 --- @param otherShape slick.collision.shapeInterface
 --- @param response string
 function worldQuery:_addCollision(shape, otherShape, response)
+    if not (self.collisionQuery.depth > 0 or (self.collisionQuery.time > 0 and self.collisionQuery.time <= 1)) then
+        return
+    end
+
     local index = #self.results + 1
     local result = self.cachedResults[index]
     if not result then

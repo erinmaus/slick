@@ -155,8 +155,9 @@ end
 --- @param query slick.collision.shapeCollisionResolutionQuery
 --- @param axis slick.geometry.point
 --- @param interval slick.collision.interval
-function polygon:project(query, axis, interval)
-    query:project(axis, interval)
+--- @param offset slick.geometry.point?
+function polygon:project(query, axis, interval, offset)
+    query:project(axis, interval, offset)
 end
 
 local _cachedDistanceSegment = segment.new()

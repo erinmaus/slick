@@ -56,11 +56,18 @@ function circle:getAxes(query)
     -- Nothing.
 end
 
+local _cachedOffsetCircleCenter = point.new()
+
 --- @param query slick.collision.shapeCollisionResolutionQuery
 --- @param axis slick.geometry.point
 --- @param interval slick.collision.interval
-function circle:project(query, axis, interval)
-    local d = self.center:dot(axis)
+function circle:project(query, axis, interval, offset)
+    _cachedOffsetCircleCenter:init(self.center.x, self.center.y)
+    if offset then
+        _cachedOffsetCircleCenter:add(offset, _cachedOffsetCircleCenter)
+    end
+
+    local d = _cachedOffsetCircleCenter:dot(axis)
     interval:set(d - self.radius, d + self.radius)
 end
 

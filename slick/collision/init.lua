@@ -8,7 +8,7 @@
 ---     bounds: slick.geometry.rectangle,
 ---     transform: fun(self: slick.collision.shapeInterface, transform: slick.geometry.transform),
 ---     getAxes: fun(self: slick.collision.shapeInterface, query: slick.collision.shapeCollisionResolutionQueryShape),
----     getAxes: fun(self: slick.collision.shapeInterface, query: slick.collision.shapeCollisionResolutionQueryShape),
+---     project: fun(self: slick.collision.shapeInterface, query: slick.collision.shapeCollisionResolutionQueryShape, axis: slick.geometry.point, interval: slick.collision.interval, offset: slick.geometry.point?),
 ---     distance: fun(self: slick.collision.shapeInterface, p: slick.geometry.point)
 --- }
 

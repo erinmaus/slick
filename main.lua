@@ -472,26 +472,34 @@ function love.draw()
             table.insert(vertices, selfPolygon.vertices[i].x)
             table.insert(vertices, selfPolygon.vertices[i].y)
         end
-        
-        love.graphics.setColor(1, 0.5, 0.0, 0.5)
-        love.graphics.polygon("fill", vertices)
+
+        if not love.keyboard.isDown("m") then
+            love.graphics.setColor(1, 0.5, 0.0, 0.5)
+            love.graphics.polygon("fill", vertices)
+        end
+
+        local mx, my = love.mouse.getPosition()
+        mx, my = love.graphics.inverseTransformPoint(mx, my)
+
+        local _, _, _, _, q = world:check(player, mx, my, function() return "slide" end)
+        local collision = q.results[1]
         
         if collision then
-            if queryTime > 0 then
+            if collision.time > 0 and collision.time <= 1 then
                 love.graphics.setColor(0, 1, 0, 0.5)
                 love.graphics.push("all")
-                love.graphics.translate(offset.x, offset.y)
+                love.graphics.translate(collision.offset.x, collision.offset.y)
                 love.graphics.polygon("line", vertices)
                 love.graphics.pop()
             else
                 love.graphics.setColor(1, 1, 1, 0.5)
                 love.graphics.push("all")
-                love.graphics.translate(offset.x, offset.y)
+                love.graphics.translate(collision.normal.x * collision.depth, collision.normal.y * collision.depth)
                 love.graphics.polygon("line", vertices)
                 love.graphics.pop()
             end
 
-            for _, contactPoint in ipairs(contactPoints) do
+            for _, contactPoint in ipairs(collision.contactPoints) do
                 love.graphics.setColor(1, 0, 0, 1)
                 love.graphics.rectangle("fill", contactPoint.x - 4, contactPoint.y - 4, 8, 8)
             end

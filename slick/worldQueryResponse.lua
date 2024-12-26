@@ -15,6 +15,7 @@ local slicktable = require("slick.util.slicktable")
 --- @field offset slick.geometry.point
 --- @field contactPoint slick.geometry.point
 --- @field contactPoints slick.geometry.point[]
+--- @field distance number
 --- @field extra table
 --- @field private contactPointsCache slick.geometry.point[]
 local worldQueryResponse = {}
@@ -80,7 +81,7 @@ function worldQueryResponse:init(shape, otherShape, response, query)
         end
 
         outputContactPoint:init(inputContactPoint.x, inputContactPoint.y)
-        table.insert(self.contactPoints, inputContactPoint)
+        table.insert(self.contactPoints, outputContactPoint)
 
         local distanceSquared = outputContactPoint:distance(_cachedInitItemPosition)
         if distanceSquared < closestContactPointDistance then
