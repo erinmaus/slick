@@ -41,10 +41,11 @@ end
 --- @param a slick.geometry.point
 --- @param b slick.geometry.point
 --- @param c slick.geometry.point
+--- @param E number?
 --- @return -1 | 0 | 1
-function slickmath.direction(a, b, c)
+function slickmath.direction(a, b, c, E)
     local result = slickmath.cross(a, b, c)
-    return slickmath.sign(result)
+    return slickmath.sign(result, E)
 end
 
 --- Checks if `d` is inside the circumscribed circle created by `a`, `b`, and `c`
@@ -87,16 +88,19 @@ end
 --- @param b slick.geometry.point
 --- @param c slick.geometry.point
 --- @param d slick.geometry.point
+--- @param E number?
 --- @return boolean, number?, number?, number?, number?
-function slickmath.intersection(a, b, c, d)
-    local acdSign = slickmath.direction(a, c, d)
-    local bcdSign = slickmath.direction(b, c, d)
+function slickmath.intersection(a, b, c, d, E)
+    E = E or 0
+
+    local acdSign = slickmath.direction(a, c, d, E)
+    local bcdSign = slickmath.direction(b, c, d, E)
     if (acdSign < 0 and bcdSign < 0) or (acdSign > 0 and bcdSign > 0) then
         return false
     end
     
-    local cabSign = slickmath.direction(c, a, b)
-    local dabSign = slickmath.direction(d, a, b)
+    local cabSign = slickmath.direction(c, a, b, E)
+    local dabSign = slickmath.direction(d, a, b, E)
     if (cabSign < 0 and dabSign < 0) or (cabSign > 0 and dabSign > 0) then
         return false
     end
@@ -128,7 +132,7 @@ function slickmath.intersection(a, b, c, d)
     local u = dcCrossAC / baCrossDC
     local v = dcCrossCA / dcCrossBA
 
-    if u < 0 or u > 1 or v < 0 or v > 1 then
+    if u < -E or u > (1 + E) or v < -E or v > (1 + E) then
         return false
     end
 
@@ -139,14 +143,21 @@ function slickmath.intersection(a, b, c, d)
 end
 
 --- @param value number
+--- @param E number?
 --- @return -1 | 0 | 1
-function slickmath.sign(value)
+function slickmath.sign(value, E)
+    E = E or 0
+
+    if math.abs(value) <= E then
+        return 0
+    end
+
     if value > 0 then
         return 1
     elseif value < 0 then
         return -1
     end
-    
+
     return 0
 end
 

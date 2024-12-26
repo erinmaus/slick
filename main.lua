@@ -13,10 +13,10 @@ local shapes = {
             173, 518,
 
             -- Hole
-            365, 261,
-            515, 332,
-            407, 559,
-            278, 452
+            -- 365, 261,
+            -- 515, 332,
+            -- 407, 559,
+            -- 278, 452
         },
 
         edges = {
@@ -27,10 +27,10 @@ local shapes = {
             5, 6,
             6, 1,
 
-            7, 8,
-            8, 9,
-            9, 10,
-            10, 7
+            -- 7, 8,
+            -- 8, 9,
+            -- 9, 10,
+            -- 10, 7
         }
     }
 }
@@ -108,12 +108,15 @@ local quadTree
 
 --- @type slick.collision.polygon
 local selfPolygon = slick.collision.polygon.new(nil, -50, -50, 100, -50, 100, 100, -50, 100)
+local selfPolygonTransform = slick.geometry.transform.new()
 local otherPolygons = {}
 
 local query = slick.collision.shapeCollisionResolutionQuery.new()
 
 local collision = false
 local offset = slick.geometry.point.new()
+local contactPoints = {}
+local queryTime = 0
 
 local triangulator = slick.geometry.triangulation.delaunay.new()
 local function build()
@@ -139,7 +142,9 @@ local function build()
                 table.insert(polygonVertices, y)
             end
 
-            table.insert(otherPolygons, slick.collision.polygon.new(unpack(polygonVertices)))
+            table.insert(otherPolygons, slick.collision.polygon.new(nil, unpack(polygonVertices)))
+
+            --break
         end
     end
 
@@ -234,25 +239,47 @@ function love.mousemoved(x, y)
     local tx = x + ox
     local ty = y + oy
 
-    local transform = slick.geometry.transform.new(tx, ty)
-    selfPolygon:transform(transform)
+    if love.mouse.isDown(1) then
+        selfPolygonTransform:setTransform(tx, ty)
+        selfPolygon:transform(selfPolygonTransform)
+    end
 
     collision = false
 
-    local largestDistance = -math.huge
+    local smallestDistance = math.huge
     offset:init(0, 0)
+    slick.util.table.clear(contactPoints)
+
     for i = 1, #otherPolygons do
-        query:perform(selfPolygon, otherPolygons[i], slick.geometry.point.new(), slick.geometry.point.new())
+        local goalPosition = slick.geometry.point.new(tx, ty)
+        local currentPosition = slick.geometry.point.new(selfPolygonTransform.x, selfPolygonTransform.y)
+
+        local velocity = slick.geometry.point.new()
+        currentPosition:direction(goalPosition, velocity)
+
+        query:perform(selfPolygon, otherPolygons[i], velocity, slick.geometry.point.new())
 
         if query.collision then
             collision = true
 
-            if query.depth > largestDistance then
+            if (query.time > 0 and query.currentOffset:length() < smallestDistance) or (query.time == 0 and query.depth < smallestDistance) then
                 collision = true
-                largestDistance = query.depth
-                query.normal:multiplyScalar(query.depth, offset)
-                offset.x = offset.x
-                offset.y = offset.y
+
+                if query.time > 0 then
+                    queryTime = query.time
+                    smallestDistance = query.currentOffset:length()
+                    offset:init(query.currentOffset.x, query.currentOffset.y)
+                else
+                    queryTime = 0
+                    smallestDistance = query.depth
+                    query.normal:multiplyScalar(query.depth, offset)
+                end
+
+
+                slick.util.table.clear(contactPoints)
+                for i = 1, query.contactPointsCount do
+                    table.insert(contactPoints, slick.geometry.point.new(query.contactPoints[i].x, query.contactPoints[i].y))
+                end
             end
         end
     end
@@ -307,6 +334,8 @@ function love.draw()
             love.graphics.polygon("fill", vertices)
             love.graphics.setColor(1, 1, 1, 1)
             love.graphics.polygon("line", vertices)
+
+            --break
         end
     end
 
@@ -390,11 +419,24 @@ function love.draw()
         love.graphics.polygon("fill", vertices)
         
         if collision then
-            love.graphics.setColor(1, 1, 1, 0.5)
-            love.graphics.push("all")
-            love.graphics.translate(offset.x, offset.y)
-            love.graphics.polygon("line", vertices)
-            love.graphics.pop()
+            if queryTime > 0 then
+                love.graphics.setColor(0, 1, 0, 0.5)
+                love.graphics.push("all")
+                love.graphics.translate(offset.x, offset.y)
+                love.graphics.polygon("line", vertices)
+                love.graphics.pop()
+            else
+                love.graphics.setColor(1, 1, 1, 0.5)
+                love.graphics.push("all")
+                love.graphics.translate(offset.x, offset.y)
+                love.graphics.polygon("line", vertices)
+                love.graphics.pop()
+            end
+
+            for _, contactPoint in ipairs(contactPoints) do
+                love.graphics.setColor(1, 0, 0, 1)
+                love.graphics.rectangle("fill", contactPoint.x - 4, contactPoint.y - 4, 8, 8)
+            end
         end
     end
     love.graphics.pop()

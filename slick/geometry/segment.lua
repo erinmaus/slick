@@ -43,6 +43,40 @@ function segment:bottom()
     return math.max(self.a.y, self.b.y)
 end
 
+local _cachedProjectionBMinusA = point.new()
+local _cachedProjectionPMinusA = point.new()
+local _cachedProjectionPProjectedAB = point.new()
+
+--- @param p slick.geometry.point
+--- @param result slick.geometry.point
+function segment:project(p, result)
+    local distanceSquared = self.a:distanceSquared(self.b)
+    if distanceSquared == 0 then
+        result:init(self.a.x, self.a.y)
+        return
+    end
+    
+    p:sub(self.a, _cachedProjectionPMinusA)
+    self.b:sub(self.a, _cachedProjectionBMinusA)
+    
+    local t = math.max(0, math.min(1, _cachedProjectionPMinusA:dot(_cachedProjectionBMinusA) / distanceSquared))
+    
+    _cachedProjectionBMinusA:multiplyScalar(t, result)
+    self.a:add(result, result)
+end
+
+local _cachedDistancePProjectedAB = point.new()
+--- @param p slick.geometry.point
+function segment:distanceSquared(p)
+    self:project(p, _cachedDistancePProjectedAB)
+    return _cachedDistancePProjectedAB:distanceSquared(p)
+end
+
+--- @param p slick.geometry.point
+function segment:distance(p)
+    return math.sqrt(self:distanceSquared(p))
+end
+
 --- @alias slick.geometry.segmentCompareFunc fun(a: slick.geometry.segment, b: slick.geometry.segment): slick.util.search.compareResult
 
 --- @param a slick.geometry.segment
