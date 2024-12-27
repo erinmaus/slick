@@ -83,6 +83,18 @@ function shapeCollisionResolutionQuery:_swapShapes()
     self.otherShape, self.currentShape = self.currentShape, self.otherShape
 end
 
+function shapeCollisionResolutionQuery:reset()
+    self.collision = false
+    self.depth = 0
+    self.time = 0
+    self.currentOffset:init(0, 0)
+    self.otherOffset:init(0, 0)
+    self.normal:init(0, 0)
+    self.contactPointsCount = 0
+    self.segment.a:init(0, 0)
+    self.segment.b:init(0, 0)
+end
+
 --- @private
 function shapeCollisionResolutionQuery:_beginQuery()
     self.currentShape.axesCount = 0
@@ -120,7 +132,8 @@ local _cachedCirclePointSegment = segment.new()
 --- @param otherShape slick.collision.circle
 --- @param selfVelocity slick.geometry.point
 --- @param otherVelocity slick.geometry.point
-function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, selfVelocity, otherVelocity)
+--- @param tunnel boolean
+function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, selfVelocity, otherVelocity, tunnel)
     -- Check if they are currently colliding.
     selfShape.center:direction(otherShape.center, _cachedCircleNormal)
     local radius = selfShape.radius + otherShape.radius
@@ -135,6 +148,10 @@ function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, sel
             _cachedCircleNormal:divideScalar(self.depth, self.normal)
         end
 
+        return
+    end
+
+    if not tunnel then
         return
     end
 
@@ -194,13 +211,16 @@ end
 --- @param otherShape slick.collision.shapeInterface
 --- @param selfVelocity slick.geometry.point
 --- @param otherVelocity slick.geometry.point
-function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVelocity, otherVelocity)
+--- @param tunnel boolean?
+function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVelocity, otherVelocity, tunnel)
+    tunnel = tunnel == nil and true or not not tunnel
+
     self:_beginQuery()
 
     if util.is(selfShape, circle) and util.is(otherShape, circle) then
         --- @cast selfShape slick.collision.circle
         --- @cast otherShape slick.collision.circle
-        self:_performCircle(selfShape, otherShape, selfVelocity, otherVelocity)
+        self:_performCircle(selfShape, otherShape, selfVelocity, otherVelocity, tunnel)
         return
     end
 
@@ -222,35 +242,37 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
     --- @type slick.collision.shapeCollisionResolutionQueryAxis
     local bestAxis
     local bestAxisDepth = math.huge
-    for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
-        hit = false
+    if tunnel then
+        for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
+            hit = false
 
-        local axis = self:_getAxis(i)
+            local axis = self:_getAxis(i)
 
-        local currentInterval = self.currentShape.currentInterval
-        local otherInterval = self.otherShape.currentInterval
+            local currentInterval = self.currentShape.currentInterval
+            local otherInterval = self.otherShape.currentInterval
 
-        currentInterval:init()
-        otherInterval:init()
+            currentInterval:init()
+            otherInterval:init()
 
-        local willHit, futureSide = self:_handleTunnelAxis(axis, _cachedSelfVelocity)
-        if willHit then
-            hit = true
-        else
-            break
-        end
+            local willHit, futureSide = self:_handleTunnelAxis(axis, _cachedSelfVelocity)
+            if willHit then
+                hit = true
+            else
+                break
+            end
 
-        if futureSide then
-            currentInterval:copy(self.currentShape.minInterval)
-            otherInterval:copy(self.otherShape.minInterval)
+            if futureSide then
+                currentInterval:copy(self.currentShape.minInterval)
+                otherInterval:copy(self.otherShape.minInterval)
 
-            side = futureSide
-        end
+                side = futureSide
+            end
 
-        local depth = currentInterval:distance(otherInterval)
-        if depth < (bestAxisDepth or math.huge) then
-            bestAxis = axis
-            bestAxisDepth = depth
+            local depth = currentInterval:distance(otherInterval)
+            if depth < (bestAxisDepth or math.huge) then
+                bestAxis = axis
+                bestAxisDepth = depth
+            end
         end
     end
 

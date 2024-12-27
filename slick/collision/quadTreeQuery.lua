@@ -1,7 +1,10 @@
 local point = require("slick.geometry.point")
+local ray = require("slick.geometry.ray")
 local rectangle = require("slick.geometry.rectangle")
+local segment = require("slick.geometry.segment")
 local util = require("slick.util")
 local slicktable = require("slick.util.slicktable")
+local slickmath = require("slick.util.slickmath")
 
 --- @class slick.collision.quadTreeQuery
 --- @field tree slick.collision.quadTree
@@ -105,8 +108,100 @@ function quadTreeQuery:_performRectangleQuery(node, r)
     end
 end
 
+local _cachedQuerySegment = segment.new()
+
+--- @private
+--- @param node slick.collision.quadTreeNode?
+--- @param s slick.geometry.segment
+function quadTreeQuery:_performSegmentQuery(node, s)
+    if not node then
+        node = self.tree.root
+        self:_beginQuery()
+    end
+
+    local overlaps = (s:left() <= node:right() and s:right() >= node:left()) and
+                     (s:top() <= node:bottom() and s:bottom() >= node:top())
+    if overlaps then
+        if #node.children > 0 then
+            for _, c in ipairs(node.children) do
+                self:_performSegmentQuery(c, s)
+            end
+        else
+            for _, d in ipairs(node.data) do
+                --- @diagnostic disable-next-line: invisible
+                local r = self.tree.data[d]
+
+                local intersection
+
+                -- Top
+                _cachedQuerySegment.a:init(r:left(), r:top())
+                _cachedQuerySegment.b:init(r:right(), r:top())
+                intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b)
+                
+                if not intersection then
+                    -- Right
+                    _cachedQuerySegment.a:init(r:right(), r:top())
+                    _cachedQuerySegment.b:init(r:right(), r:bottom())
+                    intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b)
+                end
+
+                if not intersection then
+                    -- Bottom
+                    _cachedQuerySegment.a:init(r:right(), r:bottom())
+                    _cachedQuerySegment.a:init(r:left(), r:bottom())
+                    intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b)
+                end
+
+                if not intersection then
+                    -- Left
+                    _cachedQuerySegment.a:init(r:left(), r:bottom())
+                    _cachedQuerySegment.a:init(r:left(), r:top())
+                    intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b)
+                end
+
+                if intersection or (r:inside(s.a) and r:inside(s.b)) then
+                    table.insert(self.results, d)
+                    self.data[d] = true
+
+                    self:_expand(r)
+                end
+            end
+        end
+    end
+end
+
+--- @private
+--- @param node slick.collision.quadTreeNode?
+--- @param r slick.geometry.ray
+function quadTreeQuery:_performRayQuery(node, r)
+    if not node then
+        node = self.tree.root
+        self:_beginQuery()
+    end
+
+    if r:hitRectangle(node.bounds) then
+        if #node.children > 0 then
+            for _, c in ipairs(node.children) do
+                self:_performRayQuery(c, r)
+            end
+        else
+            for _, d in ipairs(node.data) do
+                --- @diagnostic disable-next-line: invisible
+                local bounds = self.tree.data[d]
+
+                if r:hitRectangle(bounds) then
+                    table.insert(self.results, d)
+                    self.data[d] = true
+
+                    self:_expand(bounds)
+                end
+            end
+        end
+    end
+end
+
 --- Performs a query against the quad tree with the provided shape.
---- @param shape slick.geometry.point | slick.geometry.rectangle
+--- @param shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray
 function quadTreeQuery:perform(shape)
     if util.is(shape, point) then
         --- @cast shape slick.geometry.point
@@ -114,9 +209,14 @@ function quadTreeQuery:perform(shape)
     elseif util.is(shape, rectangle) then
         --- @cast shape slick.geometry.rectangle
         self:_performRectangleQuery(nil, shape)
+    elseif util.is(shape, segment) then
+        --- @cast shape slick.geometry.segment
+        self:_performSegmentQuery(nil, shape)
+    elseif util.is(shape, ray) then
+        --- @cast shape slick.geometry.ray
+        self:_performRayQuery(nil, shape)
     else
-        -- TODO add ray
-        error("unhandled shape type in query; expected point or rectangle", 2)
+        error("unhandled shape type in query; expected point, rectangle, segment, or ray", 2)
     end
 
     self:_endQuery()

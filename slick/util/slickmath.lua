@@ -88,6 +88,15 @@ end
 --- @param b slick.geometry.point
 --- @param c slick.geometry.point
 --- @param d slick.geometry.point
+--- @return boolean
+function slickmath.collinear(a, b, c, d)
+    return _collinear(a.x, b.x, c.x, d.x) and _collinear(a.y, b.y, c.y, d.y)
+end
+
+--- @param a slick.geometry.point
+--- @param b slick.geometry.point
+--- @param c slick.geometry.point
+--- @param d slick.geometry.point
 --- @param E number?
 --- @return boolean, number?, number?, number?, number?
 function slickmath.intersection(a, b, c, d, E)
@@ -106,7 +115,7 @@ function slickmath.intersection(a, b, c, d, E)
     end
 
     if acdSign == 0 and bcdSign == 0 and cabSign == 0 and dabSign == 0 then
-        return _collinear(a.x, b.x, c.x, d.x) and _collinear(a.y, b.y, c.y, d.y)
+        return slickmath.collinear(a, b, c, d)
     end
 
     local bax = b.x - a.x

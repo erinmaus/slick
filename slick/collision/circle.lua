@@ -1,8 +1,9 @@
+local entity = require("slick.entity")
 local point = require("slick.geometry.point")
 local transform = require("slick.geometry.transform")
 
---- @class slick.collision.circle
---- @field entity slick.entity
+--- @class slick.collision.circle: slick.collision.commonShape
+--- @field entity slick.entity?
 --- @field count number
 --- @field vertices slick.geometry.point[]
 --- @field normals slick.geometry.point[]
@@ -13,19 +14,21 @@ local transform = require("slick.geometry.transform")
 local circle = {}
 local metatable = { __index = circle }
 
---- @param entity slick.entity
+--- @param e slick.entity?
 --- @param x number
 --- @param y number
 --- @param radius number
 --- @return slick.collision.circle
-function circle.new(entity, x, y, radius)
+function circle.new(e, x, y, radius)
     local result = setmetatable({
-        entity = entity,
+        entity = e or entity.new(),
         count = 0,
         vertices = {},
         normals = {},
-        number = radius,
-        center = point.new()
+        center = point.new(),
+        radius = 0,
+        preTransformedCenter = point.new(),
+        preTransformedRadius = 0
     }, metatable)
 
     result:init(x, y, radius)
@@ -74,6 +77,45 @@ end
 --- @param p slick.geometry.point
 function circle:distance(p)
     return math.max(0, p:distance(self.center) - self.radius)
+end
+
+--- @param p slick.geometry.point
+--- @return boolean
+function circle:inside(p)
+    return p:distance(self.center) <= self.radius
+end
+
+local _cachedRaycastDirection = point.new()
+local _cachedRaycastProjection = point.new()
+
+--- @param r slick.geometry.ray
+--- @return boolean, number?, number?
+function circle:raycast(r)
+    self.center:direction(r.origin, _cachedRaycastDirection)
+    local b = _cachedRaycastDirection:dot(r.direction)
+    local c = _cachedRaycastDirection:dot(_cachedRaycastDirection) - self.radius ^ 2
+
+    if not (c > 0 and b > 0) then
+        local discriminant = b * b - c
+        if discriminant >= 0 then
+            local t1 = -b - math.sqrt(discriminant)
+            local t2 = -b + math.sqrt(discriminant)
+
+            local t
+            if t1 >= 0 then
+                t = t1
+            elseif t2 >= 0 then
+                t = t2
+            end
+
+            if t then
+                r:project(t, _cachedRaycastProjection)
+                return true, _cachedRaycastProjection.x, _cachedRaycastProjection.y
+            end
+        end
+    end
+
+    return false, nil, nil
 end
 
 return circle

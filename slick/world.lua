@@ -1,14 +1,19 @@
 local cache = require("slick.cache")
 local quadTree = require("slick.collision.quadTree")
 local entity = require("slick.entity")
+local point = require("slick.geometry.point")
+local ray = require("slick.geometry.ray")
+local rectangle  = require("slick.geometry.rectangle")
+local segment = require("slick.geometry.segment")
 local transform = require("slick.geometry.transform")
 local defaultOptions = require("slick.options")
 local responses = require("slick.responses")
 local worldQuery = require("slick.worldQuery")
+local util = require("slick.util")
 local slicktable = require("slick.util.slicktable")
-local util       = require("slick.util")
 
 --- @alias slick.worldFilterQueryFunc fun(item: any, other: any, shape: slick.collision.shape, otherShape: slick.collision.shape): string | false
+--- @alias slick.worldShapeFilterQueryFunc fun(item: any, shape: slick.collision.shape): boolean
 --- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, filter: slick.worldFilterQueryFunc): number, number, slick.worldQueryResponse[], number, slick.worldQuery
 
 --- @class slick.world
@@ -115,8 +120,23 @@ function world:add(item, a, b, c)
     return entity
 end
 
+--- @param item any
+--- @return slick.entity
 function world:get(item)
     return self.entities[self.itemToEntity[item]]
+end
+
+--- @param items any[]?
+--- @return any[]
+function world:getItems(items)
+    items = items or {}
+    slicktable.clear(items)
+
+    for item in pairs(self.itemToEntity) do
+        table.insert(items, item)
+    end
+
+    return items
 end
 
 function world:has(item)
@@ -162,6 +182,82 @@ function world:project(item, x, y, filter, query)
     local e = self:get(item)
 
     query:perform(e, x, y, filter)
+
+    return query.results, #query.results, query
+end
+
+local _cachedQueryRectangle = rectangle.new()
+
+--- @param x number
+--- @param y number
+--- @param w number
+--- @param h number
+--- @param filter slick.worldFilterQueryFunc
+--- @param query slick.worldQuery?
+--- @return slick.worldQueryResponse[], number, slick.worldQuery
+function world:queryRectangle(x, y, w, h, filter, query)
+    query = query or worldQuery.new(self)
+
+    _cachedQueryRectangle:init(x, y, x + w, y + h)
+    query:performPrimitive(_cachedQueryRectangle, filter)
+
+    return query.results, #query.results, query
+end
+
+local _cachedQuerySegment = segment.new()
+
+--- @param x1 number
+--- @param y1 number
+--- @param x2 number
+--- @param y2 number
+--- @param filter slick.worldFilterQueryFunc
+--- @param query slick.worldQuery?
+--- @return slick.worldQueryResponse[], number, slick.worldQuery
+function world:querySegment(x1, y1, x2, y2, filter, query)
+    query = query or worldQuery.new(self)
+
+    _cachedQuerySegment.a:init(x1, y1)
+    _cachedQuerySegment.b:init(x2, y2)
+    query:performPrimitive(_cachedQuerySegment, filter)
+
+    return query.results, #query.results, query
+end
+
+local _cachedQueryRay = ray.new()
+
+--- @param originX number
+--- @param originY number
+--- @param directionX number
+--- @param directionY number
+--- @param filter slick.worldFilterQueryFunc
+--- @param query slick.worldQuery?
+--- @return slick.worldQueryResponse[], number, slick.worldQuery
+function world:queryRay(originX, originY, directionX, directionY, filter, query)
+    query = query or worldQuery.new(self)
+
+    _cachedQueryRay.origin:init(originX, originY)
+    _cachedQueryRay.direction:init(directionX, directionY)
+    if _cachedQueryRay.direction:lengthSquared() > 0 then
+        _cachedQueryRay.direction:normalize(_cachedQueryRay.direction)
+    end
+
+    query:performPrimitive(_cachedQueryRay, filter)
+
+    return query.results, #query.results, query
+end
+
+local _cachedQueryPoint = point.new()
+
+--- @param x number
+--- @param y number
+--- @param filter slick.worldFilterQueryFunc
+--- @param query slick.worldQuery?
+--- @return slick.worldQueryResponse[], number, slick.worldQuery
+function world:queryPoint(x, y, filter, query)
+    query = query or worldQuery.new(self)
+
+    _cachedQueryPoint:init(x, y)
+    query:performPrimitive(_cachedQueryPoint, filter)
 
     return query.results, #query.results, query
 end

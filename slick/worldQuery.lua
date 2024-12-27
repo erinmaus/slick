@@ -1,9 +1,15 @@
 local worldQueryResponse = require("slick.worldQueryResponse")
+local box = require("slick.collision.box")
+local lineSegment = require("slick.collision.lineSegment")
 local quadTreeQuery = require("slick.collision.quadTreeQuery")
+local ray = require("slick.geometry.ray")
 local shapeCollisionResolutionQuery = require("slick.collision.shapeCollisionResolutionQuery")
 local point = require("slick.geometry.point")
 local rectangle = require("slick.geometry.rectangle")
+local transform = require("slick.geometry.transform")
 local slicktable = require("slick.util.slicktable")
+local util = require("slick.util")
+local segment = require("slick.geometry.segment")
 
 --- @class slick.worldQuery
 --- @field world slick.world
@@ -24,6 +30,106 @@ function worldQuery.new(world)
         cachedResults = {},
         collisionQuery = shapeCollisionResolutionQuery.new()
     }, metatable)
+end
+
+local _cachedQueryTransform = transform.new()
+local _cachedQueryBoxShape = box.new(nil, 0, 0, 1, 1)
+local _cachedQueryLineSegmentShape = lineSegment.new(nil, 0, 0, 1, 1)
+local _cachedQueryVelocity = point.new()
+
+--- @private
+--- @param shape slick.collision.shapeInterface
+--- @param filter slick.worldShapeFilterQueryFunc
+function worldQuery:_performShapeQuery(shape, filter)
+    for _, otherShape in ipairs(self.quadTreeQuery.results) do
+        --- @cast otherShape slick.collision.shapeInterface
+        local response = filter(otherShape.entity.item, otherShape)
+
+        if response then
+            self.collisionQuery:perform(shape, otherShape, _cachedQueryVelocity, _cachedQueryVelocity, false)
+
+            if self.collisionQuery.collision then
+                self:_addCollision(otherShape, nil, response, true)
+            end
+        end
+    end
+end
+
+--- @private
+--- @param p slick.geometry.point
+--- @param filter slick.worldShapeFilterQueryFunc
+function worldQuery:_performPrimitivePointQuery(p, filter)
+    self.collisionQuery:reset()
+
+    for _, otherShape in ipairs(self.quadTreeQuery.results) do
+        --- @cast otherShape slick.collision.shapeInterface
+        local response = filter(otherShape.entity.item, otherShape)
+        if response then
+            local inside = otherShape:inside(p)
+            if inside then
+                self:_addCollision(otherShape, nil, response, true)
+            end
+        end
+    end
+end
+
+--- @private
+--- @param r slick.geometry.ray
+--- @param filter slick.worldShapeFilterQueryFunc
+function worldQuery:_performPrimitiveRayQuery(r, filter)
+    self.collisionQuery:reset()
+
+    for _, otherShape in ipairs(self.quadTreeQuery.results) do
+        --- @cast otherShape slick.collision.shapeInterface
+        local response = filter(otherShape.entity.item, otherShape)
+        if response then
+            local inside, x, y = otherShape:raycast(r)
+            if inside and x and y then
+                self:_addCollision(otherShape, nil, response, true)
+
+                local result = self.results[#self.results]
+                result.contactPoint:init(x, y)
+            end
+        end
+    end
+end
+
+--- @private
+--- @param r slick.geometry.rectangle
+--- @param filter slick.worldShapeFilterQueryFunc
+function worldQuery:_performPrimitiveRectangleQuery(r, filter)
+    _cachedQueryTransform:setTransform(r:left(), r:top(), 0, r:width(), r:height())
+    _cachedQueryBoxShape:transform(_cachedQueryTransform)
+
+    self:_performShapeQuery(_cachedQueryBoxShape, filter)
+end
+
+--- @private
+--- @param s slick.geometry.segment
+--- @param filter slick.worldShapeFilterQueryFunc
+function worldQuery:_performPrimitiveSegmentQuery(s, filter)
+    _cachedQueryLineSegmentShape:init(s.a.x, s.a.y, s.b.x, s.b.y)
+    self:_performShapeQuery(_cachedQueryLineSegmentShape, filter)
+end
+
+--- @param shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray
+--- @param filter slick.worldShapeFilterQueryFunc
+function worldQuery:performPrimitive(shape, filter)
+    self:_beginPrimitiveQuery(shape)
+
+    if util.is(shape, rectangle) then
+        --- @cast shape slick.geometry.rectangle
+        self:_performPrimitiveRectangleQuery(shape, filter)
+    elseif util.is(shape, point) then
+        --- @cast shape slick.geometry.point
+        self:_performPrimitivePointQuery(shape, filter)
+    elseif util.is(shape, segment) then
+        --- @cast shape slick.geometry.segment
+        self:_performPrimitiveSegmentQuery(shape, filter)
+    elseif util.is(shape, ray) then
+        --- @cast shape slick.geometry.ray
+        self:_performPrimitiveRayQuery(shape, filter)
+    end
 end
 
 local _cachedPosition = point.new()
@@ -56,7 +162,7 @@ function worldQuery:perform(entity, x, y, filter)
                     if response then
                         self.collisionQuery:perform(shape, otherShape, _cachedSelfVelocity, _cachedOtherVelocity)
                         if self.collisionQuery.collision then
-                            self:_addCollision(shape, otherShape, response)
+                            self:_addCollision(shape, otherShape, response, false)
                         end
                     end
                 end
@@ -89,16 +195,24 @@ function worldQuery:_beginQuery(entity, x, y)
 end
 
 --- @private
+--- @param shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray
+function worldQuery:_beginPrimitiveQuery(shape)
+    self:reset()
+    self.quadTreeQuery:perform(shape)
+end
+
+--- @private
 function worldQuery:_endQuery()
     table.sort(self.results, worldQueryResponse.less)
 end
 
 --- @private
 --- @param shape slick.collision.shapeInterface
---- @param otherShape slick.collision.shapeInterface
---- @param response string
-function worldQuery:_addCollision(shape, otherShape, response)
-    if not (self.collisionQuery.depth > 0 or (self.collisionQuery.time > 0 and self.collisionQuery.time <= 1)) then
+--- @param otherShape slick.collision.shapeInterface?
+--- @param response string | boolean
+--- @param primitive boolean
+function worldQuery:_addCollision(shape, otherShape, response, primitive)
+    if not primitive and not (self.collisionQuery.depth > 0 or (self.collisionQuery.time > 0 and self.collisionQuery.time <= 1)) then
         return
     end
 

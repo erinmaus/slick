@@ -19,6 +19,8 @@ function point.new(x, y)
     return setmetatable({ x = x or 0, y = y or 0 }, metatable)
 end
 
+--- @param x number
+--- @param y number
 function point:init(x, y)
     self.x = x
     self.y = y

@@ -1,18 +1,6 @@
---- @alias slick.collision.shapeInterface {
----     entity: slick.entity,
----     vertexCount: number,
----     normalCount: number,
----     center: slick.geometry.point,
----     vertices: slick.geometry.point[],
----     normals: slick.geometry.point[],
----     bounds: slick.geometry.rectangle,
----     transform: fun(self: slick.collision.shapeInterface, transform: slick.geometry.transform),
----     getAxes: fun(self: slick.collision.shapeInterface, query: slick.collision.shapeCollisionResolutionQueryShape),
----     project: fun(self: slick.collision.shapeInterface, query: slick.collision.shapeCollisionResolutionQueryShape, axis: slick.geometry.point, interval: slick.collision.interval, offset: slick.geometry.point?),
----     distance: fun(self: slick.collision.shapeInterface, p: slick.geometry.point)
---- }
+--- @alias slick.collision.shapeInterface slick.collision.commonShape
 
---- @alias slick.collision.shape slick.collision.circle | slick.collision.polygon
+--- @alias slick.collision.shape slick.collision.circle | slick.collision.polygon | slick.collision.box | slick.collision.commonShape
 --- @alias slick.collision.shapelike slick.collision.shape | slick.collision.shapeGroup | slick.collision.shapeInterface
 
 local collision = {

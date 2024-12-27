@@ -79,6 +79,16 @@ function quadTreeNode:bottom()
     return self.bounds:bottom()
 end
 
+--- @return number
+function quadTreeNode:width()
+    return self.bounds:width()
+end
+
+--- @return number
+function quadTreeNode:height()
+    return self.bounds:height()
+end
+
 --- @private
 --- @param node slick.collision.quadTreeNode
 function quadTreeNode._incrementLevel(node)
@@ -128,58 +138,48 @@ function quadTreeNode:expand(bounds)
     assert(bounds:left() > -math.huge and bounds:right() < math.huge, "x axis infinite")
     assert(bounds:top() > -math.huge and bounds:bottom() < math.huge, "y axis infinite")
 
-    local halfWidth = (self:right() - self:left()) / 2
-    local halfHeight = (self:bottom() - self:top()) / 2
+    local halfWidth = self:width() / 2
+    local halfHeight = self:height() / 2
 
-    local x1, x2
     local left, right = false, false
     if bounds:right() < self:left() + halfWidth then
-        left = true
-
-        x1 = self:left() - halfWidth
-        x2 = self:right() + halfWidth
-    else
         right = true
-
-        x1 = self:right() - halfWidth
-        x2 = self:right() + halfWidth
+    else
+        left = true
     end
 
-    local y1, y2
     local top, bottom = false, false
     if bounds:bottom() < self:top() + halfHeight then
-        top = true
-
-        y1 = self:top() - halfHeight
-        y2 = self:bottom() + halfHeight
-    else
         bottom = true
-
-        y1 = self:bottom() - halfHeight
-        y2 = self:bottom() + halfHeight
+    else
+        top = true
     end
 
-    local parent = self:_newNode(nil, x1, y1, x2, y2)
+    local parent
     local topLeft, topRight, bottomLeft, bottomRight
     if top and left then
+        parent = self:_newNode(nil, self:left(), self:top(), self:right() + self:width(), self:bottom() + self:height())
         topLeft = self
-        topRight = self:_newNode(parent, x1 + (x2 - x1) / 2, y1, x2, y1 + (y2 - y1) / 2)
-        bottomLeft = self:_newNode(parent, x1, y1 + (y2 - y1) / 2, x1 + (x2 - x1) / 2, y2)
-        bottomRight = self:_newNode(parent, x1 + (x2 - x1) / 2, y1 + (y2 - y1) / 2, x2, y2)
+        topRight = self:_newNode(parent, self:right(), self:top(), self:right() + self:width(), self:bottom())
+        bottomLeft = self:_newNode(parent, self:left(), self:bottom(), self:right(), self:bottom() + self:height())
+        bottomRight = self:_newNode(parent, self:right(), self:bottom(), self:right() + self:width(), self:bottom() + self:height())
     elseif top and right then
-        topLeft = self:_newNode(parent, x1, y1, x1 + (x2 - x1) / 2, y1 + (y2 - y1) / 2)
+        parent = self:_newNode(nil, self:left() - self:width(), self:top(), self:right(), self:bottom() + self:height())
+        topLeft = self:_newNode(parent, self:left() - self:width(), self:top(), self:left(), self:bottom())
         topRight = self
-        bottomLeft = self:_newNode(parent, x1, y1 + (y2 - y1) / 2, x1 + (x2 - x1) / 2, y2)
-        bottomRight = self:_newNode(parent, x1 + (x2 - x1) / 2, y1 + (y2 - y1) / 2, x2, y2)
+        bottomLeft = self:_newNode(parent, self:left() - self:width(), self:bottom(), self:left(), self:bottom() + self:height())
+        bottomRight = self:_newNode(parent, self:left(), self:bottom(), self:right(), self:bottom() + self:height())
     elseif bottom and left then
-        topLeft = self:_newNode(parent, x1, y1, x1 + (x2 - x1) / 2, y1 + (y2 - y1) / 2)
-        topRight = self:_newNode(parent, x1 + (x2 - x1) / 2, y1, x2, y1 + (y2 - y1) / 2)
+        parent = self:_newNode(nil, self:left(), self:top() - self:height(), self:right() + self:width(), self:bottom())
+        topLeft = self:_newNode(parent, self:left(), self:top() - self:height(), self:right(), self:top())
+        topRight = self:_newNode(parent, self:right(), self:top() - self:height(), self:right() + self:width(), self:top())
         bottomLeft = self
-        bottomRight = self:_newNode(parent, x1 + (x2 - x1) / 2, y1 + (y2 - y1) / 2, x2, y2)
+        bottomRight = self:_newNode(parent, self:right(), self:top(), self:right() + self:width(), self:bottom())
     elseif bottom and right then
-        topLeft = self:_newNode(parent, x1, y1, x1 + (x2 - x1) / 2, y1 + (y2 - y1) / 2)
-        topRight = self:_newNode(parent, x1 + (x2 - x1) / 2, y1, x2, y1 + (y2 - y1) / 2)
-        bottomLeft = self:_newNode(parent, x1, y1 + (y2 - y1) / 2, x1 + (x2 - x1) / 2, y2)
+        parent = self:_newNode(nil, self:left() - self:width(), self:top() - self:height(), self:right(), self:bottom())
+        topLeft = self:_newNode(parent, self:left() - self:width(), self:top() - self:height(), self:left(), self:top())
+        topRight = self:_newNode(parent, self:left(), self:top() - self:height(), self:right(), self:top())
+        bottomLeft = self:_newNode(parent, self:left() - self:width(), self:top(), self:left(), self:bottom())
         bottomRight = self
     else
         assert(false, "critical logic error")
@@ -190,7 +190,11 @@ function quadTreeNode:expand(bounds)
     table.insert(parent.children, bottomLeft)
     table.insert(parent.children, bottomRight)
 
+    self:visit(quadTreeNode._incrementLevel)
+
+    parent.count = self.count
     self.parent = parent
+
     return parent
 end
 

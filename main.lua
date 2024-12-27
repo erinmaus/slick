@@ -13,10 +13,10 @@ local shapes = {
             173, 518,
 
             -- Hole
-            -- 365, 261,
-            -- 515, 332,
-            -- 407, 559,
-            -- 278, 452
+            365, 261,
+            515, 332,
+            407, 559,
+            278, 452
         },
 
         edges = {
@@ -27,10 +27,10 @@ local shapes = {
             5, 6,
             6, 1,
 
-            -- 7, 8,
-            -- 8, 9,
-            -- 9, 10,
-            -- 10, 7
+            7, 8,
+            8, 9,
+            9, 10,
+            10, 7
         }
     }
 }
@@ -184,9 +184,8 @@ local function build()
     end
 
     world = slick.newWorld(
-        maxX - minX + 2048,
-        maxX - minX + 2048,
-        { quadTreeX = minX - 1024, quadTreeY = minY - 1024 })
+        maxX - minX,
+        maxY - minY, { quadTreeX = 0, quadTreeY = 0 })
     world:add(worldGeometry, 0, 0, slick.shape.newShapeGroup(unpack(polygonShapes)))
     world:add(player, 0, 0, slick.shape.newPolygon({ 0, 0, 100, 0, 100, 100, 0, 100 }))
 end
@@ -376,154 +375,167 @@ function love.draw()
     love.graphics.setLineJoin("none")
     love.graphics.setLineWidth(1)
     
-    if showPolygons then
-        for index = 1, polygonCount or 0 do
-            local polygon = polygons[index]
-            local vertices = {}
+    -- if showPolygons then
+    --     for index = 1, polygonCount or 0 do
+    --         local polygon = polygons[index]
+    --         local vertices = {}
 
-            for i = 1, #polygon do
-                table.insert(vertices, shape[(polygon[i] - 1) * 2 + 1])
-                table.insert(vertices, shape[(polygon[i] - 1) * 2 + 2])
-            end
+    --         for i = 1, #polygon do
+    --             table.insert(vertices, shape[(polygon[i] - 1) * 2 + 1])
+    --             table.insert(vertices, shape[(polygon[i] - 1) * 2 + 2])
+    --         end
 
-            love.graphics.setColor(0.1, 0.1, 0.6, 1)
-            love.graphics.polygon("fill", vertices)
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.polygon("line", vertices)
+    --         love.graphics.setColor(0.1, 0.1, 0.6, 1)
+    --         love.graphics.polygon("fill", vertices)
+    --         love.graphics.setColor(1, 1, 1, 1)
+    --         love.graphics.polygon("line", vertices)
 
-            --break
-        end
-    end
+    --         --break
+    --     end
+    -- end
 
-    if showTriangles then
-        for index = 1, trianglesCount do
-            local triangle = triangles[index]
+    -- if showTriangles then
+    --     for index = 1, trianglesCount do
+    --         local triangle = triangles[index]
 
-            if not (deletedPoints[triangle[1]] or deletedPoints[triangle[2]] or deletedPoints[triangle[3]]) then
-                local point1 = triangle[1]
-                point1 = (point1 - 1) * 2 + 1
-                local point2 = triangle[2]
-                point2 = (point2 - 1) * 2 + 1
-                local point3 = triangle[3]
-                point3 = (point3 - 1) * 2 + 1
+    --         if not (deletedPoints[triangle[1]] or deletedPoints[triangle[2]] or deletedPoints[triangle[3]]) then
+    --             local point1 = triangle[1]
+    --             point1 = (point1 - 1) * 2 + 1
+    --             local point2 = triangle[2]
+    --             point2 = (point2 - 1) * 2 + 1
+    --             local point3 = triangle[3]
+    --             point3 = (point3 - 1) * 2 + 1
                 
-                local x1, y1 = unpack(shape, point1, point1 + 1)
-                local x2, y2 = unpack(shape, point2, point2 + 1)
-                local x3, y3 = unpack(shape, point3, point3 + 1)
+    --             local x1, y1 = unpack(shape, point1, point1 + 1)
+    --             local x2, y2 = unpack(shape, point2, point2 + 1)
+    --             local x3, y3 = unpack(shape, point3, point3 + 1)
                 
-                love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
-                love.graphics.polygon("fill", x1, y1, x2, y2, x3, y3)
-                love.graphics.setColor(1, 1, 1, 1)
-                love.graphics.polygon("line", x1, y1, x2, y2, x3, y3)
+    --             love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
+    --             love.graphics.polygon("fill", x1, y1, x2, y2, x3, y3)
+    --             love.graphics.setColor(1, 1, 1, 1)
+    --             love.graphics.polygon("line", x1, y1, x2, y2, x3, y3)
 
-                love.graphics.setColor(1, 0, 0, 1)
-                local centerX = (x1 + x2 + x3) / 3
-                local centerY = (y1 + y2 + y3) / 3
-                love.graphics.print(index, centerX - love.graphics.getFont():getWidth(index) / 2, centerY - 8)
-            end
-        end
-    end
+    --             love.graphics.setColor(1, 0, 0, 1)
+    --             local centerX = (x1 + x2 + x3) / 3
+    --             local centerY = (y1 + y2 + y3) / 3
+    --             love.graphics.print(index, centerX - love.graphics.getFont():getWidth(index) / 2, centerY - 8)
+    --         end
+    --     end
+    -- end
 
-    if showQuadTree then
-        love.graphics.setColor(0, 1, 1, 0.5)
+    -- if showQuadTree then
+    --     love.graphics.setColor(0, 1, 1, 0.5)
 
-        quadTree.root:visit(function(node)
-            love.graphics.rectangle("line", node:left(), node:top(), node:right() - node:left(), node:bottom() - node:top())
-        end)
-    end
+    --     quadTree.root:visit(function(node)
+    --         love.graphics.rectangle("line", node:left(), node:top(), node:right() - node:left(), node:bottom() - node:top())
+    --     end)
+    -- end
 
-    if love.keyboard.isDown("e") then
-        for i = 1, #edges, 2 do
-            local edge1 = edges[i]
-            edge1 = (edge1 - 1) * 2 + 1
+    -- if love.keyboard.isDown("e") then
+    --     for i = 1, #edges, 2 do
+    --         local edge1 = edges[i]
+    --         edge1 = (edge1 - 1) * 2 + 1
 
-            local edge2 = edges[i + 1]
-            edge2 = (edge2 - 1) * 2 + 1
+    --         local edge2 = edges[i + 1]
+    --         edge2 = (edge2 - 1) * 2 + 1
 
-            local x1, y1 = unpack(shape, edge1, edge1 + 1)
-            local x2, y2 = unpack(shape, edge2, edge2 + 1)
+    --         local x1, y1 = unpack(shape, edge1, edge1 + 1)
+    --         local x2, y2 = unpack(shape, edge2, edge2 + 1)
 
-            love.graphics.setColor(0, 1, 0, 1)
-            love.graphics.line(x1, y1, x2, y2)
+    --         love.graphics.setColor(0, 1, 0, 1)
+    --         love.graphics.line(x1, y1, x2, y2)
 
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.print(edges[i], x1, y1)
-        end
-    end
+    --         love.graphics.setColor(1, 1, 1, 1)
+    --         love.graphics.print(edges[i], x1, y1)
+    --     end
+    -- end
     
-    love.graphics.setColor(1, 1, 1, 1)
-    for i = 1, #shape, 2 do
-        if not deletedPoints[math.floor(i / 2) + 1] then
-            local x, y = unpack(shape, i, i + 1)
+    -- love.graphics.setColor(1, 1, 1, 1)
+    -- for i = 1, #shape, 2 do
+    --     if not deletedPoints[math.floor(i / 2) + 1] then
+    --         local x, y = unpack(shape, i, i + 1)
 
-            if love.keyboard.isDown("space") then
-                love.graphics.print(math.ceil(i / 2), x - love.graphics.getFont():getWidth(math.ceil(i / 2)) / 2, y - 16)
-            end
+    --         if love.keyboard.isDown("space") then
+    --             love.graphics.print(math.ceil(i / 2), x - love.graphics.getFont():getWidth(math.ceil(i / 2)) / 2, y - 16)
+    --         end
 
-            love.graphics.circle("fill", x, y, 2)
-        end
-    end
+    --         love.graphics.circle("fill", x, y, 2)
+    --     end
+    -- end
+
+    local mx, my = love.mouse.getPosition()
+    mx, my = love.graphics.inverseTransformPoint(mx, my)
+
+    local cx, cy = love.graphics.inverseTransformPoint(love.graphics.getWidth() / 2, love.graphics.getHeight() / 2)
     
-    do
-        local selfPolygon = world:get(player).shapes.shapes[1]
-        local vertices = {}
+    slick.drawWorld(world, {
+        {
+            filter = function() return true end,
+            shape = slick.geometry.rectangle.new(mx - 32, my - 32, mx + 32, my + 32 )
+        },
+        {
+            filter = function() return true end,
+            shape = slick.geometry.ray.new(slick.geometry.point.new(cx, cy), slick.geometry.point.new(mx - cy, my - cy))
+        }
+    })
 
-        for i = 1, selfPolygon.vertexCount do
-            table.insert(vertices, selfPolygon.vertices[i].x)
-            table.insert(vertices, selfPolygon.vertices[i].y)
-        end
+    -- do
+    --     local selfPolygon = world:get(player).shapes.shapes[1]
+    --     local vertices = {}
 
-        if not love.keyboard.isDown("m") then
-            love.graphics.setColor(1, 0.5, 0.0, 0.5)
-            love.graphics.polygon("fill", vertices)
-        end
+    --     for i = 1, selfPolygon.vertexCount do
+    --         table.insert(vertices, selfPolygon.vertices[i].x)
+    --         table.insert(vertices, selfPolygon.vertices[i].y)
+    --     end
 
-        local mx, my = love.mouse.getPosition()
-        mx, my = love.graphics.inverseTransformPoint(mx, my)
+    --     if not love.keyboard.isDown("m") then
+    --         love.graphics.setColor(1, 0.5, 0.0, 0.5)
+    --         love.graphics.polygon("fill", vertices)
+    --     end
 
-        local _, _, _, _, q = world:check(player, mx, my, function() return "slide" end)
-        local collision = q.results[1]
+    --     local _, _, _, _, q = world:check(player, mx, my, function() return "slide" end)
+    --     local collision = q.results[1]
         
-        if collision then
-            if collision.time > 0 and collision.time <= 1 then
-                love.graphics.setColor(0, 1, 0, 0.5)
-                love.graphics.push("all")
-                love.graphics.translate(collision.offset.x, collision.offset.y)
-                love.graphics.polygon("line", vertices)
-                love.graphics.pop()
-            else
-                love.graphics.setColor(1, 1, 1, 0.5)
-                love.graphics.push("all")
-                love.graphics.translate(collision.normal.x * collision.depth, collision.normal.y * collision.depth)
-                love.graphics.polygon("line", vertices)
-                love.graphics.pop()
-            end
+    --     if collision then
+    --         if collision.time > 0 and collision.time <= 1 then
+    --             love.graphics.setColor(0, 1, 0, 0.5)
+    --             love.graphics.push("all")
+    --             love.graphics.translate(collision.offset.x, collision.offset.y)
+    --             love.graphics.polygon("line", vertices)
+    --             love.graphics.pop()
+    --         else
+    --             love.graphics.setColor(1, 1, 1, 0.5)
+    --             love.graphics.push("all")
+    --             love.graphics.translate(collision.normal.x * collision.depth, collision.normal.y * collision.depth)
+    --             love.graphics.polygon("line", vertices)
+    --             love.graphics.pop()
+    --         end
 
-            if collision.contactPoint then
-                local n = slick.geometry.point.new()
-                collision.normal:left(n)
+    --         if collision.contactPoint then
+    --             local n = slick.geometry.point.new()
+    --             collision.normal:left(n)
 
-                local p1 = slick.geometry.point.new()
-                n:multiplyScalar(100, p1)
-                collision.contactPoint:add(p1, p1)
+    --             local p1 = slick.geometry.point.new()
+    --             n:multiplyScalar(100, p1)
+    --             collision.contactPoint:add(p1, p1)
 
-                local p2 = slick.geometry.point.new()
-                n:multiplyScalar(-100, p2)
-                collision.contactPoint:add(p2, p2)
+    --             local p2 = slick.geometry.point.new()
+    --             n:multiplyScalar(-100, p2)
+    --             collision.contactPoint:add(p2, p2)
 
-                love.graphics.setColor(1, 0, 0, 1)
-                love.graphics.line(p1.x, p1.y, collision.contactPoint.x, collision.contactPoint.y)
+    --             love.graphics.setColor(1, 0, 0, 1)
+    --             love.graphics.line(p1.x, p1.y, collision.contactPoint.x, collision.contactPoint.y)
 
-                love.graphics.setColor(0, 1, 0, 1)
-                love.graphics.line(p2.x, p2.y, collision.contactPoint.x, collision.contactPoint.y)
-            end
+    --             love.graphics.setColor(0, 1, 0, 1)
+    --             love.graphics.line(p2.x, p2.y, collision.contactPoint.x, collision.contactPoint.y)
+    --         end
 
-            for _, contactPoint in ipairs(collision.contactPoints) do
-                love.graphics.setColor(1, 0, 0, 1)
-                love.graphics.rectangle("fill", contactPoint.x - 4, contactPoint.y - 4, 8, 8)
-            end
-        end
-    end
+    --         for _, contactPoint in ipairs(collision.contactPoints) do
+    --             love.graphics.setColor(1, 0, 0, 1)
+    --             love.graphics.rectangle("fill", contactPoint.x - 4, contactPoint.y - 4, 8, 8)
+    --         end
+    --     end
+    -- end
     love.graphics.pop()
 end
 

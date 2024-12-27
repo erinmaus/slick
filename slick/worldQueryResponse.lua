@@ -3,13 +3,13 @@ local slicktable = require("slick.util.slicktable")
 local segment = require("slick.geometry.segment")
 
 --- @class slick.worldQueryResponse
---- @field response string
+--- @field response string | boolean
 --- @field item any
 --- @field entity slick.entity
 --- @field shape slick.collision.shape
---- @field other any
---- @field otherEntity slick.entity
---- @field otherShape slick.collision.shape
+--- @field other any?
+--- @field otherEntity slick.entity?
+--- @field otherShape slick.collision.shape?
 --- @field normal slick.geometry.point
 --- @field depth number
 --- @field time number
@@ -48,8 +48,8 @@ end
 local _cachedInitItemPosition = point.new()
 
 --- @param shape slick.collision.shapeInterface
---- @param otherShape slick.collision.shapeInterface
---- @param response string
+--- @param otherShape slick.collision.shapeInterface?
+--- @param response string | boolean
 --- @param query slick.collision.shapeCollisionResolutionQuery
 function worldQueryResponse:init(shape, otherShape, response, query)
     self.response = response
@@ -59,8 +59,8 @@ function worldQueryResponse:init(shape, otherShape, response, query)
     self.item = shape.entity.item
 
     self.otherShape = otherShape
-    self.otherEntity = otherShape.entity
-    self.other = otherShape.entity.item
+    self.otherEntity = self.otherShape and self.otherShape.entity
+    self.other = self.otherEntity and self.otherEntity.item
 
     self.normal:init(query.normal.x, query.normal.y)
     self.depth = query.depth

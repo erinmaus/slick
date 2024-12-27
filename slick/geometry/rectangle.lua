@@ -51,6 +51,14 @@ function rectangle:bottom()
     return self.bottomRight.y
 end
 
+function rectangle:width()
+    return self:right() - self:left()
+end
+
+function rectangle:height()
+    return self:bottom() - self:top()
+end
+
 --- @param x number
 --- @param y number
 function rectangle:expand(x, y)
@@ -74,6 +82,12 @@ end
 function rectangle:overlaps(other)
     return self:left() <= other:right() and self:right() >= other:left() and
            self:top() <= other:bottom() and self:bottom() >= other:top()
+end
+
+--- @param p slick.geometry.point
+--- @return boolean
+function rectangle:inside(p)
+    return p.x >= self:left() and p.x <= self:right() and p.y >= self:top() and p.y <= self:bottom()
 end
 
 return rectangle

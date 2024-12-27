@@ -6,6 +6,9 @@ local cache
 --- @module "slick.collision"
 local collision
 
+--- @module "slick.draw"
+local draw
+
 --- @module "slick.entity"
 local entity
 
@@ -33,9 +36,13 @@ local worldQuery
 --- @module "slick.worldQueryResponse"
 local worldQueryResponse
 
+--- @module "slick.meta"
+local meta
+
 local function load()
     cache = require("slick.cache")
     collision = require("slick.collision")
+    draw = require("slick.draw")
     entity = require("slick.entity")
     geometry = require("slick.geometry")
     defaultOptions = require("slick.options")
@@ -45,6 +52,8 @@ local function load()
     world = require("slick.world")
     worldQuery = require("slick.worldQuery")
     worldQueryResponse = require("slick.worldQueryResponse")
+
+    meta = require("slick.meta")
 end
 
 do
@@ -78,25 +87,12 @@ do
     end
 end
 
---- @param options slick.options
-local function newCache(options)
-    return cache.new(options)
-end
-
---- @param width number
---- @param height number
---- @param options slick.options?
-local function newWorld(width, height, options)
-    return world.new(width, height, options)
-end
-
---- @param world slick.world
---- @return slick.worldQuery
-local function newWorldQuery(world)
-    return worldQuery.new(world)
-end
-
 return {
+    _VERSION = meta._VERSION,
+    _DESCRIPTION = meta._DESCRIPTION,
+    _URL = meta._URL,
+    _LICENSE = meta._LICENSE,
+
     cache = cache,
     collision = collision,
     defaultOptions = defaultOptions,
@@ -109,6 +105,18 @@ return {
     worldQueryResponse = worldQueryResponse,
     responses = responses,
 
-    newCache = newCache,
-    newWorld = newWorld
+    newCache = cache.new,
+    newWorld = world.new,
+    newWorldQuery = worldQuery.new,
+    newTransform = geometry.transform.new,
+
+    newBoxShape = shape.newBox,
+    newCircleShape = shape.newCircle,
+    newLineSegmentShape = shape.newLineSegment,
+    newPolygonShape = shape.newPolygon,
+    newPolylineShape = shape.newPolyline,
+    newPolygonMeshShape = shape.newPolygonMesh,
+    newShapeGroupShape = shape.newShapeGroup,
+
+    drawWorld = draw
 }
