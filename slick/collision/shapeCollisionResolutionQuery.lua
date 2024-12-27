@@ -31,6 +31,7 @@ local SIDE_RIGHT = 1
 --- @field otherOffset slick.geometry.point
 --- @field contactPointsCount number
 --- @field contactPoints slick.geometry.point[]
+--- @field segment slick.geometry.segment
 --- @field private firstTime number
 --- @field private lastTime number
 --- @field private currentShape slick.collision.shapeCollisionResolutionQueryShape
@@ -61,6 +62,7 @@ function shapeCollisionResolutionQuery.new()
         otherOffset = point.new(),
         contactPointsCount = 0,
         contactPoints = { point.new() },
+        segment = segment.new(),
         currentShape = _newQueryShape(),
         otherShape = _newQueryShape(),
     }, metatable)
@@ -216,6 +218,10 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
 
     local hit = false
     local side = SIDE_NONE
+
+    --- @type slick.collision.shapeCollisionResolutionQueryAxis
+    local bestAxis
+    local bestAxisDepth = math.huge
     for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
         hit = false
 
@@ -239,6 +245,12 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
             otherInterval:copy(self.otherShape.minInterval)
 
             side = futureSide
+        end
+
+        local depth = currentInterval:distance(otherInterval)
+        if depth < (bestAxisDepth or math.huge) then
+            bestAxis = axis
+            bestAxisDepth = depth
         end
     end
 
@@ -278,6 +290,7 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
             end
 
             if depth < self.depth then
+                bestAxis = axis
                 self.depth = depth
                 self.normal:init(_cachedPendingAxis.x, _cachedPendingAxis.y)
             end
@@ -358,11 +371,14 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
         end
 
         self.time = self.firstTime
+        self.segment:init(bestAxis.segment.a, bestAxis.segment.b)
     else
         self.depth = 0
         self.time = 0
         self.normal:init(0, 0)
         self.contactPointsCount = 0
+        self.segment.a:init(0, 0)
+        self.segment.b:init(0, 0)
     end
 
     return self.collision

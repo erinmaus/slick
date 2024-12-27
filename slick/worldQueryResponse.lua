@@ -1,5 +1,6 @@
 local point = require("slick.geometry.point")
 local slicktable = require("slick.util.slicktable")
+local segment = require("slick.geometry.segment")
 
 --- @class slick.worldQueryResponse
 --- @field response string
@@ -15,6 +16,7 @@ local slicktable = require("slick.util.slicktable")
 --- @field offset slick.geometry.point
 --- @field contactPoint slick.geometry.point
 --- @field contactPoints slick.geometry.point[]
+--- @field segment slick.geometry.segment
 --- @field distance number
 --- @field extra table
 --- @field private contactPointsCache slick.geometry.point[]
@@ -31,6 +33,7 @@ function worldQueryResponse.new()
         offset = point.new(),
         contactPoint = point.new(),
         contactPoints = {},
+        segment = segment.new(),
         extra = {},
         contactPointsCache = { point.new() },
     }, metatable)
@@ -94,9 +97,11 @@ function worldQueryResponse:init(shape, otherShape, response, query)
         self.contactPoint:init(closestContactPoint.x, closestContactPoint.y)
         self.distance = self.shape:distance(self.contactPoint)
     else
-        self.contactPoint:init()
+        self.contactPoint:init(0, 0)
         self.distance = math.huge
     end
+
+    self.segment:init(query.segment.a, query.segment.b)
 
     slicktable.clear(self.extra)
 end
@@ -117,10 +122,11 @@ function worldQueryResponse:move(other)
     other.depth = self.depth
     other.time = self.time
     other.offset:init(self.offset.x, self.offset.y)
-
+    
     other.contactPoint:init(self.contactPoint.x, self.contactPoint.y)
     other.distance = self.distance
-
+    other.segment:init(self.segment.a, self.segment.b)
+    
     slicktable.clear(other.contactPoints)
     for i, inputContactPoint in ipairs(self.contactPoints) do
         local outputContactPoint = other.contactPointsCache[i]
@@ -128,10 +134,10 @@ function worldQueryResponse:move(other)
             outputContactPoint = point.new()
             other.contactPointsCache[i] = outputContactPoint
         end
-
+        
         outputContactPoint:init(inputContactPoint.x, inputContactPoint.y)
     end
-
+    
     other.extra, self.extra = self.extra, other.extra
 end
 

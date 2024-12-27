@@ -499,6 +499,25 @@ function love.draw()
                 love.graphics.pop()
             end
 
+            if collision.contactPoint then
+                local n = slick.geometry.point.new()
+                collision.normal:left(n)
+
+                local p1 = slick.geometry.point.new()
+                n:multiplyScalar(100, p1)
+                collision.contactPoint:add(p1, p1)
+
+                local p2 = slick.geometry.point.new()
+                n:multiplyScalar(-100, p2)
+                collision.contactPoint:add(p2, p2)
+
+                love.graphics.setColor(1, 0, 0, 1)
+                love.graphics.line(p1.x, p1.y, collision.contactPoint.x, collision.contactPoint.y)
+
+                love.graphics.setColor(0, 1, 0, 1)
+                love.graphics.line(p2.x, p2.y, collision.contactPoint.x, collision.contactPoint.y)
+            end
+
             for _, contactPoint in ipairs(collision.contactPoints) do
                 love.graphics.setColor(1, 0, 0, 1)
                 love.graphics.rectangle("fill", contactPoint.x - 4, contactPoint.y - 4, 8, 8)

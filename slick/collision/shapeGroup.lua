@@ -39,11 +39,16 @@ end
 --- @param shape slick.collision.shapelike
 ---@param ... slick.collision.shapelike
 function shapeGroup:_addShapes(shape, ...)
+    if not shape then
+        return
+    end
+
     if util.is(shape, shapeGroup) then
         --- @cast shape slick.collision.shapeGroup
         self:_addShapes(unpack(shape.shapes))
     else
         table.insert(self.shapes, shape)
+        self:_addShapes(...)
     end
 end
 

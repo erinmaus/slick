@@ -3,7 +3,6 @@ local quadTreeQuery = require("slick.collision.quadTreeQuery")
 local shapeCollisionResolutionQuery = require("slick.collision.shapeCollisionResolutionQuery")
 local point = require("slick.geometry.point")
 local rectangle = require("slick.geometry.rectangle")
-local transform = require("slick.geometry.transform")
 local slicktable = require("slick.util.slicktable")
 
 --- @class slick.worldQuery
@@ -30,6 +29,8 @@ end
 local _cachedPosition = point.new()
 local _cachedSelfVelocity = point.new()
 local _cachedOtherVelocity = point.new()
+local _cachedEntityBounds = rectangle.new()
+local _cachedShapeBounds = rectangle.new()
 
 --- @param entity slick.entity
 --- @param x number
@@ -42,15 +43,21 @@ function worldQuery:perform(entity, x, y, filter)
     _cachedSelfVelocity:init(x, y)
     _cachedPosition:direction(_cachedSelfVelocity, _cachedSelfVelocity)
 
+    _cachedEntityBounds:init(entity.bounds:left(), entity.bounds:top(), entity.bounds:right(), entity.bounds:bottom())
+    _cachedEntityBounds:move(x - entity.transform.x, y - entity.transform.y)
+
     for _, otherShape in ipairs(self.quadTreeQuery.results) do
         --- @cast otherShape slick.collision.shapeInterface
-        if otherShape.entity ~= entity then
+        if otherShape.entity ~= entity and _cachedEntityBounds:overlaps(otherShape.bounds) then
             for _, shape in ipairs(entity.shapes.shapes) do
-                local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
-                if response then
-                    self.collisionQuery:perform(shape, otherShape, _cachedSelfVelocity, _cachedOtherVelocity)
-                    if self.collisionQuery.collision then
-                        self:_addCollision(shape, otherShape, response)
+                _cachedShapeBounds:init(shape.bounds:left(), shape.bounds:top(), shape.bounds:right(), shape.bounds:bottom())
+                if _cachedShapeBounds:overlaps(otherShape.bounds) then
+                    local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
+                    if response then
+                        self.collisionQuery:perform(shape, otherShape, _cachedSelfVelocity, _cachedOtherVelocity)
+                        if self.collisionQuery.collision then
+                            self:_addCollision(shape, otherShape, response)
+                        end
                     end
                 end
             end
@@ -60,16 +67,11 @@ function worldQuery:perform(entity, x, y, filter)
     self:_endQuery()
 end
 
-local _cachedTransform = transform.new()
-local _cachedTopLeft = point.new()
-local _cachedTopRight = point.new()
-local _cachedBottomLeft = point.new()
-local _cachedBottomRight = point.new()
-local _cachedBounds = rectangle.new()
-
 function worldQuery:reset()
     slicktable.clear(self.results)
 end
+
+local _cachedBounds = rectangle.new()
 
 --- @private
 --- @param entity slick.entity
@@ -78,19 +80,8 @@ end
 function worldQuery:_beginQuery(entity, x, y)
     self:reset()
 
-    entity.transform:copy(_cachedTransform)
-    _cachedTransform:setTransform(-_cachedTransform.x + x, -_cachedTransform.y + y)
-
-    _cachedTopLeft:init(_cachedTransform:transformPoint(entity.bounds:left(), entity.bounds:top()))
-    _cachedTopRight:init(_cachedTransform:transformPoint(entity.bounds:right(), entity.bounds:top()))
-    _cachedBottomRight:init(_cachedTransform:transformPoint(entity.bounds:right(), entity.bounds:bottom()))
-    _cachedBottomLeft:init(_cachedTransform:transformPoint(entity.bounds:left(), entity.bounds:bottom()))
-
-    _cachedBounds:init(_cachedTopLeft.x, _cachedTopLeft.y, _cachedTopLeft.x, _cachedTopLeft.x)
-    _cachedBounds:expand(_cachedTopRight.x, _cachedTopRight.y)
-    _cachedBounds:expand(_cachedBottomLeft.x, _cachedBottomLeft.y)
-    _cachedBounds:expand(_cachedBottomRight.x, _cachedBottomRight.y)
-
+    _cachedBounds:init((entity.bounds:left() - entity.transform.x) + x, (entity.bounds:top() - entity.transform.y))
+    _cachedBounds:expand((entity.bounds:right() - entity.transform.x) + x, (entity.bounds:bottom() - entity.transform.y) + y)
     _cachedBounds:expand(entity.bounds:left(), entity.bounds:top())
     _cachedBounds:expand(entity.bounds:right(), entity.bounds:bottom())
 
