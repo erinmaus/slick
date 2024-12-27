@@ -13,7 +13,15 @@ local util = require("slick.util")
 local slicktable = require("slick.util.slicktable")
 
 --- @alias slick.worldFilterQueryFunc fun(item: any, other: any, shape: slick.collision.shape, otherShape: slick.collision.shape): string | false
+local function defaultWorldFilterQueryFunc()
+    return "slide"
+end
+
 --- @alias slick.worldShapeFilterQueryFunc fun(item: any, shape: slick.collision.shape): boolean
+local function defaultWorldShapeFilterQueryFunc()
+    return true
+end
+
 --- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, filter: slick.worldFilterQueryFunc): number, number, slick.worldQueryResponse[], number, slick.worldQuery
 
 --- @class slick.world
@@ -174,14 +182,14 @@ end
 --- @param item any
 --- @param x number
 --- @param y number
---- @param filter slick.worldFilterQueryFunc
+--- @param filter slick.worldFilterQueryFunc?
 --- @param query slick.worldQuery?
 --- @return slick.worldQueryResponse[], number, slick.worldQuery
 function world:project(item, x, y, filter, query)
     query = query or worldQuery.new(self)
     local e = self:get(item)
 
-    query:perform(e, x, y, filter)
+    query:perform(e, x, y, filter or defaultWorldFilterQueryFunc)
 
     return query.results, #query.results, query
 end
@@ -192,14 +200,14 @@ local _cachedQueryRectangle = rectangle.new()
 --- @param y number
 --- @param w number
 --- @param h number
---- @param filter slick.worldFilterQueryFunc
+--- @param filter slick.worldShapeFilterQueryFunc?
 --- @param query slick.worldQuery?
 --- @return slick.worldQueryResponse[], number, slick.worldQuery
 function world:queryRectangle(x, y, w, h, filter, query)
     query = query or worldQuery.new(self)
 
     _cachedQueryRectangle:init(x, y, x + w, y + h)
-    query:performPrimitive(_cachedQueryRectangle, filter)
+    query:performPrimitive(_cachedQueryRectangle, filter or defaultWorldShapeFilterQueryFunc)
 
     return query.results, #query.results, query
 end
@@ -210,7 +218,7 @@ local _cachedQuerySegment = segment.new()
 --- @param y1 number
 --- @param x2 number
 --- @param y2 number
---- @param filter slick.worldFilterQueryFunc
+--- @param filter slick.worldShapeFilterQueryFunc?
 --- @param query slick.worldQuery?
 --- @return slick.worldQueryResponse[], number, slick.worldQuery
 function world:querySegment(x1, y1, x2, y2, filter, query)
@@ -218,7 +226,7 @@ function world:querySegment(x1, y1, x2, y2, filter, query)
 
     _cachedQuerySegment.a:init(x1, y1)
     _cachedQuerySegment.b:init(x2, y2)
-    query:performPrimitive(_cachedQuerySegment, filter)
+    query:performPrimitive(_cachedQuerySegment, filter or defaultWorldShapeFilterQueryFunc)
 
     return query.results, #query.results, query
 end
@@ -229,7 +237,7 @@ local _cachedQueryRay = ray.new()
 --- @param originY number
 --- @param directionX number
 --- @param directionY number
---- @param filter slick.worldFilterQueryFunc
+--- @param filter slick.worldShapeFilterQueryFunc?
 --- @param query slick.worldQuery?
 --- @return slick.worldQueryResponse[], number, slick.worldQuery
 function world:queryRay(originX, originY, directionX, directionY, filter, query)
@@ -241,7 +249,7 @@ function world:queryRay(originX, originY, directionX, directionY, filter, query)
         _cachedQueryRay.direction:normalize(_cachedQueryRay.direction)
     end
 
-    query:performPrimitive(_cachedQueryRay, filter)
+    query:performPrimitive(_cachedQueryRay, filter or defaultWorldShapeFilterQueryFunc)
 
     return query.results, #query.results, query
 end
@@ -250,14 +258,14 @@ local _cachedQueryPoint = point.new()
 
 --- @param x number
 --- @param y number
---- @param filter slick.worldFilterQueryFunc
+--- @param filter slick.worldShapeFilterQueryFunc?
 --- @param query slick.worldQuery?
 --- @return slick.worldQueryResponse[], number, slick.worldQuery
 function world:queryPoint(x, y, filter, query)
     query = query or worldQuery.new(self)
 
     _cachedQueryPoint:init(x, y)
-    query:performPrimitive(_cachedQueryPoint, filter)
+    query:performPrimitive(_cachedQueryPoint, filter or defaultWorldShapeFilterQueryFunc)
 
     return query.results, #query.results, query
 end
@@ -284,14 +292,14 @@ end
 --- @param item any
 --- @param x number
 --- @param y number
---- @param filter slick.worldFilterQueryFunc
+--- @param filter slick.worldFilterQueryFunc?
 --- @param query slick.worldQuery?
 --- @return number, number, slick.worldQueryResponse[], number, slick.worldQuery
 function world:check(item, x, y, filter, query)
     query = query or worldQuery.new(self)
     local cachedQuery = self.cachedWorldQuery
 
-    _cachedFilterFunc = filter
+    _cachedFilterFunc = filter or defaultWorldFilterQueryFunc
     slicktable.clear(_cachedVisited)
 
     self:project(item, x, y, _visitFilter, cachedQuery)

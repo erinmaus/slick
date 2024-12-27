@@ -33,6 +33,7 @@ local function draw(world, queries)
                 --- @cast shape slick.collision.lineSegment
                 love.graphics.line(shape.segment.a.x, shape.segment.a.y, shape.segment.b.x, shape.segment.b.y)
             else
+                love.graphics.print(string.format("%f, %f", shape.entity.transform.x, shape.entity.transform.y), shape.vertices[1].x, shape.vertices[1].y)
                 for i = 1, shape.vertexCount do
                     local j = i % shape.vertexCount + 1
 

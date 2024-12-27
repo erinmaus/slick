@@ -70,9 +70,13 @@ local function touch(world, query, response, x, y, filter)
     if response.time > 0 and response.time < 1 then
         x = x + response.offset.x
         y = y + response.offset.y
+
+        print(">>> time", response.offset.x, response.offset.y)
     elseif response.depth > 0 then
         x = x + response.normal.x * response.depth
         y = y + response.normal.y * response.depth
+
+        print(">>> depth", response.normal.x, response.normal.y, response.depth)
     end
 
     query:reset()

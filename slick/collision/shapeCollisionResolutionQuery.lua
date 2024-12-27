@@ -325,13 +325,18 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
         self.currentShape.shape.center:direction(self.otherShape.shape.center, _cachedDirection)
         _cachedDirection:normalize(_cachedDirection)
 
-        if _cachedDirection:dot(self.normal) >= 0 then
-            self.normal:negate(self.normal)
-        end
-
         if self.firstTime > 0 or self.lastTime > 0 then
             selfVelocity:multiplyScalar(self.firstTime, self.currentOffset)
             otherVelocity:multiplyScalar(self.firstTime, self.otherOffset)
+
+            self.normal:init(self.currentOffset.x, self.currentOffset.y)
+            if self.normal:lengthSquared() > 0 then
+                self.normal:normalize(self.normal)
+            end
+        end
+
+        if _cachedDirection:dot(self.normal) >= 0 then
+            self.normal:negate(self.normal)
         end
 
         if side == SIDE_RIGHT or side == SIDE_LEFT then
@@ -359,7 +364,7 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
                 intersection, x, y = slickmath.intersection(_cachedSegmentA.a, _cachedSegmentA.b, _cachedSegmentB.a, _cachedSegmentB.b, slickmath.EPSILON)
             end
 
-            if intersection then
+            if intersection and x and y then
                 self.contactPointsCount = self.contactPointsCount + 1
                 local contactPoint = self.contactPoints[self.contactPointsCount]
                 if not contactPoint then
@@ -377,7 +382,7 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
 
                     if _cachedSegmentA:overlap(_cachedSegmentB) then
                         local intersection, x, y = slickmath.intersection(_cachedSegmentA.a, _cachedSegmentA.b, _cachedSegmentB.a, _cachedSegmentB.b)
-                        if intersection then
+                        if intersection and x and y then
                             self.contactPointsCount = self.contactPointsCount + 1
                             local contactPoint = self.contactPoints[self.contactPointsCount]
                             if not contactPoint then
@@ -442,7 +447,7 @@ function shapeCollisionResolutionQuery:_getClosestVertexToEdge(s, shape, result)
 end
 
 function shapeCollisionResolutionQuery:_handleAxis(axis, offset)
-    self.currentShape.shape:project(self, axis.normal, self.currentShape.currentInterval, offset)
+    self.currentShape.shape:project(self, axis.normal, self.currentShape.currentInterval)
     self:_swapShapes()
     self.currentShape.shape:project(self, axis.normal, self.currentShape.currentInterval, offset)
     self:_swapShapes()
@@ -575,7 +580,7 @@ function shapeCollisionResolutionQuery:project(axis, interval, offset)
         local vertex = self.currentShape.shape.vertices[i]
         _cachedOffsetVertex:init(vertex.x, vertex.y)
         if offset then
-            _cachedOffsetVertex:add(offset, _cachedOffsetVertex)
+            _cachedOffsetVertex:sub(offset, _cachedOffsetVertex)
         end
 
         interval:update(_cachedOffsetVertex:dot(axis), i)
