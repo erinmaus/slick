@@ -102,7 +102,6 @@ end
 
 function interval:overlaps(other)
     return (self.min >= other.min and self.min <= other.max) or (other.min >= self.min and other.min <= self.max)
-    --return not (self.min > other.max or other.min > self.max)
 end
 
 function interval:distance(other)

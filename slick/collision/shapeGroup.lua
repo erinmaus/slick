@@ -59,8 +59,8 @@ function shapeGroup:attach()
     while index < #shapes do
         local shape = shapes[index]
         if util.is(shape, polygonMesh) then
+            --- @diagnostic disable-next-line: cast-type-mismatch
             --- @cast shape slick.collision.polygonMesh
-            --- @diagnostic disable-next-line: invisible
             shape:build(self.entity.world.cache.triangulator)
 
             table.remove(shape, index)

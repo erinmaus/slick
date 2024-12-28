@@ -32,8 +32,8 @@ function box:init(x, y, w, h)
         x + w, y + h,
         x, y + h)
 
-    self:addNormal(1, 0)
     self:addNormal(0, 1)
+    self:addNormal(-1, 0)
 
     self:transform(transform.IDENTITY)
 

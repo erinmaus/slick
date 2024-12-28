@@ -1,3 +1,5 @@
+local slickmath = require "slick.util.slickmath"
+
 --- @class slick.options
 --- @field epsilon number?
 --- @field debug boolean?
@@ -8,7 +10,6 @@
 --- @field quadTreeExpand boolean?
 --- @field sharedCache slick.cache?
 local defaultOptions = {
-    epsilon = 0.01,
     debug = false,
 
     quadTreeMaxLevels = 8,

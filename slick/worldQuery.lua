@@ -28,7 +28,7 @@ function worldQuery.new(world)
         quadTreeQuery = quadTreeQuery.new(world.quadTree),
         results = {},
         cachedResults = {},
-        collisionQuery = shapeCollisionResolutionQuery.new()
+        collisionQuery = shapeCollisionResolutionQuery.new(world.options.epsilon)
     }, metatable)
 end
 
@@ -163,6 +163,7 @@ function worldQuery:perform(entity, goalX, goalY, filter)
                     local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
                     if response then
                         self.collisionQuery:perform(shape, otherShape, _cachedSelfVelocity, _cachedOtherVelocity)
+
                         if self.collisionQuery.collision then
                             self:_addCollision(shape, otherShape, response, false)
                         else

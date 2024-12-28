@@ -1,18 +1,22 @@
+if love.system.getOS() == "OS X" and jit and jit.arch == "arm64" then
+    jit.off()
+end
+
 local slick = require("slick")
 
-local GRAVITY_Y = 2400
+local GRAVITY_Y = 1200
 local PLAYER_SPEED = 500
-local PLAYER_JUMP_VELOCITY = 1200
+local PLAYER_JUMP_VELOCITY = 800
 
 local function makePlayer(world)
     local player = {
         type = "player",
 
-        x = love.graphics.getWidth() / 8,
+        x = love.graphics.getWidth() / 2,
         y = love.graphics.getHeight() / 2,
         
         jumpVelocityY = 0,
-        --isJumping = true
+        isJumping = true
     }
 
     world:add(player, player.x, player.y, slick.newBoxShape(0, 0, 32, 32))
@@ -21,7 +25,7 @@ local function makePlayer(world)
 end
 
 local function movePlayer(player, world, deltaTime)
-    --deltaTime = 1 / 30
+    --deltaTime = 1 / 240
 
     local jumped = false
     if not player.isJumping and love.keyboard.isDown("w") then
@@ -48,12 +52,9 @@ local function movePlayer(player, world, deltaTime)
     end
 
     local goalX = player.x + x * PLAYER_SPEED * deltaTime
-    local actualX, actualY, hits = world:move(player, goalX, goalY, function() return "slide" end)
+    local actualX, actualY, hits = world:move(player, goalX, goalY)
 
-    if actualX ~= player.x or actualY ~= player.y then
-        player.x = actualX
-        player.y = actualY
-    end
+    player.x, player.y = actualX, actualY
 
     for _, hit in ipairs(hits) do
         if player.isJumping then
@@ -66,6 +67,7 @@ local function movePlayer(player, world, deltaTime)
             player.isJumping = false
         end
     end
+
 end
 
 local function makeLevel(world)
@@ -102,17 +104,25 @@ function love.mousepressed(x, y, button)
 end
 
 local time = 0
+local accum = 0
+local t = 1 / 3
 function love.update(deltaTime)
-    local b = love.timer.getTime()
-    movePlayer(player, world, deltaTime)
-    local a = love.timer.getTime()
-    time = (a - b) * 1000
+    accum = accum + deltaTime
+    --while accum > t do
+        local b = love.timer.getTime()
+        movePlayer(player, world, deltaTime)
+        --movePlayer(player, world, 1 / 60)
+        local a = love.timer.getTime()
+        time = (a - b) * 1000
+
+        accum = accum - t
+    --end
 end
 
 function love.draw()
     love.graphics.printf(string.format("Logic: %2.2f ms", time), 0, 0, love.graphics.getWidth(), "center")
 
     slick.drawWorld(world, {
-        { shape = slick.geometry.rectangle.new(player.x, player.y, player.x + 32, player.y + 32) }
+        --{ shape = slick.geometry.rectangle.new(player.x, player.y, player.x + 32, player.y + 32) }
     })
 end

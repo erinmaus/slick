@@ -116,9 +116,9 @@ function commonShape:buildNormals()
 
         local n = self:addNormal(_cachedNormal.x, _cachedNormal.y)
         if direction < 0 then
-            n:left(n)
-        else
             n:right(n)
+        else
+            n:left(n)
         end
     end
 end

@@ -26,6 +26,8 @@ local function draw(world, queries)
 
     love.graphics.push("all")
 
+    local cr, cg, cb, ca = love.graphics.getColor()
+
     local items = world:getItems()
     for _, item in ipairs(items) do
         local entity = world:get(item)
@@ -37,8 +39,11 @@ local function draw(world, queries)
                 --- @cast shape slick.collision.lineSegment
                 love.graphics.line(shape.segment.a.x, shape.segment.a.y, shape.segment.b.x, shape.segment.b.y)
             else
+                local localSize = math.max(shape.bounds:width(), shape.bounds:height()) / 8
+
                 love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.vertices[1].x, shape.vertices[1].y)
                 love.graphics.print(string.format("%.2f x %.2f", shape.bounds:width(), shape.bounds:height()), shape.vertices[1].x, shape.vertices[1].y + 8)
+
                 for i = 1, shape.vertexCount do
                     local j = i % shape.vertexCount + 1
 
@@ -46,20 +51,27 @@ local function draw(world, queries)
                     local b = shape.vertices[j]
 
                     love.graphics.line(a.x, a.y, b.x, b.y)
+
+                    if i <= shape.normalCount then
+                        local n = shape.normals[i]
+
+                        love.graphics.setColor(0, 1, 0, ca)
+                        love.graphics.line((a.x + b.x) / 2, (a.y + b.y) / 2, (a.x + b.x) / 2 + n.x * localSize, (a.y + b.y) / 2 + n.y * localSize)
+
+                        love.graphics.setColor(cr, cg, cb, ca)
+                    end
                 end
             end
         end
     end
 
     if queries then
-        local r, g, b = love.graphics.getColor()
-
         local query = worldQuery.new(world)
         for _, q in ipairs(queries) do
             local shape = q.shape
             local filter = q.filter
 
-            love.graphics.setColor(r, g, b, 0.5)
+            love.graphics.setColor(cr, cg, cb, 0.5)
             if util.is(shape, point) then
                 --- @cast shape slick.geometry.point
                 love.graphics.circle("fill", shape.x, shape.y, 4)
@@ -70,7 +82,7 @@ local function draw(world, queries)
                 local left = point.new()
                 shape.direction:left(left)
                 
-                local right = point.new() 
+                local right = point.new()
                 shape.direction:right(right)
 
                 love.graphics.line(

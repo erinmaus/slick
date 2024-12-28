@@ -10,6 +10,7 @@ local defaultOptions = require("slick.options")
 local responses = require("slick.responses")
 local worldQuery = require("slick.worldQuery")
 local util = require("slick.util")
+local slickmath = require("slick.util.slickmath")
 local slicktable = require("slick.util.slicktable")
 
 --- @alias slick.worldFilterQueryFunc fun(item: any, other: any, shape: slick.collision.shape, otherShape: slick.collision.shape): string | false
@@ -27,6 +28,8 @@ end
 --- @class slick.world
 --- @field cache slick.cache
 --- @field quadTree slick.collision.quadTree
+--- @field options slick.options
+--- @field quadTreeOptions slick.collision.quadTreeOptions
 --- @field private responses table<string, slick.worldResponseFunc>
 --- @field private entities slick.entity[]
 --- @field private itemToEntity table<any, number>
@@ -54,8 +57,14 @@ function world.new(width, height, options)
         expand = options.quadTreeExpand == nil and defaultOptions.quadTreeExpand or options.quadTreeExpand,
     }
 
+    local selfOptions = {
+        debug = options.debug == nil and defaultOptions.debug or options.debug,
+        epsilon = options.epsilon or defaultOptions.epsilon or slickmath.EPSILON
+    }
+
     local self = setmetatable({
         cache = cache.new(options),
+        options = selfOptions,
         quadTreeOptions = quadTreeOptions,
         quadTree = quadTree.new(quadTreeOptions),
         entities = {},
@@ -306,11 +315,6 @@ function world:check(item, goalX, goalY, filter, query)
     local x, y = e.transform.x, e.transform.y
 
     self:project(item, goalX, goalY, _visitFilter, cachedQuery)
-    local iterating = #cachedQuery.results > 0
-    if not iterating then
-        self:project(item, goalX, goalY, _visitFilter, cachedQuery)
-    end
-
     while #cachedQuery.results > 0 do
         local result = cachedQuery.results[1]
         query:push(result)
