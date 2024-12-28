@@ -201,13 +201,13 @@ function point:distance(other)
     return math.sqrt(self:distanceSquared(other))
 end
 
---- Warning does not check for 0 length.
 --- @param result slick.geometry.point
 function point:normalize(result)
     local length = self:length()
-
-    result.x = self.x / length
-    result.y = self.y / length
+    if length > 0 then
+        result.x = self.x / length
+        result.y = self.y / length
+    end
 end
 
 --- @param result slick.geometry.point

@@ -1,18 +1,18 @@
 local slick = require("slick")
 
-local GRAVITY_Y = 800
-local PLAYER_SPEED = 250
-local PLAYER_JUMP_VELOCITY = 800
+local GRAVITY_Y = 2400
+local PLAYER_SPEED = 500
+local PLAYER_JUMP_VELOCITY = 1200
 
 local function makePlayer(world)
     local player = {
         type = "player",
 
-        x = love.graphics.getWidth() / 2,
+        x = love.graphics.getWidth() / 8,
         y = love.graphics.getHeight() / 2,
         
         jumpVelocityY = 0,
-        isJumping = true
+        --isJumping = true
     }
 
     world:add(player, player.x, player.y, slick.newBoxShape(0, 0, 32, 32))
@@ -21,7 +21,7 @@ local function makePlayer(world)
 end
 
 local function movePlayer(player, world, deltaTime)
-    deltaTime = 1 / 30
+    --deltaTime = 1 / 30
 
     local jumped = false
     if not player.isJumping and love.keyboard.isDown("w") then
@@ -47,8 +47,8 @@ local function movePlayer(player, world, deltaTime)
         goalY = player.y + GRAVITY_Y * deltaTime
     end
 
-    local goalX = player.x + x * PLAYER_JUMP_VELOCITY * deltaTime
-    local actualX, actualY, hits = world:move(player, goalX, goalY, function() return "touch" end)
+    local goalX = player.x + x * PLAYER_SPEED * deltaTime
+    local actualX, actualY, hits = world:move(player, goalX, goalY, function() return "slide" end)
 
     if actualX ~= player.x or actualY ~= player.y then
         player.x = actualX
@@ -62,7 +62,7 @@ local function movePlayer(player, world, deltaTime)
             end
         end
 
-        if hit.normal.y < 0 and not jumped then
+        if hit.normal.y < 0 and player.isJumping and not jumped then
             player.isJumping = false
         end
     end
@@ -78,7 +78,7 @@ local function makeLevel(world)
             slick.newBoxShape(0, 0, 8, h),
             slick.newBoxShape(w - 8, 0, 8, h),
             slick.newBoxShape(0, h - 8, w, 8),
-            --slick.newPolygonShape({ 8, h / 2, w / 4, h - 8, 8, 8 }),
+            slick.newPolygonShape({ 8, h / 2, w / 4, h - 8, 8, h - 8 }),
             slick.newBoxShape(w / 2 + w / 4, h - 150, w / 8, 60)
         )
     )
@@ -101,11 +101,17 @@ function love.mousepressed(x, y, button)
     end
 end
 
+local time = 0
 function love.update(deltaTime)
+    local b = love.timer.getTime()
     movePlayer(player, world, deltaTime)
+    local a = love.timer.getTime()
+    time = (a - b) * 1000
 end
 
 function love.draw()
+    love.graphics.printf(string.format("Logic: %2.2f ms", time), 0, 0, love.graphics.getWidth(), "center")
+
     slick.drawWorld(world, {
         { shape = slick.geometry.rectangle.new(player.x, player.y, player.x + 32, player.y + 32) }
     })

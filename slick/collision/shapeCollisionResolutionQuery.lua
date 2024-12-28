@@ -293,6 +293,14 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
         end
     end
 
+    if self.firstTime > 1 then
+        hit = false
+    end
+
+    if self.depth < slickmath.EPSILON then
+        self.depth = 0
+    end
+
     self.collision = hit
 
     if hit then
@@ -327,10 +335,17 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
                 otherShape.vertices[otherInterval.indices[otherInterval.minIndex].index]:add(self.otherOffset, _cachedSegmentA.a)
                 otherShape.vertices[otherInterval.indices[otherInterval.minIndex + 1].index]:add(self.otherOffset, _cachedSegmentA.b)
 
+                
                 selfShape.vertices[currentInterval.indices[currentInterval.maxIndex - 1].index]:add(self.currentOffset, _cachedSegmentB.a)
                 selfShape.vertices[currentInterval.indices[currentInterval.maxIndex].index]:add(self.currentOffset, _cachedSegmentB.b)
             end
             
+            _cachedSegmentA.a:direction(_cachedSegmentA.b, self.normal)
+            if self.normal:lengthSquared() > 0 then
+                self.normal:normalize(self.normal)
+            end
+            self.normal:left(self.normal)
+
             local intersection, x, y
             if _cachedSegmentA:overlap(_cachedSegmentB) then
                 intersection, x, y = slickmath.intersection(_cachedSegmentA.a, _cachedSegmentA.b, _cachedSegmentB.a, _cachedSegmentB.b, slickmath.EPSILON)
