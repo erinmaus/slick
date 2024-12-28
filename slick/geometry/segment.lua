@@ -140,4 +140,40 @@ function segment:overlap(other)
            (selfTop <= otherBottom and selfBottom >= otherTop)
 end
 
+--- @param other slick.geometry.segment
+--- @param E number?
+--- @return boolean
+--- @return number?
+--- @return number?
+--- @return number?
+function segment:intersection(other, E)
+    E = E or 0
+
+    local bax = self.b.x - self.a.x
+    local bay = self.b.y - self.a.y
+    local dcx = other.b.x - other.a.x
+    local dcy = other.b.y - other.a.y
+
+    local baCrossDC = bax * dcy - bay * dcx
+    local dcCrossBA = dcx * bay - dcy * bax
+    if baCrossDC == 0 or dcCrossBA == 0 then
+        return false, nil, nil, nil
+    end
+
+    local acx = self.a.x - other.a.x
+    local acy = self.a.y - other.a.y
+
+    local dcCrossAC = dcx * acy - dcy * acx
+
+    local u = dcCrossAC / baCrossDC
+    if u < -E or u > (1 + E) then
+        return false
+    end
+
+    local rx = self.a.x + bax * u
+    local ry = self.a.y + bay * u
+
+    return true, rx, ry, u
+end
+
 return segment

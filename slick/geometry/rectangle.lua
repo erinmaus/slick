@@ -70,11 +70,9 @@ end
 
 --- @param x number
 --- @param y number
-function rectangle:move(x, y)
-    self.topLeft.x = self.topLeft.x + x
-    self.topLeft.y = self.topLeft.y + y
-    self.bottomRight.x = self.bottomRight.x + x
-    self.bottomRight.y = self.bottomRight.y + y
+function rectangle:sweep(x, y)
+    self:expand(x, y)
+    self:expand(x + self:width(), y + self:height())
 end
 
 --- @param other slick.geometry.rectangle

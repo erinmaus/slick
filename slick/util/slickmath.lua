@@ -89,8 +89,19 @@ end
 --- @param c slick.geometry.point
 --- @param d slick.geometry.point
 --- @return boolean
-function slickmath.collinear(a, b, c, d)
-    return _collinear(a.x, b.x, c.x, d.x) and _collinear(a.y, b.y, c.y, d.y)
+function slickmath.collinear(a, b, c, d, E)
+    E = E or 0
+
+    local acdSign = slickmath.direction(a, c, d, E)
+    local bcdSign = slickmath.direction(b, c, d, E)
+    local cabSign = slickmath.direction(c, a, b, E)
+    local dabSign = slickmath.direction(d, a, b, E)
+
+    if acdSign == 0 and bcdSign == 0 and cabSign == 0 and dabSign == 0 then
+        return _collinear(a.x, b.x, c.x, d.x) and _collinear(a.y, b.y, c.y, d.y)
+    end
+
+    return false
 end
 
 --- @param a slick.geometry.point
@@ -107,7 +118,7 @@ function slickmath.intersection(a, b, c, d, E)
     if (acdSign < 0 and bcdSign < 0) or (acdSign > 0 and bcdSign > 0) then
         return false
     end
-    
+
     local cabSign = slickmath.direction(c, a, b, E)
     local dabSign = slickmath.direction(d, a, b, E)
     if (cabSign < 0 and dabSign < 0) or (cabSign > 0 and dabSign > 0) then

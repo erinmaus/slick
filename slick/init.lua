@@ -116,7 +116,7 @@ return {
     newPolygonShape = shape.newPolygon,
     newPolylineShape = shape.newPolyline,
     newPolygonMeshShape = shape.newPolygonMesh,
-    newShapeGroupShape = shape.newShapeGroup,
+    newShapeGroup = shape.newShapeGroup,
 
     drawWorld = draw
 }

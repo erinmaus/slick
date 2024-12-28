@@ -86,7 +86,7 @@ end
 function shapeCollisionResolutionQuery:reset()
     self.collision = false
     self.depth = 0
-    self.time = 0
+    self.time = math.huge
     self.currentOffset:init(0, 0)
     self.otherOffset:init(0, 0)
     self.normal:init(0, 0)
@@ -132,8 +132,7 @@ local _cachedCirclePointSegment = segment.new()
 --- @param otherShape slick.collision.circle
 --- @param selfVelocity slick.geometry.point
 --- @param otherVelocity slick.geometry.point
---- @param tunnel boolean
-function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, selfVelocity, otherVelocity, tunnel)
+function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, selfVelocity, otherVelocity)
     -- Check if they are currently colliding.
     selfShape.center:direction(otherShape.center, _cachedCircleNormal)
     local radius = selfShape.radius + otherShape.radius
@@ -148,10 +147,6 @@ function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, sel
             _cachedCircleNormal:divideScalar(self.depth, self.normal)
         end
 
-        return
-    end
-
-    if not tunnel then
         return
     end
 
@@ -186,8 +181,8 @@ function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, sel
     end
 end
 
-local _cachedSelfVelocity = point.new()
-local _cachedPendingAxis = point.new()
+local _cachedRelativeVelocity = point.new()
+local _cachedSelfFutureCenter = point.new()
 local _cachedDirection = point.new()
 
 local _cachedSegmentA = segment.new()
@@ -207,20 +202,31 @@ function shapeCollisionResolutionQuery:_getAxis(index)
     return axis
 end
 
+--- @private
+--- @param x number
+--- @param y number
+function shapeCollisionResolutionQuery:_addContactPoint(x, y)
+    self.contactPointsCount = self.contactPointsCount + 1
+    local contactPoint = self.contactPoints[self.contactPointsCount]
+    if not contactPoint then
+        contactPoint = point.new()
+        self.contactPoints[self.contactPointsCount] = contactPoint
+    end
+
+    contactPoint:init(x, y)
+end
+
 --- @param selfShape slick.collision.shapeInterface
 --- @param otherShape slick.collision.shapeInterface
 --- @param selfVelocity slick.geometry.point
 --- @param otherVelocity slick.geometry.point
---- @param tunnel boolean?
-function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVelocity, otherVelocity, tunnel)
-    tunnel = tunnel == nil and true or not not tunnel
-
+function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVelocity, otherVelocity)
     self:_beginQuery()
 
     if util.is(selfShape, circle) and util.is(otherShape, circle) then
         --- @cast selfShape slick.collision.circle
         --- @cast otherShape slick.collision.circle
-        self:_performCircle(selfShape, otherShape, selfVelocity, otherVelocity, tunnel)
+        self:_performCircle(selfShape, otherShape, selfVelocity, otherVelocity)
         return
     end
 
@@ -232,79 +238,47 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
     self.currentShape.shape:getAxes(self)
     self:_swapShapes()
     
-    selfVelocity:sub(otherVelocity, _cachedSelfVelocity)
+    otherVelocity:sub(selfVelocity, _cachedRelativeVelocity)
+    selfVelocity:add(selfShape.center, _cachedSelfFutureCenter)
 
     self.depth = math.huge
 
     local hit = false
     local side = SIDE_NONE
 
-    --- @type slick.collision.shapeCollisionResolutionQueryAxis
-    local bestAxis
-    local bestAxisDepth = math.huge
-    if tunnel then
-        for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
-            hit = false
+    for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
+        hit = false
 
-            local axis = self:_getAxis(i)
+        local axis = self:_getAxis(i)
 
-            local currentInterval = self.currentShape.currentInterval
-            local otherInterval = self.otherShape.currentInterval
+        local currentInterval = self.currentShape.currentInterval
+        local otherInterval = self.otherShape.currentInterval
 
-            currentInterval:init()
-            otherInterval:init()
+        currentInterval:init()
+        otherInterval:init()
 
-            local willHit, futureSide = self:_handleTunnelAxis(axis, _cachedSelfVelocity)
-            if willHit then
-                hit = true
-            else
-                break
-            end
-
-            if futureSide then
-                currentInterval:copy(self.currentShape.minInterval)
-                otherInterval:copy(self.otherShape.minInterval)
-
-                side = futureSide
-            end
-
-            local depth = currentInterval:distance(otherInterval)
-            if depth < (bestAxisDepth or math.huge) then
-                bestAxis = axis
-                bestAxisDepth = depth
-            end
+        local willHit, futureSide = self:_handleTunnelAxis(axis, _cachedRelativeVelocity)
+        if willHit then
+            hit = true
+        else
+            break
         end
-    end
 
-    if not (hit and self.firstTime > 0 and self.firstTime <= 1) then
-        self.firstTime = 0
-        self.lastTime = 0
+        if futureSide then
+            currentInterval:copy(self.currentShape.minInterval)
+            otherInterval:copy(self.otherShape.minInterval)
 
-        for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
-            hit = false
+            side = futureSide
+        end
 
-            local axis = self:_getAxis(i)
-
-            local currentInterval = self.currentShape.currentInterval
-            local otherInterval = self.otherShape.currentInterval
-
-            currentInterval:init()
-            otherInterval:init()
-
-            self:_handleAxis(axis, selfVelocity)
-            hit = currentInterval:overlaps(otherInterval)
-            if not hit then
-                break
-            end
-
-            _cachedPendingAxis:init(axis.normal.x, axis.normal.y)
+        if currentInterval:overlaps(otherInterval) then
             local depth = currentInterval:distance(otherInterval)
+
             if currentInterval:contains(otherInterval) or otherInterval:contains(currentInterval) then
                 local max = math.abs(currentInterval.max - otherInterval.max)
                 local min = math.abs(currentInterval.min - otherInterval.min)
 
                 if max > min then
-                    _cachedPendingAxis:negate(_cachedPendingAxis)
                     depth = depth + min
                 else
                     depth = depth + max
@@ -312,9 +286,9 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
             end
 
             if depth < self.depth then
-                bestAxis = axis
                 self.depth = depth
-                self.normal:init(_cachedPendingAxis.x, _cachedPendingAxis.y)
+                self.normal:init(axis.normal.x, axis.normal.y)
+                self.segment:init(axis.segment.a, axis.segment.b)
             end
         end
     end
@@ -325,18 +299,15 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
         self.currentShape.shape.center:direction(self.otherShape.shape.center, _cachedDirection)
         _cachedDirection:normalize(_cachedDirection)
 
-        if self.firstTime > 0 or self.lastTime > 0 then
-            selfVelocity:multiplyScalar(self.firstTime, self.currentOffset)
-            otherVelocity:multiplyScalar(self.firstTime, self.otherOffset)
-
-            self.normal:init(self.currentOffset.x, self.currentOffset.y)
-            if self.normal:lengthSquared() > 0 then
-                self.normal:normalize(self.normal)
-            end
+        local d = _cachedDirection:dot(self.normal)
+        if d > 0 then
+            self.normal:negate(self.normal)
         end
 
-        if _cachedDirection:dot(self.normal) >= 0 then
-            self.normal:negate(self.normal)
+        self.firstTime = math.max(self.firstTime, 0)
+        if self.firstTime >= 0 and self.firstTime < 1 then
+            selfVelocity:multiplyScalar(self.firstTime, self.currentOffset)
+            otherVelocity:multiplyScalar(self.firstTime, self.otherOffset)
         end
 
         if side == SIDE_RIGHT or side == SIDE_LEFT then
@@ -349,6 +320,7 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
             if side == SIDE_RIGHT then
                 selfShape.vertices[currentInterval.indices[currentInterval.minIndex].index]:add(self.currentOffset, _cachedSegmentA.a)
                 selfShape.vertices[currentInterval.indices[currentInterval.minIndex + 1].index]:add(self.currentOffset, _cachedSegmentA.b)
+
                 otherShape.vertices[otherInterval.indices[otherInterval.maxIndex - 1].index]:add(self.otherOffset, _cachedSegmentB.a)
                 otherShape.vertices[otherInterval.indices[otherInterval.maxIndex].index]:add(self.otherOffset, _cachedSegmentB.b)
             elseif side == SIDE_LEFT then
@@ -358,39 +330,40 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
                 selfShape.vertices[currentInterval.indices[currentInterval.maxIndex - 1].index]:add(self.currentOffset, _cachedSegmentB.a)
                 selfShape.vertices[currentInterval.indices[currentInterval.maxIndex].index]:add(self.currentOffset, _cachedSegmentB.b)
             end
-
+            
             local intersection, x, y
             if _cachedSegmentA:overlap(_cachedSegmentB) then
                 intersection, x, y = slickmath.intersection(_cachedSegmentA.a, _cachedSegmentA.b, _cachedSegmentB.a, _cachedSegmentB.b, slickmath.EPSILON)
-            end
+                if not intersection or not (x and y) then
+                    intersection, x, y = _cachedSegmentA:intersection(_cachedSegmentB)
+                    if intersection and x and y then
+                        self:_addContactPoint(x, y)
+                    end
 
-            if intersection and x and y then
-                self.contactPointsCount = self.contactPointsCount + 1
-                local contactPoint = self.contactPoints[self.contactPointsCount]
-                if not contactPoint then
-                    contactPoint = point.new()
-                    self.contactPoints[self.contactPointsCount] = contactPoint
+                    intersection, x, y = _cachedSegmentB:intersection(_cachedSegmentA)
+                    if intersection and x and y then
+                        self:_addContactPoint(x, y)
+                    end
+                else
+                    if intersection and x and y then
+                        self:_addContactPoint(x, y)
+                    end
                 end
-
-                contactPoint:init(x, y)
             end
         elseif side == SIDE_NONE then
             for j = 1, selfShape.vertexCount do
                 _cachedSegmentA:init(selfShape.vertices[j], selfShape.vertices[j % selfShape.vertexCount + 1])
+                _cachedSegmentA.a:add(self.currentOffset, _cachedSegmentA.a)
+                _cachedSegmentA.b:add(self.currentOffset, _cachedSegmentA.b)
                 for k = 1, otherShape.vertexCount do
                     _cachedSegmentB:init(otherShape.vertices[k], otherShape.vertices[k % otherShape.vertexCount + 1])
+                    _cachedSegmentB.a:add(self.otherOffset, _cachedSegmentB.a)
+                    _cachedSegmentB.b:add(self.otherOffset, _cachedSegmentB.b)
 
                     if _cachedSegmentA:overlap(_cachedSegmentB) then
                         local intersection, x, y = slickmath.intersection(_cachedSegmentA.a, _cachedSegmentA.b, _cachedSegmentB.a, _cachedSegmentB.b)
                         if intersection and x and y then
-                            self.contactPointsCount = self.contactPointsCount + 1
-                            local contactPoint = self.contactPoints[self.contactPointsCount]
-                            if not contactPoint then
-                                contactPoint = point.new()
-                                self.contactPoints[self.contactPointsCount] = contactPoint
-                            end
-
-                            contactPoint:init(x, y)
+                            self:_addContactPoint(x, y)
                         end
                     end
                 end
@@ -398,7 +371,6 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfVeloci
         end
 
         self.time = self.firstTime
-        self.segment:init(bestAxis.segment.a, bestAxis.segment.b)
     else
         self.depth = 0
         self.time = 0
@@ -447,9 +419,9 @@ function shapeCollisionResolutionQuery:_getClosestVertexToEdge(s, shape, result)
 end
 
 function shapeCollisionResolutionQuery:_handleAxis(axis, offset)
-    self.currentShape.shape:project(self, axis.normal, self.currentShape.currentInterval)
-    self:_swapShapes()
     self.currentShape.shape:project(self, axis.normal, self.currentShape.currentInterval, offset)
+    self:_swapShapes()
+    self.currentShape.shape:project(self, axis.normal, self.currentShape.currentInterval)
     self:_swapShapes()
 end
 
@@ -464,8 +436,8 @@ function shapeCollisionResolutionQuery:_handleTunnelAxis(axis, velocity)
     self.currentShape.shape:project(self, axis.normal, self.currentShape.currentInterval)
     self:_swapShapes()
 
-    local otherInterval = self.currentShape.currentInterval
-    local selfInterval = self.otherShape.currentInterval
+    local selfInterval = self.currentShape.currentInterval
+    local otherInterval = self.otherShape.currentInterval
 
     local side
     if otherInterval.max < selfInterval.min then
@@ -485,7 +457,7 @@ function shapeCollisionResolutionQuery:_handleTunnelAxis(axis, velocity)
         if self.firstTime > self.lastTime then
             return false, nil
         end
-    elseif selfInterval.min < otherInterval.max then
+    elseif selfInterval.max < otherInterval.min then
         if speed >= 0 then
             return false, nil
         end
@@ -580,7 +552,7 @@ function shapeCollisionResolutionQuery:project(axis, interval, offset)
         local vertex = self.currentShape.shape.vertices[i]
         _cachedOffsetVertex:init(vertex.x, vertex.y)
         if offset then
-            _cachedOffsetVertex:sub(offset, _cachedOffsetVertex)
+            _cachedOffsetVertex:add(offset, _cachedOffsetVertex)
         end
 
         interval:update(_cachedOffsetVertex:dot(axis), i)

@@ -22,7 +22,7 @@ local function defaultWorldShapeFilterQueryFunc()
     return true
 end
 
---- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, filter: slick.worldFilterQueryFunc): number, number, slick.worldQueryResponse[], number, slick.worldQuery
+--- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc): number, number, slick.worldQueryResponse[], number, slick.worldQuery
 
 --- @class slick.world
 --- @field cache slick.cache
@@ -180,16 +180,16 @@ function world:remove(item)
 end
 
 --- @param item any
---- @param x number
---- @param y number
+--- @param goalX number
+--- @param goalY number
 --- @param filter slick.worldFilterQueryFunc?
 --- @param query slick.worldQuery?
 --- @return slick.worldQueryResponse[], number, slick.worldQuery
-function world:project(item, x, y, filter, query)
+function world:project(item, goalX, goalY, filter, query)
     query = query or worldQuery.new(self)
     local e = self:get(item)
 
-    query:perform(e, x, y, filter or defaultWorldFilterQueryFunc)
+    query:perform(e, goalX, goalY, filter or defaultWorldFilterQueryFunc)
 
     return query.results, #query.results, query
 end
@@ -290,19 +290,27 @@ local function _visitFilter(item, other, shape, otherShape)
 end
 
 --- @param item any
---- @param x number
---- @param y number
+--- @param goalX number
+--- @param goalY number
 --- @param filter slick.worldFilterQueryFunc?
 --- @param query slick.worldQuery?
 --- @return number, number, slick.worldQueryResponse[], number, slick.worldQuery
-function world:check(item, x, y, filter, query)
+function world:check(item, goalX, goalY, filter, query)
     query = query or worldQuery.new(self)
     local cachedQuery = self.cachedWorldQuery
 
     _cachedFilterFunc = filter or defaultWorldFilterQueryFunc
     slicktable.clear(_cachedVisited)
 
-    self:project(item, x, y, _visitFilter, cachedQuery)
+    local e = self:get(item)
+    local x, y = e.transform.x, e.transform.y
+
+    self:project(item, goalX, goalY, _visitFilter, cachedQuery)
+    local iterating = #cachedQuery.results > 0
+    if not iterating then
+        self:project(item, goalX, goalY, _visitFilter, cachedQuery)
+    end
+
     while #cachedQuery.results > 0 do
         local result = cachedQuery.results[1]
         query:push(result)
@@ -310,14 +318,24 @@ function world:check(item, x, y, filter, query)
         _cachedVisited[result.otherShape] = true
 
         local response = self:getResponse(result.response)
-        x, y = response(self, cachedQuery, query.results[#query.results], x, y, _visitFilter)
+        goalX, goalY = response(self, cachedQuery, query.results[#query.results], x, y, goalX, goalY, _visitFilter)
     end
 
-    return x, y, query.results, #query.results, query
+    return goalX, goalY, query.results, #query.results, query
 end
 
-function world:move(item, x, y, filter, query)
-    local actualX, actualY, _, _, query = self:check(item, x, y, filter, query)
+--- @param item any
+--- @param goalX number
+--- @param goalY number
+--- @param filter slick.worldFilterQueryFunc
+--- @param query slick.worldQuery?
+--- @return number
+--- @return number
+--- @return slick.worldQueryResponse[]
+--- @return number
+--- @return slick.worldQuery
+function world:move(item, goalX, goalY, filter, query)
+    local actualX, actualY, _, _, query = self:check(item, goalX, goalY, filter, query)
     self:update(item, actualX, actualY)
 
     return actualX, actualY, query.results, #query.results, query

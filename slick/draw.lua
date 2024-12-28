@@ -8,10 +8,14 @@ local util = require "slick.util"
 local worldQuery = require "slick.worldQuery"
 
 --- @param node slick.collision.quadTreeNode
-local function drawQuadTreeNode(node)
+local function _drawQuadTreeNode(node)
     love.graphics.rectangle("line", node.bounds:left(), node.bounds:top(), node.bounds:width(), node.bounds:height())
 
     love.graphics.print(node.level, node.bounds:right() - 16, node.bounds:bottom() - 16)
+end
+
+local function _defaultFilter()
+    return true
 end
 
 --- @param world slick.world
@@ -33,7 +37,8 @@ local function draw(world, queries)
                 --- @cast shape slick.collision.lineSegment
                 love.graphics.line(shape.segment.a.x, shape.segment.a.y, shape.segment.b.x, shape.segment.b.y)
             else
-                love.graphics.print(string.format("%f, %f", shape.entity.transform.x, shape.entity.transform.y), shape.vertices[1].x, shape.vertices[1].y)
+                love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.vertices[1].x, shape.vertices[1].y)
+                love.graphics.print(string.format("%.2f x %.2f", shape.bounds:width(), shape.bounds:height()), shape.vertices[1].x, shape.vertices[1].y + 8)
                 for i = 1, shape.vertexCount do
                     local j = i % shape.vertexCount + 1
 
@@ -86,17 +91,20 @@ local function draw(world, queries)
                 love.graphics.line(shape.a.x, shape.a.y, shape.b.x, shape.b.y)
             end
 
-            query:performPrimitive(shape, filter)
+            query:performPrimitive(shape, filter or _defaultFilter)
 
             love.graphics.setColor(1, 0, 0, 1)
             for _, result in ipairs(query.results) do
                 love.graphics.rectangle("fill", result.contactPoint.x - 2, result.contactPoint.y - 2, 4, 4)
+                for _, contact in ipairs(result.contactPoints) do
+                    love.graphics.rectangle("fill", contact.x - 2, contact.y - 2, 4, 4)
+                end
             end
         end
     end
 
     love.graphics.setColor(0, 1, 1, 0.5)
-    world.quadTree.root:visit(drawQuadTreeNode)
+    world.quadTree.root:visit(_drawQuadTreeNode)
 
     love.graphics.pop()
 end
