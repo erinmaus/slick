@@ -68,6 +68,15 @@ function rectangle:expand(x, y)
     self.bottomRight.y = math.max(self.bottomRight.y, y)
 end
 
+---@param x number
+---@param y number
+function rectangle:move(x, y)
+    self.topLeft.x = self.topLeft.x + x
+    self.topLeft.y = self.topLeft.y + y
+    self.bottomRight.x = self.bottomRight.x + x
+    self.bottomRight.y = self.bottomRight.y + y
+end
+
 --- @param x number
 --- @param y number
 function rectangle:sweep(x, y)

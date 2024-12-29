@@ -36,6 +36,7 @@ local _cachedQueryTransform = transform.new()
 local _cachedQueryBoxShape = box.new(nil, 0, 0, 1, 1)
 local _cachedQueryLineSegmentShape = lineSegment.new(nil, 0, 0, 1, 1)
 local _cachedQueryVelocity = point.new()
+local _cachedQueryOffset = point.new()
 
 --- @private
 --- @param shape slick.collision.shapeInterface
@@ -46,7 +47,7 @@ function worldQuery:_performShapeQuery(shape, filter)
         local response = filter(otherShape.entity.item, otherShape)
 
         if response then
-            self.collisionQuery:perform(shape, otherShape, _cachedQueryVelocity, _cachedQueryVelocity)
+            self.collisionQuery:perform(shape, otherShape, _cachedQueryOffset, _cachedQueryOffset, _cachedQueryVelocity, _cachedQueryVelocity)
 
             if self.collisionQuery.collision then
                 self:_addCollision(otherShape, nil, response, true)
@@ -133,23 +134,33 @@ function worldQuery:performPrimitive(shape, filter)
 end
 
 local _cachedSelfVelocity = point.new()
-local _cachedSelfPosition = point.new()
+local _cachedSelfOffset = point.new()
 local _cachedOtherVelocity = point.new()
 local _cachedEntityBounds = rectangle.new()
 local _cachedShapeBounds = rectangle.new()
+local _cachedSelfPosition = point.new()
+local _cachedOtherOffset = point.new()
 
 --- @param entity slick.entity
 --- @param goalX number
 --- @param goalY number
 --- @param filter slick.worldFilterQueryFunc
-function worldQuery:perform(entity, goalX, goalY, filter)
-    self:_beginQuery(entity, goalX, goalY)
+function worldQuery:perform(entity, x, y, goalX, goalY, filter)
+    self:_beginQuery(entity, x, y, goalX, goalY)
 
     _cachedSelfPosition:init(entity.transform.x, entity.transform.y)
+
+    _cachedSelfOffset:init(x, y)
+    _cachedSelfPosition:direction(_cachedSelfOffset, _cachedSelfOffset)
+
     _cachedSelfVelocity:init(goalX, goalY)
     _cachedSelfPosition:direction(_cachedSelfVelocity, _cachedSelfVelocity)
 
+    local offsetX = -entity.transform.x + x
+    local offsetY = -entity.transform.y + y
+
     _cachedEntityBounds:init(entity.bounds:left(), entity.bounds:top(), entity.bounds:right(), entity.bounds:bottom())
+    _cachedEntityBounds:move(offsetX, offsetY)
     _cachedEntityBounds:sweep(goalX, goalY)
 
     for _, otherShape in ipairs(self.quadTreeQuery.results) do
@@ -157,17 +168,18 @@ function worldQuery:perform(entity, goalX, goalY, filter)
         if otherShape.entity ~= entity and _cachedEntityBounds:overlaps(otherShape.bounds) then
             for _, shape in ipairs(entity.shapes.shapes) do
                 _cachedShapeBounds:init(shape.bounds:left(), shape.bounds:top(), shape.bounds:right(), shape.bounds:bottom())
+                _cachedShapeBounds:move(offsetX, offsetY)
                 _cachedShapeBounds:sweep(goalX, goalY)
 
                 if _cachedShapeBounds:overlaps(otherShape.bounds) then
                     local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
                     if response then
-                        self.collisionQuery:perform(shape, otherShape, _cachedSelfVelocity, _cachedOtherVelocity)
+                        self.collisionQuery:perform(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
 
                         if self.collisionQuery.collision then
                             self:_addCollision(shape, otherShape, response, false)
                         else
-                            self.collisionQuery:perform(shape, otherShape, _cachedSelfVelocity, _cachedOtherVelocity)
+                            self.collisionQuery:perform(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
                         end
                     end
                 end
@@ -186,15 +198,16 @@ local _cachedBounds = rectangle.new()
 
 --- @private
 --- @param entity slick.entity
+--- @param x number
+--- @param y number
 --- @param goalX number
 --- @param goalY number
-function worldQuery:_beginQuery(entity, goalX, goalY)
+function worldQuery:_beginQuery(entity, x, y, goalX, goalY)
     self:reset()
 
-    _cachedBounds:init((entity.bounds:left() - entity.transform.x) + goalX, (entity.bounds:top() - entity.transform.y) + goalY)
-    _cachedBounds:expand((entity.bounds:right() - entity.transform.x) + goalX, (entity.bounds:bottom() - entity.transform.y) + goalY)
-    _cachedBounds:expand(entity.bounds:left(), entity.bounds:top())
-    _cachedBounds:expand(entity.bounds:right(), entity.bounds:bottom())
+    _cachedBounds:init(entity.bounds:left(), entity.bounds:top(), entity.bounds:right(), entity.bounds:bottom())
+    _cachedBounds:move(-entity.transform.x + x, -entity.transform.y + y)
+    _cachedBounds:sweep(goalX, goalY)
 
     self.quadTreeQuery:perform(_cachedBounds)
 end

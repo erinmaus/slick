@@ -3,7 +3,7 @@ local slicktable = require("slick.util.slicktable")
 local segment = require("slick.geometry.segment")
 
 --- @class slick.worldQueryResponse
---- @field response string | boolean
+--- @field response string | true
 --- @field item any
 --- @field entity slick.entity
 --- @field shape slick.collision.shape
@@ -42,7 +42,15 @@ end
 --- @param a slick.worldQueryResponse
 --- @param b slick.worldQueryResponse
 function worldQueryResponse.less(a, b)
-    return a.distance < b.distance
+    if a.time == b.time then
+        if a.distance == b.distance then
+            return a.depth < b.depth
+        else
+            return a.distance < b.distance
+        end
+    end
+
+    return a.time < b.time
 end
 
 local _cachedInitItemPosition = point.new()
@@ -104,6 +112,18 @@ function worldQueryResponse:init(shape, otherShape, response, query)
     self.segment:init(query.segment.a, query.segment.b)
 
     slicktable.clear(self.extra)
+end
+
+function worldQueryResponse:isTouchingWillNotPenetrate()
+    return self.time == 0 and self.depth == 0
+end
+
+function worldQueryResponse:isTouchingWillPenetrate()
+    return self.time == 0 and self.depth > 0
+end
+
+function worldQueryResponse:notTouchingWillTouch()
+    return self.time > 0 and self.depth > 0
 end
 
 --- @param other slick.worldQueryResponse

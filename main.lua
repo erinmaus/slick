@@ -14,24 +14,38 @@ local function makePlayer(world)
 
         x = love.graphics.getWidth() / 2,
         y = love.graphics.getHeight() / 2,
+        w = 32,
+        h = 32,
         
         jumpVelocityY = 0,
-        isJumping = true
+        isJumping = false
     }
 
-    world:add(player, player.x, player.y, slick.newBoxShape(0, 0, 32, 32))
+    world:add(player, player.x, player.y, slick.newBoxShape(0, 0, player.w, player.h))
 
     return player
 end
 
 local function movePlayer(player, world, deltaTime)
     --deltaTime = 1 / 240
+    deltaTime = 1 / 30
 
-    local jumped = false
-    if not player.isJumping and love.keyboard.isDown("w") then
-        jumped = true
+    --- @cast world slick.world
+    local hits = world:queryRectangle(player.x, player.y + player.h, player.w, 2, function(item)
+        return item ~= player
+    end)
+
+    local isInAir = true
+    for i = 1, #hits do
+        if hits[i].normal.y < 0 then
+            isInAir = false
+        end
+    end
+    
+    if not isInAir and love.keyboard.isDown("w") then
         player.isJumping = true
         player.jumpVelocityY = -PLAYER_JUMP_VELOCITY
+        isInAir = true
     end
 
     local x = 0
@@ -44,11 +58,19 @@ local function movePlayer(player, world, deltaTime)
     end
 
     local goalY
-    if player.isJumping then
+    if isInAir then
         player.jumpVelocityY = player.jumpVelocityY + GRAVITY_Y * deltaTime
-        goalY = player.y + player.jumpVelocityY * deltaTime
+        if player.isJumping then
+            goalY = player.y + player.jumpVelocityY * deltaTime
+        else
+            goalY = player.y + GRAVITY_Y * deltaTime
+        end
     else
-        goalY = player.y + GRAVITY_Y * deltaTime
+        if player.isJumping then
+            player.isJumping = false
+        end
+
+        goalY = player.y
     end
 
     local goalX = player.x + x * PLAYER_SPEED * deltaTime
@@ -62,12 +84,7 @@ local function movePlayer(player, world, deltaTime)
                 player.jumpVelocityY = 0
             end
         end
-
-        if hit.normal.y < 0 and player.isJumping and not jumped then
-            player.isJumping = false
-        end
     end
-
 end
 
 local function makeLevel(world)
@@ -80,7 +97,8 @@ local function makeLevel(world)
             slick.newBoxShape(0, 0, 8, h),
             slick.newBoxShape(w - 8, 0, 8, h),
             slick.newBoxShape(0, h - 8, w, 8),
-            slick.newPolygonShape({ 8, h / 2, w / 4, h - 8, 8, h - 8 }),
+            slick.newPolygonShape({ 8, h - h / 8, w / 4, h, 8, h }),
+            slick.newPolygonShape({ w - w / 4, h, w, h / 2, w, h }),
             slick.newBoxShape(w / 2 + w / 4, h - 150, w / 8, 60)
         )
     )
@@ -104,19 +122,11 @@ function love.mousepressed(x, y, button)
 end
 
 local time = 0
-local accum = 0
-local t = 1 / 3
 function love.update(deltaTime)
-    accum = accum + deltaTime
-    --while accum > t do
-        local b = love.timer.getTime()
-        movePlayer(player, world, deltaTime)
-        --movePlayer(player, world, 1 / 60)
-        local a = love.timer.getTime()
-        time = (a - b) * 1000
-
-        accum = accum - t
-    --end
+    local b = love.timer.getTime()
+    movePlayer(player, world, deltaTime)
+    local a = love.timer.getTime()
+    time = (a - b) * 1000
 end
 
 function love.draw()

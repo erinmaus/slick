@@ -23,7 +23,7 @@ local function defaultWorldShapeFilterQueryFunc()
     return true
 end
 
---- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc): number, number, slick.worldQueryResponse[], number, slick.worldQuery
+--- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc): number, number, number, number
 
 --- @class slick.world
 --- @field cache slick.cache
@@ -189,16 +189,18 @@ function world:remove(item)
 end
 
 --- @param item any
+--- @param x number
+--- @param y number
 --- @param goalX number
 --- @param goalY number
 --- @param filter slick.worldFilterQueryFunc?
 --- @param query slick.worldQuery?
 --- @return slick.worldQueryResponse[], number, slick.worldQuery
-function world:project(item, goalX, goalY, filter, query)
+function world:project(item, x, y, goalX, goalY, filter, query)
     query = query or worldQuery.new(self)
     local e = self:get(item)
 
-    query:perform(e, goalX, goalY, filter or defaultWorldFilterQueryFunc)
+    query:perform(e, x, y, goalX, goalY, filter or defaultWorldFilterQueryFunc)
 
     return query.results, #query.results, query
 end
@@ -279,24 +281,60 @@ function world:queryPoint(x, y, filter, query)
     return query.results, #query.results, query
 end
 
-local _cachedVisited = {}
+-- local _cachedVisited = {}
+-- local _cachedNextVisited = {}
 
---- @type slick.worldFilterQueryFunc
-local _cachedFilterFunc
+-- --- @type slick.worldFilterQueryFunc
+-- local _cachedFilterFunc
 
---- comment
---- @param item any
---- @param other any
---- @param shape slick.collision.shape
---- @param otherShape slick.collision.shape
---- @return string | false
-local function _visitFilter(item, other, shape, otherShape)
-    if _cachedVisited[otherShape] then
-        return false
+-- --- comment
+-- --- @param item any
+-- --- @param other any
+-- --- @param shape slick.collision.shape
+-- --- @param otherShape slick.collision.shape
+-- --- @return string | false
+-- local function _visitFilter(item, other, shape, otherShape)
+--     if _cachedVisited[otherShape] then
+--         return false
+--     end
+
+--     return _cachedFilterFunc(item, other, shape, otherShape)
+-- end
+
+local function _getFirstFuture(query)
+end
+
+--- @param query slick.worldQuery
+local function _getFutureCollisionIndex(query)
+    for index, result in ipairs(query.results) do
+        if result.depth > 0 or result.time > 0 then
+            return index
+        end
     end
 
-    return _cachedFilterFunc(item, other, shape, otherShape)
+    return 1
 end
+
+local function _canMove(query)
+    if #query.results == 0 then
+        return true
+    end
+
+    return false
+
+    -- for _, result in ipairs(query.results) do
+    --     if result.time > query.world.options.epsilon or result.depth > query.world.options.epsilon then
+    --         return false
+    --     end
+    -- end
+
+    -- return true
+end
+
+local _cachedCheckStartPosition = point.new()
+local _cachedCheckCurrentPosition = point.new()
+local _cachedCheckNextPosition = point.new()
+local _cachedCheckGoalPosition = point.new()
 
 --- @param item any
 --- @param goalX number
@@ -306,32 +344,172 @@ end
 --- @return number, number, slick.worldQueryResponse[], number, slick.worldQuery
 function world:check(item, goalX, goalY, filter, query)
     query = query or worldQuery.new(self)
-    local cachedQuery = self.cachedWorldQuery
-
-    _cachedFilterFunc = filter or defaultWorldFilterQueryFunc
-    slicktable.clear(_cachedVisited)
+    filter = filter or defaultWorldFilterQueryFunc
 
     local e = self:get(item)
     local x, y = e.transform.x, e.transform.y
+    _cachedCheckStartPosition:init(x, y)
+    _cachedCheckCurrentPosition:init(x, y)
+    _cachedCheckGoalPosition:init(goalX, goalY)
 
-    self:project(item, goalX, goalY, _visitFilter, cachedQuery)
-    while #cachedQuery.results > 0 do
-        local result = cachedQuery.results[1]
-        query:push(result)
+    self:project(item, x, y, goalX, goalY, filter, query)
+    if #query.results == 0 then
+        return goalX, goalY, query.results, #query.results, query
+    end
 
-        _cachedVisited[result.otherShape] = true
+    local bounces = 0
+    local z = false
 
-        local response = self:getResponse(result.response)
-        goalX, goalY = response(self, cachedQuery, query.results[#query.results], x, y, goalX, goalY, _visitFilter)
+    local actualX, actualY = goalX, goalY
+    local distanceMoved = 0
+    local distance = _cachedCheckStartPosition:distance(_cachedCheckGoalPosition)
+    while distanceMoved < distance and #query.results > 0 do
+        bounces = bounces + 1
+
+        local index = _getFutureCollisionIndex(query)
+        local result = query.results[index]
+        local responseName = result.response == true and "slide" or result.response
+
+        local shapeIndex = 1
+        for i = 2, #result.otherEntity.shapes.shapes do
+            if result.otherEntity.shapes.shapes[i] == result.otherShape then
+                shapeIndex = i
+            end
+        end
+
+        --if result.time > 0 or result.depth > 0 or index > 1 then
+            z = true
+            print("i", index, "#", #query.results, "time", result.time, "depth", result.depth, result.other.type, shapeIndex)
+            print("normal", result.normal.x, result.normal.y)
+            print("before", x, y)
+            print("after", x + result.offset.x, y + result.offset.y)
+        --end
+
+        -- There are three combinations:
+        --   a. time == 0, depth == 0 -> objects touching, will not penetrate
+        --   b. time == 0, depth > 0  -> objects touching, will penetrate
+        --   c. time > 0, depth > 0   -> objects not touching, will touch
+        --
+        -- For a, we move to goalX/goalY and skip collision response and exit loop.
+        -- For b, we stay at x/y and keep goal and then run collision response.
+        -- For c, we move x/y to x/y + offset and keep goal and then run collision response.
+        if result.time == 0 then
+            if result.depth == 0 then
+                print(">>> objects touching, will not penetrate")
+                
+                actualX = goalX
+                actualY = goalY
+                
+                break
+            else
+                print(">>> objects touching, will penetrate")
+                actualX = x
+                actualY = y
+
+                -- goalX = x + result.offset.x
+                -- goalY = y + result.offset.y
+            end
+        else
+            print(">>> objects not touching, will touch")
+
+            actualX = x + result.offset.x
+            actualY = y + result.offset.y
+        end
+
+        _cachedCheckNextPosition:init(x, y)
+        distanceMoved = distanceMoved + _cachedCheckCurrentPosition:distance(_cachedCheckNextPosition)
+
+        --- @cast responseName string
+        local response = self:getResponse(responseName)
+        goalX, goalY = response(self, query, query.results[index], actualX, actualY, goalX, goalY, filter)
+        
+        x, y = actualX, actualY
+
+        _cachedCheckGoalPosition:init(goalX, goalY)
+        _cachedCheckCurrentPosition:init(x, y)
+        if _cachedCheckGoalPosition:distanceSquared(_cachedCheckCurrentPosition) == 0 then
+            actualX, actualY = goalX, goalY
+            break
+        end
+    end
+
+    if bounces > 1 or z then
+        print("bounced", bounces, "times")
+        print("moved", distanceMoved, "max", distance)
+        print(">>> xy", goalX, goalY)
+        print()
     end
 
     return goalX, goalY, query.results, #query.results, query
+
+    -- local distance = _cachedCheckStartPosition:distance(_cachedCheckGoalPosition)
+    -- local distanceToGoal = distance
+    -- local bounces = 0
+    -- local above = false
+    -- while distance > 0 and distanceToGoal > 0 and #query.results > 0 do
+    --     local index = 1
+    --     local result = cachedQuery.results[index]
+    --     query:push(result)
+
+    --     if result.time > 0 then
+    --         above = true
+    --         print(">>> index", index, "time", result.time, "depth", result.depth, "distance", result.distance)
+    --         print(">>> distance begin", distance, index)
+    --     end
+
+    --     local response = self:getResponse(result.response)
+
+    --     do
+    --         _cachedCheckCurrentPosition:init(nextX, nextY)
+
+    --         print(">>> time", result.time, ">>> depth", result.depth)
+
+    --         nextX = x + result.offset.x
+    --         nextY = y + result.offset.y
+
+    --         _cachedCheckNextPosition:init(nextX, nextY)
+    --     end
+
+    --     distance = distance - _cachedCheckNextPosition:distance(_cachedCheckCurrentPosition)
+
+    --     if result.time < self.options.epsilon and result.depth < self.options.epsilon then
+    --         print(">>> visited", result.otherShape)
+    --         _cachedVisited[result.otherShape] = true
+    --     end
+
+    --     if result.time > 0 then
+    --         print(">>> distance after", distance)
+    --     end
+        
+    --     goalX, goalY = response(self, cachedQuery, query.results[#query.results], x, y, goalX, goalY, _visitFilter)
+    --     x, y = nextX, nextY
+
+    --     _cachedCheckCurrentPosition:init(nextX, nextY)
+    --     _cachedCheckGoalPosition:init(goalX, goalY)
+
+    --     distanceToGoal = _cachedCheckCurrentPosition:distance(_cachedCheckGoalPosition)
+    --     print(">>> distance", distanceToGoal)
+    --     print(">>> goal", goalX, goalY)
+
+    --     slicktable.clear(_cachedVisited)
+    --     bounces = bounces + 1
+
+    --     if not _canMove(query) then
+    --         break
+    --     end
+    -- end
+
+    -- if bounces >= 1 and above then
+    --     print(">>> bounces", bounces)
+    -- end
+
+    -- return goalX, goalY, query.results, #query.results, query
 end
 
 --- @param item any
 --- @param goalX number
 --- @param goalY number
---- @param filter slick.worldFilterQueryFunc
+--- @param filter slick.worldFilterQueryFunc?
 --- @param query slick.worldQuery?
 --- @return number
 --- @return number
@@ -374,6 +552,8 @@ function world:removeResponse(name)
     self.responses[name] = nil
 end
 
+--- @param name string
+--- @return slick.worldResponseFunc
 function world:getResponse(name)
     if not self.responses[name] then
         error(string.format("Unknown collision type: %s", name))
