@@ -114,6 +114,10 @@ function love.load()
     player = makePlayer(world)
 end
 
+function love.keypressed()
+    love.timer.sleep(0.1)
+end
+
 function love.mousepressed(x, y, button)
     if button == 1 then
         player.x, player.y = x - 16, y - 16

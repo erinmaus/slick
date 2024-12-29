@@ -3,6 +3,7 @@ local slicktable = require("slick.util.slicktable")
 local segment = require("slick.geometry.segment")
 
 --- @class slick.worldQueryResponse
+--- @field query slick.worldQuery
 --- @field response string | true
 --- @field item any
 --- @field entity slick.entity
@@ -24,8 +25,9 @@ local worldQueryResponse = {}
 local metatable = { __index = worldQueryResponse }
 
 --- @return slick.worldQueryResponse
-function worldQueryResponse.new()
+function worldQueryResponse.new(query)
     return setmetatable({
+        query = query,
         response = "slide",
         normal = point.new(),
         depth = 0,
@@ -123,7 +125,7 @@ function worldQueryResponse:isTouchingWillPenetrate()
 end
 
 function worldQueryResponse:notTouchingWillTouch()
-    return self.time > 0 and self.depth > 0
+    return self.time > 0
 end
 
 --- @param other slick.worldQueryResponse

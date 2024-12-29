@@ -319,7 +319,7 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
         end
     end
 
-    if hit and side == SIDE_NONE then
+    if (hit and side == SIDE_NONE) or self.depth == math.huge then
         selfVelocity:multiplyScalar(math.max(self.firstTime, 0), _cachedCurentOffset)
 
         self.currentShape.offset:add(selfVelocity, self.currentShape.offset)
@@ -370,12 +370,20 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
         if self.time == 0 and self.depth > 0 and self.depth < math.huge then
             self.normal:multiplyScalar(self.depth, self.currentOffset)
             selfVelocity:add(self.currentOffset, self.currentOffset)
-
+            
             self.normal:multiplyScalar(-self.depth, self.otherOffset)
             otherVelocity:add(self.otherOffset, self.otherOffset)
         else
             selfVelocity:multiplyScalar(self.time, self.currentOffset)
             otherVelocity:multiplyScalar(self.time, self.otherOffset)
+        end
+
+        self.currentOffset:sub(selfOffset, self.currentOffset)
+        self.otherOffset:sub(otherOffset, self.otherOffset)
+
+        if self.time > 0 and self.currentOffset:lengthSquared() == 0 then
+            self.time = 0
+            self.depth = 0
         end
 
         if side == SIDE_RIGHT or side == SIDE_LEFT then

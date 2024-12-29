@@ -237,7 +237,7 @@ function worldQuery:_addCollision(shape, otherShape, response, primitive)
     local index = #self.results + 1
     local result = self.cachedResults[index]
     if not result then
-        result = worldQueryResponse.new()
+        result = worldQueryResponse.new(self)
         table.insert(self.cachedResults, result)
     end
 
@@ -250,7 +250,7 @@ function worldQuery:push(response)
     local index = #self.results + 1
     local result = self.cachedResults[index]
     if not result then
-        result = worldQueryResponse.new()
+        result = worldQueryResponse.new(self)
         table.insert(self.cachedResults, result)
     end
 

@@ -281,33 +281,38 @@ function world:queryPoint(x, y, filter, query)
     return query.results, #query.results, query
 end
 
--- local _cachedVisited = {}
--- local _cachedNextVisited = {}
+local _cachedVisited = {}
 
--- --- @type slick.worldFilterQueryFunc
--- local _cachedFilterFunc
+--- @type slick.worldFilterQueryFunc
+local _cachedFilterFunc
 
--- --- comment
--- --- @param item any
--- --- @param other any
--- --- @param shape slick.collision.shape
--- --- @param otherShape slick.collision.shape
--- --- @return string | false
--- local function _visitFilter(item, other, shape, otherShape)
---     if _cachedVisited[otherShape] then
---         return false
---     end
+--- comment
+--- @param item any
+--- @param other any
+--- @param shape slick.collision.shape
+--- @param otherShape slick.collision.shape
+--- @return string | false
+local function _visitFilter(item, other, shape, otherShape)
+    if _cachedVisited[otherShape] then
+        return false
+    end
 
---     return _cachedFilterFunc(item, other, shape, otherShape)
--- end
+    return _cachedFilterFunc(item, other, shape, otherShape)
+end
 
 local function _getFirstFuture(query)
 end
 
 --- @param query slick.worldQuery
 local function _getFutureCollisionIndex(query)
+    -- for index, result in ipairs(query.results) do
+    --     if result.time > 0 then
+    --         return index
+    --     end
+    -- end
+
     for index, result in ipairs(query.results) do
-        if result.depth > 0 or result.time > 0 then
+        if result.time > 0 or result.depth > 0 then
             return index
         end
     end
@@ -370,65 +375,61 @@ function world:check(item, goalX, goalY, filter, query)
         local result = query.results[index]
         local responseName = result.response == true and "slide" or result.response
 
-        local shapeIndex = 1
-        for i = 2, #result.otherEntity.shapes.shapes do
-            if result.otherEntity.shapes.shapes[i] == result.otherShape then
-                shapeIndex = i
-            end
-        end
-
         --if result.time > 0 or result.depth > 0 or index > 1 then
-            z = true
-            print("i", index, "#", #query.results, "time", result.time, "depth", result.depth, result.other.type, shapeIndex)
-            print("normal", result.normal.x, result.normal.y)
-            print("before", x, y)
-            print("after", x + result.offset.x, y + result.offset.y)
-        --end
-
-        -- There are three combinations:
-        --   a. time == 0, depth == 0 -> objects touching, will not penetrate
-        --   b. time == 0, depth > 0  -> objects touching, will penetrate
-        --   c. time > 0, depth > 0   -> objects not touching, will touch
-        --
-        -- For a, we move to goalX/goalY and skip collision response and exit loop.
-        -- For b, we stay at x/y and keep goal and then run collision response.
-        -- For c, we move x/y to x/y + offset and keep goal and then run collision response.
-        if result.time == 0 then
-            if result.depth == 0 then
-                print(">>> objects touching, will not penetrate")
-                
-                actualX = goalX
-                actualY = goalY
-                
-                break
-            else
-                print(">>> objects touching, will penetrate")
-                actualX = x
-                actualY = y
-
-                -- goalX = x + result.offset.x
-                -- goalY = y + result.offset.y
+        for i = 1, #query.results do
+            local shapeIndex = 1
+            for j = 2, #result.otherEntity.shapes.shapes do
+                if result.otherEntity.shapes.shapes[j] == query.results[i].otherShape then
+                    shapeIndex = j
+                end
             end
-        else
-            print(">>> objects not touching, will touch")
 
-            actualX = x + result.offset.x
-            actualY = y + result.offset.y
+            z = true
+            print(i == index and "***" or "i", i, "#", #query.results, "time", query.results[i].time, "depth", query.results[i].depth, query.results[i].other.type, shapeIndex)
+            print("normal", query.results[i].normal.x, query.results[i].normal.y)
         end
 
-        _cachedCheckNextPosition:init(x, y)
-        distanceMoved = distanceMoved + _cachedCheckCurrentPosition:distance(_cachedCheckNextPosition)
+        print("before", x, y)
+        print("offset", result.offset.x, result.offset.y)
+        print("after (xy)", x + result.offset.x, y + result.offset.y)
+        print("after (xy)", goalX + result.offset.x, goalY + result.offset.y)
 
-        --- @cast responseName string
-        local response = self:getResponse(responseName)
-        goalX, goalY = response(self, query, query.results[index], actualX, actualY, goalX, goalY, filter)
-        
-        x, y = actualX, actualY
+        if result:notTouchingWillTouch() then
+            print("* not touching, will touch")
+            x = x + result.offset.x
+            y = y + result.offset.y
 
-        _cachedCheckGoalPosition:init(goalX, goalY)
-        _cachedCheckCurrentPosition:init(x, y)
-        if _cachedCheckGoalPosition:distanceSquared(_cachedCheckCurrentPosition) == 0 then
-            actualX, actualY = goalX, goalY
+            goalX = x
+            goalY = y
+
+            self:project(item, x, y, goalX, goalY, filter, query)
+        elseif result:isTouchingWillPenetrate() then
+            print("* is touching, will penetrate")
+
+            goalX = x + result.offset.x
+            goalY = y + result.offset.y
+
+            --goalX = x
+            --goalY = y
+
+            self:project(item, x, y, goalX, goalY, filter, query)
+
+            if #query.results == 0 then
+                x = goalX
+                y = goalY
+            end
+
+            --local response = self:getResponse(result.response)
+            --goalX, goalY = response(self, query, result, x, y, goalX, goalY, filter)
+        elseif result:isTouchingWillNotPenetrate() then
+            print("* is touching, will NOT penetrate")
+            x = goalX
+            y = goalY
+        end
+
+        print("#", #query.results)
+
+        if bounces > 8 then
             break
         end
     end
@@ -440,7 +441,7 @@ function world:check(item, goalX, goalY, filter, query)
         print()
     end
 
-    return goalX, goalY, query.results, #query.results, query
+    return x, y, query.results, #query.results, query
 
     -- local distance = _cachedCheckStartPosition:distance(_cachedCheckGoalPosition)
     -- local distanceToGoal = distance
