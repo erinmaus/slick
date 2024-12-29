@@ -59,7 +59,9 @@ function world.new(width, height, options)
 
     local selfOptions = {
         debug = options.debug == nil and defaultOptions.debug or options.debug,
-        epsilon = options.epsilon or defaultOptions.epsilon or slickmath.EPSILON
+        epsilon = options.epsilon or defaultOptions.epsilon or slickmath.EPSILON,
+        maxBounces = options.maxBounces or defaultOptions.maxBounces,
+        minBounceDepth = options.minBounceDepth or defaultOptions.minBounceDepth,
     }
 
     local self = setmetatable({
@@ -312,12 +314,12 @@ local function _getFutureCollisionIndex(query)
     -- end
 
     for index, result in ipairs(query.results) do
-        if result.time > 0 or result.depth > 0 then
+        if result.time > 0 or result.depth > query.world.options.minBounceDepth then
             return index
         end
     end
 
-    return 1
+    return nil
 end
 
 local function _canMove(query)
@@ -368,14 +370,17 @@ function world:check(item, goalX, goalY, filter, query)
     local actualX, actualY = goalX, goalY
     local distanceMoved = 0
     local distance = _cachedCheckStartPosition:distance(_cachedCheckGoalPosition)
-    while distanceMoved < distance and #query.results > 0 do
+    while bounces < self.options.maxBounces and distanceMoved < distance and #query.results > 0 do
         bounces = bounces + 1
 
         local index = _getFutureCollisionIndex(query)
+        if not index then
+            break
+        end
+
         local result = query.results[index]
         local responseName = result.response == true and "slide" or result.response
 
-        --if result.time > 0 or result.depth > 0 or index > 1 then
         for i = 1, #query.results do
             local shapeIndex = 1
             for j = 2, #result.otherEntity.shapes.shapes do
@@ -409,18 +414,12 @@ function world:check(item, goalX, goalY, filter, query)
             goalX = x + result.offset.x
             goalY = y + result.offset.y
 
-            --goalX = x
-            --goalY = y
-
             self:project(item, x, y, goalX, goalY, filter, query)
 
             if #query.results == 0 then
                 x = goalX
                 y = goalY
             end
-
-            --local response = self:getResponse(result.response)
-            --goalX, goalY = response(self, query, result, x, y, goalX, goalY, filter)
         elseif result:isTouchingWillNotPenetrate() then
             print("* is touching, will NOT penetrate")
             x = goalX
@@ -428,10 +427,6 @@ function world:check(item, goalX, goalY, filter, query)
         end
 
         print("#", #query.results)
-
-        if bounces > 8 then
-            break
-        end
     end
 
     if bounces > 1 or z then

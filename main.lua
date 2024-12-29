@@ -28,7 +28,6 @@ end
 
 local function movePlayer(player, world, deltaTime)
     --deltaTime = 1 / 240
-    deltaTime = 1 / 30
 
     --- @cast world slick.world
     local hits = world:queryRectangle(player.x, player.y + player.h, player.w, 2, function(item)
@@ -97,8 +96,8 @@ local function makeLevel(world)
             slick.newBoxShape(0, 0, 8, h),
             slick.newBoxShape(w - 8, 0, 8, h),
             slick.newBoxShape(0, h - 8, w, 8),
-            slick.newPolygonShape({ 8, h - h / 8, w / 4, h, 8, h }),
-            slick.newPolygonShape({ w - w / 4, h, w, h / 2, w, h }),
+            slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
+            slick.newPolygonShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }),
             slick.newBoxShape(w / 2 + w / 4, h - 150, w / 8, 60)
         )
     )
@@ -112,10 +111,6 @@ function love.load()
     makeLevel(world)
 
     player = makePlayer(world)
-end
-
-function love.keypressed()
-    love.timer.sleep(0.1)
 end
 
 function love.mousepressed(x, y, button)

@@ -230,7 +230,7 @@ end
 --- @param response string | boolean
 --- @param primitive boolean
 function worldQuery:_addCollision(shape, otherShape, response, primitive)
-    if not primitive and not (self.collisionQuery.depth > 0 or (self.collisionQuery.time >= 0 and self.collisionQuery.time <= 1)) then
+    if not primitive and (self.collisionQuery.depth == 0 and self.collisionQuery.time == 0) then
         return
     end
 
