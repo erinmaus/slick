@@ -3,7 +3,7 @@ local slickmath = require "slick.util.slickmath"
 --- @class slick.options
 --- @field epsilon number?
 --- @field maxBounces number?
---- @field minBounceDepth number?
+--- @field minSlideDistance number?
 --- @field debug boolean?
 --- @field quadTreeX number?
 --- @field quadTreeY number?
@@ -17,9 +17,9 @@ local defaultOptions = {
     maxBounces = 8,
 
     -- For simulations using pixel-sized units, this means require at least
-    -- 1 pixel of penetration when following bounces. Modify for simulations using
-    -- other units as appropriate.
-    minBounceDepth = 1,
+    -- 0.5 pixels difference between the current position and touch position for sliding to initiate.
+    -- Adjust as necessary for other units (e.g., when using meters, this might be a much smaller number).
+    minSlideDistance = 0.5,
 
     quadTreeMaxLevels = 8,
     quadTreeMaxData = 8,

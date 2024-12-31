@@ -61,7 +61,7 @@ function world.new(width, height, options)
         debug = options.debug == nil and defaultOptions.debug or options.debug,
         epsilon = options.epsilon or defaultOptions.epsilon or slickmath.EPSILON,
         maxBounces = options.maxBounces or defaultOptions.maxBounces,
-        minBounceDepth = options.minBounceDepth or defaultOptions.minBounceDepth,
+        minSlideDistance = options.minSlideDistance or defaultOptions.minSlideDistance
     }
 
     local self = setmetatable({
@@ -306,42 +306,69 @@ local function _getFirstFuture(query)
 end
 
 --- @param query slick.worldQuery
-local function _getFutureCollisionIndex(query)
-    -- for index, result in ipairs(query.results) do
-    --     if result.time > 0 then
-    --         return index
-    --     end
-    -- end
+local function _getFutureCollisionIndex(query, direction)
+    if true then
+        return 1
+    end
 
     for index, result in ipairs(query.results) do
-        if result.time > 0 or result.depth > query.world.options.minBounceDepth then
+        local dot = direction:dot(result.normal)
+        if dot < 0 then
             return index
         end
     end
 
-    return nil
-end
+    print(">>> no future collisions")
+    return 1
+    -- local smallestDot = math.huge
+    -- local bestIndex
 
-local function _canMove(query)
-    if #query.results == 0 then
-        return true
-    end
+    -- for index, result in ipairs(query.results) do
+    --     local dot = direction:dot(result.normal)
+    --     print(">>>", index, "dot", dot, "dir", direction.x, direction.y, "nrml", result.normal.x, result.normal.y, "depth", result.depth)
+    --     if result.time > 0 and direction:lengthSquared() > 0 and dot <= 0 then
+    --         print("!!! match", index)
+    --         return index
+    --     end
 
-    return false
-
-    -- for _, result in ipairs(query.results) do
-    --     if result.time > query.world.options.epsilon or result.depth > query.world.options.epsilon then
-    --         return false
+    --     if dot <= 0 then
+    --         if (dot == smallestDot and query.results[bestIndex].depth < result.depth) or dot < smallestDot then
+    --             smallestDot = dot
+    --             bestIndex = index
+    --         end
     --     end
     -- end
 
-    -- return true
+    --return bestIndex
+end
+
+local function _willCollide(query, direction)
+    if true then
+        return true
+    end
+
+    if #query.results == 0 then
+        return false
+    end
+
+    --return false
+
+    for _, result in ipairs(query.results) do
+        local dot = direction:dot(result.normal)
+        if result.time > 0 or result.depth > 0 or result.offset:lengthSquared() > 0 or dot < 0 then
+            print(">>> yes", dot)
+            return true
+        end
+    end
+
+    return false
 end
 
 local _cachedCheckStartPosition = point.new()
 local _cachedCheckCurrentPosition = point.new()
 local _cachedCheckNextPosition = point.new()
 local _cachedCheckGoalPosition = point.new()
+local _cachedCheckDirection = point.new()
 
 --- @param item any
 --- @param goalX number
@@ -358,25 +385,49 @@ function world:check(item, goalX, goalY, filter, query)
     _cachedCheckStartPosition:init(x, y)
     _cachedCheckCurrentPosition:init(x, y)
     _cachedCheckGoalPosition:init(goalX, goalY)
+    _cachedCheckStartPosition:direction(_cachedCheckGoalPosition, _cachedCheckDirection)
+    _cachedCheckDirection:normalize(_cachedCheckDirection)
+
+    if x ~= goalX or y ~= goalY then
+        print(">>> current", x, y)
+        print(">>> goal", goalX, goalY)
+        print(">>> difference", goalX - x, goalY - y)
+    end
 
     self:project(item, x, y, goalX, goalY, filter, query)
     if #query.results == 0 then
+        print(">>> no hits...", #query.quadTreeQuery.results)
         return goalX, goalY, query.results, #query.results, query
     end
 
-    local bounces = 0
-    local z = false
+    local targetDistance = _cachedCheckStartPosition:distance(_cachedCheckGoalPosition)
+    local currentDistance = 0
 
-    local actualX, actualY = goalX, goalY
-    local distanceMoved = 0
-    local distance = _cachedCheckStartPosition:distance(_cachedCheckGoalPosition)
-    while bounces < self.options.maxBounces and distanceMoved < distance and #query.results > 0 do
+    for i = 1, #query.results do
+        local shapeIndex = 1
+        for j = 2, #query.results[i].otherEntity.shapes.shapes do
+            if query.results[i].otherEntity.shapes.shapes[j] == query.results[i].otherShape then
+                shapeIndex = j
+            end
+        end
+
+        print("i", i, "#", #query.results, "time", query.results[i].time, "depth", query.results[i].depth, query.results[i].other.type, shapeIndex)
+        print("normal", query.results[i].normal.x, query.results[i].normal.y)
+        print("touch", query.results[i].touch.x, query.results[i].touch.y)
+    end
+
+    local actualX, actualY
+    local bounces = 0
+    while bounces < self.options.maxBounces and #query.results > 0 and _willCollide(query, _cachedCheckDirection) do
         bounces = bounces + 1
 
-        local index = _getFutureCollisionIndex(query)
-        if not index then
-            break
-        end
+        local index = _getFutureCollisionIndex(query, _cachedCheckDirection)
+        -- local index = _getFutureCollisionIndex(query, _cachedCheckDirection)
+        -- if not index then
+        --     print(">>> no hits")
+        --     break
+        -- end
+        --local index = 1
 
         local result = query.results[index]
         local responseName = result.response == true and "slide" or result.response
@@ -389,54 +440,75 @@ function world:check(item, goalX, goalY, filter, query)
                 end
             end
 
-            z = true
             print(i == index and "***" or "i", i, "#", #query.results, "time", query.results[i].time, "depth", query.results[i].depth, query.results[i].other.type, shapeIndex)
             print("normal", query.results[i].normal.x, query.results[i].normal.y)
         end
 
         print("before", x, y)
+        print("goal", goalX, goalY)
         print("offset", result.offset.x, result.offset.y)
-        print("after (xy)", x + result.offset.x, y + result.offset.y)
-        print("after (xy)", goalX + result.offset.x, goalY + result.offset.y)
+        print("touch", result.touch.x, result.touch.y)
 
+        --- @cast responseName string
+        local response = self:getResponse(responseName)
+
+        _cachedCheckCurrentPosition:init(x, y)
         if result:notTouchingWillTouch() then
-            print("* not touching, will touch")
-            x = x + result.offset.x
-            y = y + result.offset.y
+            print("* not touching, touch")
 
-            goalX = x
-            goalY = y
-
-            self:project(item, x, y, goalX, goalY, filter, query)
+            x, y, goalX, goalY = response(self, query, result, x, y, goalX, goalY, filter)
         elseif result:isTouchingWillPenetrate() then
             print("* is touching, will penetrate")
 
-            goalX = x + result.offset.x
-            goalY = y + result.offset.y
-
-            self:project(item, x, y, goalX, goalY, filter, query)
-
-            if #query.results == 0 then
-                x = goalX
-                y = goalY
-            end
+            x, y, goalX, goalY = response(self, query, result, x, y, goalX, goalY, filter)
         elseif result:isTouchingWillNotPenetrate() then
-            print("* is touching, will NOT penetrate")
-            x = goalX
-            y = goalY
+            print("* is touching, will not will not pentrate")
+        end
+        print("new xy", x, y, "new goal", goalX, goalY)
+
+        -- elseif result:isTouchingWillNotPenetrate() then
+        --     print("* is touching, will NOT penetrate")
+            
+        --     x = goalX
+        --     y = goalY
+        -- end
+        _cachedCheckNextPosition:init(x, y)
+        _cachedCheckGoalPosition:init(goalX, goalY)
+
+        _cachedCheckNextPosition:direction(_cachedCheckGoalPosition, _cachedCheckDirection)
+        _cachedCheckDirection:normalize(_cachedCheckDirection)
+
+        
+        self:project(item, x, y, goalX, goalY, filter, query)
+
+        if #query.results == 0 then
+            actualX = goalX
+            actualY = goalY
+        else
+            actualX = x
+            actualY = y
         end
 
+        -- if not _willCollide(query) then
+        --     break
+        -- end
+
+        -- if #query.results == 0 or bounces >= self.options.maxBounces then
+        --     goalX = x
+        --     goalY = y
+        -- end
+
+        print("distance", targetDistance, "curr", currentDistance, "diff", targetDistance - currentDistance)
         print("#", #query.results)
     end
 
-    if bounces > 1 or z then
+    if bounces > 0 then
         print("bounced", bounces, "times")
-        print("moved", distanceMoved, "max", distance)
         print(">>> xy", goalX, goalY)
         print()
     end
 
-    return x, y, query.results, #query.results, query
+    return actualX, actualY, query.results, #query.results, query
 
     -- local distance = _cachedCheckStartPosition:distance(_cachedCheckGoalPosition)
     -- local distanceToGoal = distance
@@ -490,7 +562,7 @@ function world:check(item, goalX, goalY, filter, query)
     --     slicktable.clear(_cachedVisited)
     --     bounces = bounces + 1
 
-    --     if not _canMove(query) then
+    --     if not _willCollide(query) then
     --         break
     --     end
     -- end

@@ -15,6 +15,8 @@ local segment = require("slick.geometry.segment")
 --- @field depth number
 --- @field time number
 --- @field offset slick.geometry.point
+--- @field touch slick.geometry.point
+--- @field isProjection boolean
 --- @field contactPoint slick.geometry.point
 --- @field contactPoints slick.geometry.point[]
 --- @field segment slick.geometry.segment
@@ -33,6 +35,8 @@ function worldQueryResponse.new(query)
         depth = 0,
         time = 0,
         offset = point.new(),
+        touch = point.new(),
+        isProjection = false,
         contactPoint = point.new(),
         contactPoints = {},
         segment = segment.new(),
@@ -45,10 +49,10 @@ end
 --- @param b slick.worldQueryResponse
 function worldQueryResponse.less(a, b)
     if a.time == b.time then
-        if a.distance == b.distance then
-            return a.depth < b.depth
-        else
+        if a.depth == b.depth then
             return a.distance < b.distance
+        else
+            return a.depth > b.depth
         end
     end
 
@@ -56,12 +60,14 @@ function worldQueryResponse.less(a, b)
 end
 
 local _cachedInitItemPosition = point.new()
+local _cachedBumpOffset = point.new()
 
 --- @param shape slick.collision.shapeInterface
 --- @param otherShape slick.collision.shapeInterface?
 --- @param response string | boolean
+--- @param position slick.geometry.point
 --- @param query slick.collision.shapeCollisionResolutionQuery
-function worldQueryResponse:init(shape, otherShape, response, query)
+function worldQueryResponse:init(shape, otherShape, response, position, query)
     self.response = response
 
     self.shape = shape
@@ -75,7 +81,13 @@ function worldQueryResponse:init(shape, otherShape, response, query)
     self.normal:init(query.normal.x, query.normal.y)
     self.depth = query.depth
     self.time = query.time
+
+    self.isProjection = position:lengthSquared() > 0
     self.offset:init(query.currentOffset.x, query.currentOffset.y)
+    position:add(self.offset, self.touch)
+
+    -- self.normal:multiplyScalar(-self.query.world.options.minBounceDepth, _cachedBumpOffset)
+    -- self.touch:sub(_cachedBumpOffset, self.touch)
 
     local closestContactPointDistance = math.huge
 
@@ -105,12 +117,11 @@ function worldQueryResponse:init(shape, otherShape, response, query)
 
     if closestContactPoint then
         self.contactPoint:init(closestContactPoint.x, closestContactPoint.y)
-        self.distance = self.shape:distance(self.contactPoint)
     else
         self.contactPoint:init(0, 0)
-        self.distance = math.huge
     end
 
+    self.distance = self.shape:distance(self.touch)
     self.segment:init(query.segment.a, query.segment.b)
 
     slicktable.clear(self.extra)
@@ -121,7 +132,7 @@ function worldQueryResponse:isTouchingWillNotPenetrate()
 end
 
 function worldQueryResponse:isTouchingWillPenetrate()
-    return self.time == 0 and self.depth > 0
+    return self.time == 0 and (self.isProjection and self.depth >= 0 or self.depth > 0)
 end
 
 function worldQueryResponse:notTouchingWillTouch()
@@ -144,6 +155,8 @@ function worldQueryResponse:move(other)
     other.depth = self.depth
     other.time = self.time
     other.offset:init(self.offset.x, self.offset.y)
+    other.touch:init(self.touch.x, self.touch.y)
+    other.isProjection = self.isProjection
     
     other.contactPoint:init(self.contactPoint.x, self.contactPoint.y)
     other.distance = self.distance

@@ -50,7 +50,7 @@ function worldQuery:_performShapeQuery(shape, filter)
             self.collisionQuery:perform(shape, otherShape, _cachedQueryOffset, _cachedQueryOffset, _cachedQueryVelocity, _cachedQueryVelocity)
 
             if self.collisionQuery.collision then
-                self:_addCollision(otherShape, nil, response, true)
+                self:_addCollision(otherShape, nil, response, _cachedQueryOffset, true)
             end
         end
     end
@@ -68,11 +68,13 @@ function worldQuery:_performPrimitivePointQuery(p, filter)
         if response then
             local inside = otherShape:inside(p)
             if inside then
-                self:_addCollision(otherShape, nil, response, true)
+                self:_addCollision(otherShape, nil, response, _cachedQueryOffset, true)
             end
         end
     end
 end
+
+local _cachedRayQueryTouch = point.new()
 
 --- @private
 --- @param r slick.geometry.ray
@@ -86,7 +88,8 @@ function worldQuery:_performPrimitiveRayQuery(r, filter)
         if response then
             local inside, x, y = otherShape:raycast(r)
             if inside and x and y then
-                self:_addCollision(otherShape, nil, response, true)
+                _cachedRayQueryTouch:init(x, y)
+                self:_addCollision(otherShape, nil, response, _cachedRayQueryTouch, true)
 
                 local result = self.results[#self.results]
                 result.contactPoint:init(x, y)
@@ -139,6 +142,7 @@ local _cachedOtherVelocity = point.new()
 local _cachedEntityBounds = rectangle.new()
 local _cachedShapeBounds = rectangle.new()
 local _cachedSelfPosition = point.new()
+local _cachedSelfOffsetPosition = point.new()
 local _cachedOtherOffset = point.new()
 
 --- @param entity slick.entity
@@ -159,6 +163,8 @@ function worldQuery:perform(entity, x, y, goalX, goalY, filter)
     local offsetX = -entity.transform.x + x
     local offsetY = -entity.transform.y + y
 
+    _cachedSelfOffsetPosition:init(x, y)
+
     _cachedEntityBounds:init(entity.bounds:left(), entity.bounds:top(), entity.bounds:right(), entity.bounds:bottom())
     _cachedEntityBounds:move(offsetX, offsetY)
     _cachedEntityBounds:sweep(goalX, goalY)
@@ -175,15 +181,20 @@ function worldQuery:perform(entity, x, y, goalX, goalY, filter)
                     local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
                     if response then
                         self.collisionQuery:perform(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
-
+                        
                         if self.collisionQuery.collision then
-                            self:_addCollision(shape, otherShape, response, false)
+                            self:_addCollision(shape, otherShape, response, _cachedSelfOffsetPosition, false)
                         else
+                            print("no collision")
                             self.collisionQuery:perform(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
                         end
                     end
+                else
+                    print("doesn't overlap (shape v other shape)")
                 end
             end
+        elseif not _cachedEntityBounds:overlaps(otherShape.bounds) then
+            print("doesn't overlap (entity v other shape)")
         end
     end
 
@@ -229,11 +240,7 @@ end
 --- @param otherShape slick.collision.shapeInterface?
 --- @param response string | boolean
 --- @param primitive boolean
-function worldQuery:_addCollision(shape, otherShape, response, primitive)
-    if not primitive and (self.collisionQuery.depth == 0 and self.collisionQuery.time == 0) then
-        return
-    end
-
+function worldQuery:_addCollision(shape, otherShape, response, offset, primitive)
     local index = #self.results + 1
     local result = self.cachedResults[index]
     if not result then
@@ -241,7 +248,7 @@ function worldQuery:_addCollision(shape, otherShape, response, primitive)
         table.insert(self.cachedResults, result)
     end
 
-    result:init(shape, otherShape, response, self.collisionQuery)
+    result:init(shape, otherShape, response, offset, self.collisionQuery)
     table.insert(self.results, result)
 end
 

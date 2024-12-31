@@ -1,10 +1,13 @@
 local point = require "slick.geometry.point"
+local slickmath = require "slick.util.slickmath"
 
 local _cachedSlideNormal = point.new()
 local _cachedSlideCurrentPosition = point.new()
+local _cachedSlideTouchPosition = point.new()
+local _cachedOtherTouchPosition = point.new()
 local _cachedSlideGoalPosition = point.new()
 local _cachedSlideGoalDirection = point.new()
-local _cachedSlideActualPosition = point.new()
+local _cachedSlideNewGoalPosition = point.new()
 local _cachedSlideDirection = point.new()
 
 --- @param world slick.world
@@ -15,80 +18,83 @@ local _cachedSlideDirection = point.new()
 --- @param goalX number
 --- @param goalY number
 --- @param filter slick.worldFilterQueryFunc
---- @return number, number, slick.worldQueryResponse[], number, slick.worldQuery
+--- @return number, number, number, number
 local function slide(world, query, response, x, y, goalX, goalY, filter)
-    print("(slide) normal", response.normal.x, response.normal.y)
-    print("(slide) xy", x, y)
-    print("(slide) goal", goalX, goalY)
+    -- print("(slide) normal", response.normal.x, response.normal.y)
+    -- print("(slide) xy", x, y)
+    -- print("(slide) goal", goalX, goalY)
 
-    if response:notTouchingWillTouch() then
-        return x, y, world:project(response.item, x, y, x, y, filter, query)
-    end
-
-    _cachedSlideCurrentPosition:init(x, y)
-
-    -- if not (response.time == 0 and response.depth > 0) then
-
+    -- if response:notTouchingWillTouch() then
+    --     return x, y, world:project(response.item, x, y, x, y, query)
     -- end
 
-    local actualX, actualY
+    -- if response:isTouchingWillPenetrate() then
+    --     return x, y, response.touch.x, response.touch.y
+    -- end
 
-    _cachedSlideCurrentPosition:init(x, y)
-    _cachedSlideGoalPosition:init(goalX, goalY)
-    _cachedSlideCurrentPosition:direction(_cachedSlideGoalPosition, _cachedSlideGoalDirection)
-    _cachedSlideGoalDirection:normalize(_cachedSlideGoalDirection)
+    -- local touchX, touchY
+    -- if response:isTouchingWillPenetrate() then
+    --     touchX = x
+    --     touchY = y
+    -- else
+    --     touchX = response.touch.x
+    --     touchY = response.touch.y
+    -- end
 
-    _cachedSlideActualPosition:init(x, y)
+    if #query.results > 1 then
+        local maxDistance = 0
+        for _, result in ipairs(query.results) do
+            _cachedOtherTouchPosition:init(result.touch.x, result.touch.y)
 
-    _cachedSlideNormal:init(response.normal.x, response.normal.y)
-    _cachedSlideNormal:right(_cachedSlideNormal)
+            print("(slide) touch-goal distance", _cachedOtherTouchPosition:distance(_cachedSlideTouchPosition), "min", world.options.minSlideDistance)
+            maxDistance = math.max(maxDistance, _cachedOtherTouchPosition:distance(_cachedSlideTouchPosition))
+        end
 
-    _cachedSlideActualPosition:direction(_cachedSlideGoalPosition, _cachedSlideDirection)
-
-    local dot = _cachedSlideDirection:dot(_cachedSlideNormal)
-    print("(slide) dot", dot)
-    _cachedSlideNormal:multiplyScalar(dot, _cachedSlideNormal)
-    print("(slide) slide", _cachedSlideNormal.x, _cachedSlideNormal.y)
-
-    _cachedSlideNormal:add(_cachedSlideActualPosition, _cachedSlideActualPosition)
-
-    actualX = _cachedSlideActualPosition.x
-    actualY = _cachedSlideActualPosition.y
-
-    return actualX, actualY, world:project(response.item, x, y, actualX, actualY, filter, query)
-end
-
-local _cachedTouchDirection = point.new()
-local _cachedTouchCurrentPosition = point.new()
-local _cachedTouchGoalPosition = point.new()
-
---- @param world slick.world
---- @param query slick.worldQuery
---- @param response slick.worldQueryResponse
---- @param x number
---- @param y number
---- @param goalX number
---- @param goalY number
---- @param filter slick.worldFilterQueryFunc
---- @return number, number, slick.worldQueryResponse[], number, slick.worldQuery
-local function touch(world, query, response, x, y, goalX, goalY, filter)
-    _cachedTouchCurrentPosition:init(x, y)
-    _cachedTouchGoalPosition:init(goalX, goalY)
-    _cachedTouchCurrentPosition:direction(_cachedTouchGoalPosition, _cachedTouchDirection)
-    _cachedTouchDirection:normalize(_cachedTouchDirection)
-
-    local actualX, actualY = x, y
-    if response.time >= 0 and response.time <= 1 and response.depth > 0 then
-        actualX = x + response.offset.x
-        actualY = y + response.offset.y
-    elseif _cachedTouchDirection:dot(response.normal) > 0 then
-        actualX = goalX
-        actualY = goalY
+        print("(slide) max distance", maxDistance)
+        
+        if maxDistance < world.options.minSlideDistance then
+            print("... not sliding ...")
+            return response.touch.x, response.touch.y, response.touch.x, response.touch.y
+        end
     end
 
-    query:reset()
+    _cachedSlideCurrentPosition:init(x, y)
+    _cachedSlideTouchPosition:init(response.touch.x, response.touch.y)
+    _cachedSlideGoalPosition:init(goalX, goalY)
 
-    return actualX, actualY, world:project(response.item, actualX, actualY, filter, query)
+    _cachedSlideGoalPosition:direction(_cachedSlideTouchPosition, _cachedSlideGoalDirection)
+    local dot = _cachedSlideGoalDirection:dot(response.normal)
+
+    response.normal:multiplyScalar(dot, _cachedSlideNewGoalPosition)
+    _cachedSlideNewGoalPosition:add(_cachedSlideGoalPosition, _cachedSlideNewGoalPosition)
+
+    print("(slide) normal", response.normal.x, response.normal.y)
+
+    -- _cachedSlideTouchPosition:init(touchX, touchY)
+    -- _cachedSlideGoalPosition:init(goalX, goalY)
+    -- _cachedSlideTouchPosition:direction(_cachedSlideGoalPosition, _cachedSlideGoalDirection)
+    -- _cachedSlideGoalDirection:normalize(_cachedSlideGoalDirection)
+
+    -- _cachedSlideNewGoalPosition:init(touchX, touchY)
+
+    --_cachedSlideNormal:init(response.normal.x, response.normal.y)
+    --_cachedSlideNormal
+    --_cachedSlideNormal:left(_cachedSlideNormal)
+
+    -- _cachedSlideTouchPosition:direction(_cachedSlideGoalPosition, _cachedSlideDirection)
+
+    -- local dot = _cachedSlideDirection:dot(_cachedSlideNormal)
+    -- _cachedSlideNormal:multiplyScalar(dot, _cachedSlideNewGoalPosition)
+    -- _cachedSlideTouchPosition:add(_cachedSlideNewGoalPosition, _cachedSlideNewGoalPosition)
+    
+    local newGoalX, newGoalY = _cachedSlideNewGoalPosition.x, _cachedSlideNewGoalPosition.y
+
+    gx, gy = newGoalX, newGoalY
+    tx, ty = response.touch.x, response.touch.y
+
+    --world:project(response.item, response.touch.x, response.touch.y, newGoalX, newGoalY, filter, query)
+
+    return response.touch.x, response.touch.y, newGoalX, newGoalY
 end
 
 --- @param world slick.world
@@ -98,10 +104,21 @@ end
 --- @param y number
 --- @param goalX number
 --- @param goalY number
---- @param filter slick.worldFilterQueryFunc
---- @return number, number, slick.worldQueryResponse[], number, slick.worldQuery
-local function cross(world, query, response, x, y, goalX, goalY, filter)
-    return x, y, world:project(response.item, x, y, filter, query)
+--- @return number, number, number, number
+local function touch(world, query, response, x, y, goalX, goalY)
+    return x, y, response.touch.x, response.touch.y
+end
+
+--- @param world slick.world
+--- @param query slick.worldQuery
+--- @param response slick.worldQueryResponse
+--- @param x number
+--- @param y number
+--- @param goalX number
+--- @param goalY number
+--- @return number, number, number, number
+local function cross(world, query, response, x, y, goalX, goalY)
+    return goalX, goalY, goalX, goalY
 end
 
 return {

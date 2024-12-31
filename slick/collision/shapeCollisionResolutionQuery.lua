@@ -188,8 +188,10 @@ end
 
 local _cachedRelativeVelocity = point.new()
 local _cachedSelfFutureCenter = point.new()
+local _cachedSelfVelocityMinusOffset = point.new()
 local _cachedDirection = point.new()
-local _cachedCurentOffset = point.new()
+local _cachedSelfVelocityDirection = point.new()
+local _cachedOtherVelocityDirection = point.new()
 
 local _cachedSegmentA = segment.new()
 local _cachedSegmentB = segment.new()
@@ -253,7 +255,7 @@ function shapeCollisionResolutionQuery:_compareIntervals(axis)
         self.segment:init(axis.segment.a, axis.segment.b)
 
         if negate then
-            self.normal:negate(self.normal)
+            --self.normal:negate(self.normal)
         end
     end
 
@@ -288,6 +290,8 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
     
     otherVelocity:sub(selfVelocity, _cachedRelativeVelocity)
     selfVelocity:add(selfShape.center, _cachedSelfFutureCenter)
+
+    selfVelocity:sub(selfOffset, _cachedSelfVelocityMinusOffset)
     
     self.depth = math.huge
     
@@ -297,6 +301,7 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
     local currentInterval = self.currentShape.currentInterval
     local otherInterval = self.otherShape.currentInterval
 
+    local isTouching = true
     for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
         local axis = self:_getAxis(i)
 
@@ -311,6 +316,10 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
             break
         end
 
+        if isTouching and not self:_compareIntervals(axis) then
+            isTouching = false
+        end
+
         if futureSide then
             currentInterval:copy(self.currentShape.minInterval)
             otherInterval:copy(self.otherShape.minInterval)
@@ -319,28 +328,29 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
         end
     end
 
-    if (hit and side == SIDE_NONE) or self.depth == math.huge then
-        selfVelocity:multiplyScalar(math.max(self.firstTime, 0), _cachedCurentOffset)
+    -- if hit and self.time <= 0 then
+    --     self.depth = math.huge
 
-        self.currentShape.offset:add(selfVelocity, self.currentShape.offset)
-        self.otherShape.offset:add(otherVelocity, self.otherShape.offset)
-
-        self.depth = math.huge
-
-        hit = false
-        for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
-            local axis = self:_getAxis(i)
+    --     for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
+    --         local axis = self:_getAxis(i)
             
-            currentInterval:init()
-            otherInterval:init()
+    --         currentInterval:init()
+    --         otherInterval:init()
             
-            self:_handleAxis(axis)
-            hit = self:_compareIntervals(axis)
-            if not hit then
-                hit = false
-                break
-            end
-        end
+    --         self:_handleAxis(axis)
+    --         if not self:_compareIntervals(axis) then
+    --             self.depth = math.huge
+    --             break
+    --         end
+    --     end
+    -- end
+
+    if hit and self.time == -math.huge then
+        assert(self.depth ~= math.huge)
+    end
+
+    if not isTouching then
+        self.depth = 0
     end
 
     if self.firstTime > 1 then
@@ -355,28 +365,70 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
         self.firstTime = 0
     end
 
-    self.collision = hit
-
+    local isSelfMovingTowardsOther = false
     if hit then
         self.currentShape.shape.center:direction(self.otherShape.shape.center, _cachedDirection)
         _cachedDirection:normalize(_cachedDirection)
 
-        if _cachedDirection:dot(self.normal) > 0 then
+        isSelfMovingTowardsOther = _cachedDirection:dot(self.normal) < 0
+        print(">>> isSelfMovingTowardsOther", isSelfMovingTowardsOther, _cachedDirection:dot(self.normal))
+        if isSelfMovingTowardsOther then
             self.normal:negate(self.normal)
         end
+    end
 
+    print(">>> first time", self.firstTime, "last time", self.lastTime, "depth", self.depth)
+    if hit and self.firstTime <= 0 and self.depth < math.huge then
+        local selfSpeed = selfVelocity:length()
+        local otherSpeed = otherVelocity:length()
+
+        _cachedSelfVelocityDirection:init(selfVelocity.x, selfVelocity.y)
+        if selfSpeed > 0 then
+            _cachedSelfVelocityDirection:divideScalar(selfSpeed, _cachedSelfVelocityDirection)
+        end
+
+        _cachedOtherVelocityDirection:init(otherVelocity.x, otherVelocity.y)
+        if otherSpeed > 0 then
+            _cachedOtherVelocityDirection:divideScalar(otherSpeed, _cachedOtherVelocityDirection)
+        end
+
+        local areShapesMovingApart = selfSpeed == 0 or otherSpeed == 0 or _cachedSelfVelocityDirection:dot(_cachedOtherVelocityDirection) <= 0
+        local isOtherShapeMovingAwayFromEdge = _cachedSelfVelocityDirection:dot(self.normal) < self.epsilon
+        local isSelfShapeMovingFasterishThanOtherShape = selfSpeed >= otherSpeed
+        
+        print(">>> normal", self.normal.x, self.normal.y)
+        print(">>> self vel normal", _cachedSelfVelocityDirection.x, _cachedSelfVelocityDirection.y)
+        print(">>> other vel normal", _cachedOtherVelocityDirection.x, _cachedOtherVelocityDirection.y)
+        print(">>> epsilon", self.epsilon)
+        print("self velocity direction DOT other velocity direction", _cachedSelfVelocityDirection:dot(_cachedOtherVelocityDirection))
+        print("self direction DOT edge normal", _cachedSelfVelocityDirection:dot(self.normal))
+        print("self speed", selfSpeed, "otherSpeed", otherSpeed)
+
+        print("??? areShapesMovingApart", areShapesMovingApart)
+        print("??? isOtherShapeMovingAwayFromEdge", isOtherShapeMovingAwayFromEdge)
+        print("??? isSelfShapeMovingFasterishThanOtherShape", isSelfShapeMovingFasterishThanOtherShape)
+
+        if areShapesMovingApart and isOtherShapeMovingAwayFromEdge and isSelfShapeMovingFasterishThanOtherShape then
+            print("!!! shapes are moving apart")
+            hit = false
+        end
+    end
+
+    self.collision = hit
+
+    if hit then
         self.time = math.max(self.firstTime, 0)
 
-        if self.time == 0 and self.depth > 0 and self.depth < math.huge then
-            self.normal:multiplyScalar(self.depth, self.currentOffset)
-            selfVelocity:add(self.currentOffset, self.currentOffset)
+        -- if self.time == 0 and self.depth > 0 and self.depth < math.huge then
+        --     self.normal:multiplyScalar(self.depth, self.currentOffset)
+        --     self.currentOffset:sub(selfVelocity, self.currentOffset)
             
-            self.normal:multiplyScalar(-self.depth, self.otherOffset)
-            otherVelocity:add(self.otherOffset, self.otherOffset)
-        else
+        --     self.normal:multiplyScalar(-self.depth, self.otherOffset)
+        --     self.otherOffset:sub(otherVelocity, self.otherOffset)
+        -- else
             selfVelocity:multiplyScalar(self.time, self.currentOffset)
             otherVelocity:multiplyScalar(self.time, self.otherOffset)
-        end
+        -- end
 
         self.currentOffset:sub(selfOffset, self.currentOffset)
         self.otherOffset:sub(otherOffset, self.otherOffset)
@@ -412,10 +464,10 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
             end
 
             self.normal:normalize(self.normal)
-            self.normal:left(self.normal)
-            if _cachedDirection:dot(self.normal) > 0 then
-                self.normal:negate(self.normal)
-            end
+            self.normal:right(self.normal)
+            -- if isSelfMovingTowardsOther then
+            --     self.normal:negate(self.normal)
+            -- end
 
             local intersection, x, y
             if _cachedSegmentA:overlap(_cachedSegmentB) then
@@ -464,10 +516,6 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
         end
 
         self.time = math.max(self.firstTime, 0)
-
-        if self.depth == math.huge then
-            self.depth = self.currentOffset:length()
-        end
     else
         self.depth = 0
         self.time = 0
@@ -476,6 +524,8 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
         self.segment.a:init(0, 0)
         self.segment.b:init(0, 0)
     end
+
+    print(">>> end collision")
 
     return self.collision
 end
@@ -537,7 +587,7 @@ function shapeCollisionResolutionQuery:_handleTunnelAxis(axis, velocity)
     local otherInterval = self.otherShape.currentInterval
 
     local side
-    if otherInterval.max < selfInterval.min then
+    if otherInterval.max <= selfInterval.min + self.epsilon then
         if speed <= 0 then
             return false, nil
         end
@@ -554,7 +604,7 @@ function shapeCollisionResolutionQuery:_handleTunnelAxis(axis, velocity)
         if self.firstTime > self.lastTime then
             return false, nil
         end
-    elseif selfInterval.max < otherInterval.min then
+    elseif selfInterval.max <= otherInterval.min + self.epsilon then
         if speed >= 0 then
             return false, nil
         end
