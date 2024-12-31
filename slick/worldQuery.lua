@@ -48,7 +48,6 @@ function worldQuery:_performShapeQuery(shape, filter)
 
         if response then
             self.collisionQuery:perform(shape, otherShape, _cachedQueryOffset, _cachedQueryOffset, _cachedQueryVelocity, _cachedQueryVelocity)
-
             if self.collisionQuery.collision then
                 self:_addCollision(otherShape, nil, response, _cachedQueryOffset, true)
             end
@@ -75,6 +74,7 @@ function worldQuery:_performPrimitivePointQuery(p, filter)
 end
 
 local _cachedRayQueryTouch = point.new()
+local _cachedRayNormal = point.new()
 
 --- @private
 --- @param r slick.geometry.ray
@@ -86,13 +86,15 @@ function worldQuery:_performPrimitiveRayQuery(r, filter)
         --- @cast otherShape slick.collision.shapeInterface
         local response = filter(otherShape.entity.item, otherShape)
         if response then
-            local inside, x, y = otherShape:raycast(r)
+            local inside, x, y = otherShape:raycast(r, _cachedRayNormal)
             if inside and x and y then
                 _cachedRayQueryTouch:init(x, y)
                 self:_addCollision(otherShape, nil, response, _cachedRayQueryTouch, true)
 
                 local result = self.results[#self.results]
                 result.contactPoint:init(x, y)
+                result.distance = _cachedRayQueryTouch:distance(r.origin)
+                result.normal:init(_cachedRayNormal.x, _cachedRayNormal.y)
             end
         end
     end
@@ -134,6 +136,8 @@ function worldQuery:performPrimitive(shape, filter)
         --- @cast shape slick.geometry.ray
         self:_performPrimitiveRayQuery(shape, filter)
     end
+
+    self:_endQuery()
 end
 
 local _cachedSelfVelocity = point.new()
@@ -185,16 +189,11 @@ function worldQuery:perform(entity, x, y, goalX, goalY, filter)
                         if self.collisionQuery.collision then
                             self:_addCollision(shape, otherShape, response, _cachedSelfOffsetPosition, false)
                         else
-                            print("no collision")
                             self.collisionQuery:perform(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
                         end
                     end
-                else
-                    print("doesn't overlap (shape v other shape)")
                 end
             end
-        elseif not _cachedEntityBounds:overlaps(otherShape.bounds) then
-            print("doesn't overlap (entity v other shape)")
         end
     end
 

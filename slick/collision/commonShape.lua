@@ -201,8 +201,9 @@ local _cachedRaycastHit = point.new()
 local _cachedRaycastSegment = segment.new()
 
 --- @param r slick.geometry.ray
+--- @param normal slick.geometry.point?
 --- @return boolean, number?, number?
-function commonShape:raycast(r)
+function commonShape:raycast(r, normal)
     local bestDistance = math.huge
     local hit, x, y
 
@@ -222,8 +223,16 @@ function commonShape:raycast(r)
             if distance < bestDistance then
                 bestDistance = distance
                 x, y = hx, hy
+
+                if normal then
+                    a:direction(b, normal)
+                end
             end
         end
+    end
+
+    if normal and hit then
+        normal:normalize(normal)
     end
 
     return hit or false, x, y

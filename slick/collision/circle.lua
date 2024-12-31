@@ -89,8 +89,9 @@ local _cachedRaycastDirection = point.new()
 local _cachedRaycastProjection = point.new()
 
 --- @param r slick.geometry.ray
+--- @param normal slick.geometry.point?
 --- @return boolean, number?, number?
-function circle:raycast(r)
+function circle:raycast(r, normal)
     self.center:direction(r.origin, _cachedRaycastDirection)
     local b = _cachedRaycastDirection:dot(r.direction)
     local c = _cachedRaycastDirection:dot(_cachedRaycastDirection) - self.radius ^ 2
@@ -110,6 +111,11 @@ function circle:raycast(r)
 
             if t then
                 r:project(t, _cachedRaycastProjection)
+                if normal then
+                    self.center:direction(_cachedRaycastProjection, normal)
+                    normal:normalize(normal)
+                end
+
                 return true, _cachedRaycastProjection.x, _cachedRaycastProjection.y
             end
         end

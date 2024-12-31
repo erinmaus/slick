@@ -15,10 +15,6 @@ local defaultOptions = {
     debug = false,
 
     maxBounces = 8,
-
-    -- For simulations using pixel-sized units, this means require at least
-    -- 0.5 pixels difference between the current position and touch position for sliding to initiate.
-    -- Adjust as necessary for other units (e.g., when using meters, this might be a much smaller number).
     minSlideDistance = 0.5,
 
     quadTreeMaxLevels = 8,
