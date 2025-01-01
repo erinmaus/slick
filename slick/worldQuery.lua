@@ -10,6 +10,7 @@ local transform = require("slick.geometry.transform")
 local slicktable = require("slick.util.slicktable")
 local util = require("slick.util")
 local segment = require("slick.geometry.segment")
+local circle  = require("slick.collision.circle")
 
 --- @class slick.worldQuery
 --- @field world slick.world
@@ -118,10 +119,16 @@ function worldQuery:_performPrimitiveSegmentQuery(s, filter)
     self:_performShapeQuery(_cachedQueryLineSegmentShape, filter)
 end
 
---- @param shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray
+--- @param shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray | slick.collision.circle
 --- @param filter slick.worldShapeFilterQueryFunc
 function worldQuery:performPrimitive(shape, filter)
-    self:_beginPrimitiveQuery(shape)
+    if util.is(shape, circle) then
+        --- @cast shape slick.collision.circle
+        self:_beginPrimitiveQuery(shape.bounds)
+    else
+        --- @cast shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray
+        self:_beginPrimitiveQuery(shape)
+    end
 
     if util.is(shape, rectangle) then
         --- @cast shape slick.geometry.rectangle
@@ -135,6 +142,9 @@ function worldQuery:performPrimitive(shape, filter)
     elseif util.is(shape, ray) then
         --- @cast shape slick.geometry.ray
         self:_performPrimitiveRayQuery(shape, filter)
+    elseif util.is(shape, circle) then
+        --- @cast shape slick.collision.circle
+        self:_performShapeQuery(shape, filter)
     end
 
     self:_endQuery()

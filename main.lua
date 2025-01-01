@@ -23,7 +23,8 @@ local function makePlayer(world)
         isJumping = false
     }
 
-    world:add(player, player.x, player.y, slick.newBoxShape(0, 0, player.w, player.h))
+    --world:add(player, player.x, player.y, slick.newBoxShape(0, 0, player.w, player.h))
+    world:add(player, player.x, player.y, slick.newCircleShape(16, 16, 16))
 
     return player
 end
@@ -160,7 +161,8 @@ local function makeLevel(world)
             slick.newBoxShape(0, h - 8, w, 8),
             slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
             slick.newPolygonShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }),
-            slick.newBoxShape(w / 2 + w / 5, h - 150, w / 6, 60)
+            slick.newBoxShape(w / 2 + w / 5, h - 150, w / 6, 60),
+            slick.newCircleShape(w / 2 - 64, h - 256, 128)
         )
     )
 
@@ -197,7 +199,8 @@ end
 local time = 0
 function love.update(deltaTime)
     local b = love.timer.getTime()
-    local m = movePlayer(player, world, deltaTime)
+    --local m = movePlayer(player, world, deltaTime)
+    local m = movePlayer(player, world, 1 / 60)
     local a = love.timer.getTime()
     
     if m then
@@ -205,8 +208,32 @@ function love.update(deltaTime)
     end
 end
 
-function love.draw()
-    love.graphics.printf(string.format("Logic: %2.2f ms", time), 0, 0, love.graphics.getWidth(), "center")
+local smallFont = love.graphics.getFont()
+local bigFont = love.graphics.newFont(32)
 
+function love.draw()
+    love.graphics.setFont(smallFont)
+    love.graphics.printf(string.format("Logic: %2.2f ms", time), 0, 0, love.graphics.getWidth(), "center")
+    
+    love.graphics.setFont(bigFont)
+    if isGravityEnabled then
+        love.graphics.printf("2D Mario Platformer Mode", 0, 32, love.graphics.getWidth(), "center")
+    else
+        love.graphics.printf("2D Top-Down Zelda Mode", 0, 32, love.graphics.getWidth(), "center")
+    end
+    
+    love.graphics.setFont(smallFont)
     slick.drawWorld(world)
+
+    local mouseX, mouseY = love.mouse.getPosition()
+
+    local hits = world:queryCircle(player.x + 16, player.y + 16, 16, function(item) return item ~= player end)
+    for _, hit in ipairs(hits) do
+        for _, point in ipairs(hit.contactPoints) do
+            love.graphics.setColor(1, 0, 0, 0.5)
+            love.graphics.rectangle("fill", point.x - 2, point.y - 2, 4, 4)
+        end
+    end
+
+    love.graphics.setColor(1, 1, 1, 1)
 end

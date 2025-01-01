@@ -1,6 +1,7 @@
 local entity = require("slick.entity")
 local point = require("slick.geometry.point")
 local transform = require("slick.geometry.transform")
+local rectangle = require("slick.geometry.rectangle")
 
 --- @class slick.collision.circle: slick.collision.commonShape
 --- @field entity slick.entity?
@@ -8,6 +9,7 @@ local transform = require("slick.geometry.transform")
 --- @field vertices slick.geometry.point[]
 --- @field normals slick.geometry.point[]
 --- @field radius number
+--- @field bounds slick.geometry.rectangle
 --- @field center slick.geometry.point
 --- @field private preTransformedCenter slick.geometry.point
 --- @field private preTransformedRadius number
@@ -27,6 +29,7 @@ function circle.new(e, x, y, radius)
         normals = {},
         center = point.new(),
         radius = 0,
+        bounds = rectangle.new(),
         preTransformedCenter = point.new(),
         preTransformedRadius = 0
     }, metatable)
@@ -51,7 +54,8 @@ end
 --- @param transform slick.geometry.transform
 function circle:transform(transform)
     self.radius = self.preTransformedRadius * math.min(transform.scaleX, transform.scaleY)
-    self.center:init(transform:transformPoint(self.center.x, self.center.y))
+    self.center:init(transform:transformPoint(self.preTransformedCenter.x, self.preTransformedCenter.y))
+    self.bounds:init(self.center.x - self.radius, self.center.y - self.radius, self.center.x + self.radius, self.center.y + self.radius)
 end
 
 --- @param query slick.collision.shapeCollisionResolutionQuery

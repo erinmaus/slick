@@ -12,6 +12,7 @@ local worldQuery = require("slick.worldQuery")
 local util = require("slick.util")
 local slickmath = require("slick.util.slickmath")
 local slicktable = require("slick.util.slicktable")
+local circle     = require("slick.collision.circle")
 
 --- @alias slick.worldFilterQueryFunc fun(item: any, other: any, shape: slick.collision.shape, otherShape: slick.collision.shape): string | false
 local function defaultWorldFilterQueryFunc()
@@ -276,6 +277,22 @@ function world:queryPoint(x, y, filter, query)
 
     _cachedQueryPoint:init(x, y)
     query:performPrimitive(_cachedQueryPoint, filter or defaultWorldShapeFilterQueryFunc)
+
+    return query.results, #query.results, query
+end
+
+local _cachedQueryCircle = circle.new(nil, 0, 0, 1)
+
+--- @param x number
+--- @param y number
+--- @param filter slick.worldShapeFilterQueryFunc?
+--- @param query slick.worldQuery?
+--- @return slick.worldQueryResponse[], number, slick.worldQuery
+function world:queryCircle(x, y, radius, filter, query)
+    query = query or worldQuery.new(self)
+
+    _cachedQueryCircle:init(x, y, radius)
+    query:performPrimitive(_cachedQueryCircle, filter or defaultWorldShapeFilterQueryFunc)
 
     return query.results, #query.results, query
 end
