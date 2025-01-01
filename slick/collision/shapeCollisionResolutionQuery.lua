@@ -140,34 +140,6 @@ local _cachedCircleCenter = point.new()
 
 local _cachedSegmentDirection = point.new()
 local _cachedCircleDirection = point.new()
-local function _segmentCircle(s, p, r)
-    local p1 = s.a
-    local p2 = s.b
-
-    p1:direction(p2, _cachedSegmentDirection)
-    p1:direction(p, _cachedCircleDirection)
-
-    local a = _cachedSegmentDirection:dot(_cachedSegmentDirection)
-    local b = 2 * _cachedCircleDirection:dot(_cachedSegmentDirection)
-    local c = _cachedCircleDirection:dot(_cachedCircleDirection) - r ^ 2
-
-
-    -- local a = (p2.x - p1.x) ^ 2 + (p2.y - p1.y) ^ 2
-    -- local b = 2 * ((p2.x - p1.x) * (p1.x - p.x) + (p2.y - p1.y) * (p1.y - p.y))
-    -- local c = p.x ^ 2 + p.y ^ 2 + p1.x ^ 2 + p1.y ^ 2 - 2 * (p.x * p1.x + p.y * p1.y) - r ^ 2
-
-    local d = b ^ 2 - 4 * a * c
-    if a <= 0 or d < 0 then
-        return nil, nil
-    end
-
-    d = math.sqrt(d)
-
-    local u = (-b + d) / (2 * a)
-    local v = (-b - d) / (2 * a)
-
-    return u, v
-end
 
 --- @private
 --- @param selfShape slick.collision.circle
@@ -180,80 +152,57 @@ function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, sel
     selfShape.center:add(selfOffset, _cachedCircleSelfPosition)
     otherShape.center:add(otherOffset, _cachedCircleOtherPosition)
 
+    
     -- Check if they are currently colliding.
-    _cachedCircleSelfPosition:direction(_cachedCircleOtherPosition, _cachedCircleNormal)
-    local radius = selfShape.radius + otherShape.radius
-    local magnitude = _cachedCircleNormal:lengthSquared()
-    if magnitude <= radius ^ 2 then
-        if magnitude == 0 then
-            return
-        elseif magnitude < math.abs(selfShape.radius - otherShape.radius) ^ 2 then
-            self.depth = math.sqrt(magnitude) - selfShape.radius
-        end
+    -- _cachedCircleSelfPosition:direction(_cachedCircleOtherPosition, _cachedCircleNormal)
+    -- local radius = selfShape.radius + otherShape.radius
+    -- local magnitude = _cachedCircleNormal:lengthSquared()
+    -- -- if magnitude <= radius ^ 2 then
+    -- --     if magnitude == 0 then
+    -- --         return
+    -- --     elseif magnitude < math.abs(selfShape.radius - otherShape.radius) ^ 2 then
+    -- --         self.depth = math.sqrt(magnitude) - selfShape.radius
+    -- --     end
+        
+    -- --     local d = math.sqrt(magnitude)
+        
+    -- --     self.collision = true
+    -- --     self.time = 0
+    -- --     self.depth = d
+        
+    -- --     if self.depth > 0 then
+    -- --         _cachedCircleNormal:divideScalar(self.depth, self.normal)
+    -- --     end
 
-        local d = math.sqrt(magnitude)
+    -- --     local a = (selfShape.radius ^ 2 - otherShape.radius ^ 2 + magnitude) / (2 * d)
+    -- --     local h = math.sqrt(selfShape.radius ^ 2 - a ^ 2)
 
-        self.collision = true
-        self.time = 0
-        self.depth = d
+    -- --     _cachedCircleSelfPosition:direction(_cachedCircleOtherPosition, _cachedCircleDirection)
+    -- --     _cachedCircleDirection:multiplyScalar(a, _cachedCircleDirection)
+    -- --     _cachedCircleDirection:divideScalar(d, _cachedCircleDirection)
+    -- --     _cachedCircleDirection:add(_cachedCircleSelfPosition, _cachedCircleCenter)
 
-        if self.depth > 0 then
-            _cachedCircleNormal:divideScalar(self.depth, self.normal)
-        end
+    -- --     _cachedCircleContactPoint1.x = _cachedCircleCenter.x + h * (_cachedCircleOtherPosition.y - _cachedCircleSelfPosition.y) / d
+    -- --     _cachedCircleContactPoint1.y = _cachedCircleCenter.x - h * (_cachedCircleOtherPosition.x - _cachedCircleSelfPosition.x) / d
 
-        local a = (selfShape.radius ^ 2 - otherShape.radius ^ 2 + magnitude) / (2 * d)
-        local h = math.sqrt(selfShape.radius ^ 2 - a ^ 2)
+    -- --     _cachedCircleContactPoint2.x = _cachedCircleCenter.x - h * (_cachedCircleOtherPosition.y - _cachedCircleSelfPosition.y) / d
+    -- --     _cachedCircleContactPoint2.y = _cachedCircleCenter.x + h * (_cachedCircleOtherPosition.x - _cachedCircleSelfPosition.x) / d
 
-        _cachedCircleSelfPosition:direction(_cachedCircleOtherPosition, _cachedCircleDirection)
-        _cachedCircleDirection:multiplyScalar(a, _cachedCircleDirection)
-        _cachedCircleDirection:divideScalar(d, _cachedCircleDirection)
-        _cachedCircleDirection:add(_cachedCircleSelfPosition, _cachedCircleCenter)
+    -- --     if _cachedCircleContactPoint1:distanceSquared(_cachedCircleContactPoint2) > 0 then
+    -- --         self:_addContactPoint(_cachedCircleContactPoint1.x, _cachedCircleContactPoint1.y)
+    -- --         self:_addContactPoint(_cachedCircleContactPoint2.x, _cachedCircleContactPoint2.y)
+    -- --     else
+    -- --         self:_addContactPoint(_cachedCircleContactPoint1.x, _cachedCircleContactPoint1.y)
+    -- --     end
 
-        _cachedCircleContactPoint1.x = _cachedCircleCenter.x + h * (_cachedCircleOtherPosition.y - _cachedCircleSelfPosition.y) / d
-        _cachedCircleContactPoint1.y = _cachedCircleCenter.x - h * (_cachedCircleOtherPosition.x - _cachedCircleSelfPosition.x) / d
+    -- --     _cachedCircleSelfPosition:sub(_cachedCircleOtherPosition, self.normal)
+    -- --     self.normal:normalize(self.normal)
 
-        _cachedCircleContactPoint2.x = _cachedCircleCenter.x - h * (_cachedCircleOtherPosition.y - _cachedCircleSelfPosition.y) / d
-        _cachedCircleContactPoint2.y = _cachedCircleCenter.x + h * (_cachedCircleOtherPosition.x - _cachedCircleSelfPosition.x) / d
+    -- --     self.normal:multiplyScalar(self.depth, self.currentOffset)
+    -- --     self.normal:multiplyScalar(-self.depth, self.otherOffset)
 
-        if _cachedCircleContactPoint1:distanceSquared(_cachedCircleContactPoint2) > 0 then
-            self:_addContactPoint(_cachedCircleContactPoint1.x, _cachedCircleContactPoint1.y)
-            self:_addContactPoint(_cachedCircleContactPoint2.x, _cachedCircleContactPoint2.y)
-        else
-            self:_addContactPoint(_cachedCircleContactPoint1.x, _cachedCircleContactPoint1.y)
-        end
-
-        _cachedCircleSelfPosition:sub(_cachedCircleOtherPosition, self.normal)
-        self.normal:normalize(self.normal)
-
-        self.normal:multiplyScalar(self.depth, self.currentOffset)
-        self.normal:multiplyScalar(-self.depth, self.otherOffset)
-
-        return
-    end
-
-    -- _cachedCircleSelfPosition:init(selfShape.center.x, selfShape.center.y)
-    -- _cachedCircleSelfPosition:add(selfOffset, _cachedCircleSelfPosition)
-
-    -- _cachedCircleOtherPosition:init(otherShape.center.x, otherShape.center.y)
-    -- _cachedCircleOtherPosition:add(otherOffset, _cachedCircleOtherPosition)
-
-    -- local a = selfVelocity.x ^ 2 + otherVelocity.x ^ 2 + selfVelocity.y ^ 2 + otherVelocity.y ^ 2 -
-    --     (2 * selfVelocity.x * otherVelocity.x) - (2 * selfVelocity.y * otherVelocity.y)
-
-    -- local b = (2 * _cachedCircleSelfPosition.x * selfVelocity.x) - (2 * _cachedCircleSelfPosition.x * otherVelocity.x) -
-    --     (2 * _cachedCircleOtherPosition.x * selfVelocity.x) + (2 * _cachedCircleOtherPosition.x * otherVelocity.x)
-    --     + (2 * _cachedCircleSelfPosition.y * selfVelocity.y) - (2 * _cachedCircleSelfPosition.y * otherVelocity.y) -
-    --     (2 * _cachedCircleOtherPosition.y * selfVelocity.y) + (2 * _cachedCircleOtherPosition.y * otherVelocity.y)
-
-    -- local c = _cachedCircleSelfPosition.x ^ 2 + _cachedCircleOtherPosition.x ^ 2 + _cachedCircleSelfPosition.y ^ 2 +
-    --     _cachedCircleOtherPosition.y ^ 2
-    --     - (2 * _cachedCircleSelfPosition.x * _cachedCircleOtherPosition.x) -
-    --     (2 * _cachedCircleSelfPosition.y * _cachedCircleOtherPosition.y) - (selfShape.radius + otherShape.radius) ^ 2
-
-    -- local s = b ^ 2 - 4 * a * c
-    -- if a == 0 or s < 0 then
-    --     return
-    -- end
+    -- --     return
+    -- -- end
 
     _cachedCircleOtherPosition:sub(_cachedCircleSelfPosition, _cachedCirclePointPosition)
     selfVelocity:direction(otherVelocity, _cachedCirclePointVelocity)
@@ -261,36 +210,8 @@ function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, sel
     _cachedCirclePointSegment.a:init(_cachedCircleSelfPosition.x, _cachedCircleSelfPosition.y)
     _cachedCirclePointSegment.a:add(_cachedCirclePointVelocity, _cachedCirclePointSegment.b)
 
-    --local p = point.new()
-    local p = _cachedCircleOtherPosition
-    
-    local u, v = _segmentCircle(_cachedCirclePointSegment, p, selfShape.radius + otherShape.radius)
-    if not (u and v) then
-        return
-    end
-
-    local d = point.new()
-    _cachedCirclePointSegment.b:sub(_cachedCirclePointSegment.a, d)
-    d:multiplyScalar(u, d)
-    d:add(_cachedCirclePointSegment.a, d)
-
-    -- local p1 = _cachedCirclePointSegment.a
-    -- local p2 = _cachedCirclePointSegment.b
-    -- local r = selfShape.radius + otherShape.radius
-
-    -- local a = (p2.x - p1.x) ^ 2 + (p2.y - p1.y) ^ 2
-    -- local b = 2 * ((p2.x - p1.x) * (p1.x - p.x) + (p2.y - p1.y) * (p1.y - p.y))
-    -- local c = p.x ^ 2 + p.y ^ 2 + p1.x ^ 2 + p1.y ^ 2 - 2 * (p.x * p1.x + p.y * p1.y) - r ^ 2
-
-    -- local s = b ^ 2 - 4 * a * c
-    -- if a <= 0 or s < 0 then
-    --     return
-    -- end
-
-    -- local u = -b + math.sqrt(s) / (2 * a)
-    -- local v = -b - math.sqrt(s) / (2 * a)
-
-    if (u >= 0 and u <= 1) or (v >= 0 and v <= 1) then
+    local willCollide, u, v = slickmath.lineCircleIntersection(_cachedCirclePointSegment, _cachedCircleOtherPosition, selfShape.radius + otherShape.radius)
+    if willCollide and u and v and ((u >= 0 and u <= 1) or (v >= 0 and v <= 1)) then
         self.collision = true
         self.depth = 0
 
@@ -305,17 +226,37 @@ function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, sel
             self.time = v
         end
 
-        _cachedCirclePointSegment.a:direction(_cachedCirclePointSegment.b, self.currentOffset)
-        self.currentOffset:multiplyScalar(self.time, self.currentOffset)
-        self.currentOffset:add(_cachedCirclePointSegment.a, _cachedCircleContactPoint1)
-
-        self:_addContactPoint(_cachedCircleContactPoint1.x, _cachedCircleContactPoint1.y)
-
-        selfShape.center:direction(_cachedCircleContactPoint1, self.normal)
-        self.normal:normalize(self.normal)
+        selfVelocity:multiplyScalar(self.time, self.currentOffset)
+        otherVelocity:multiplyScalar(self.time, self.otherOffset)
     end
 
-    --otherVelocity:sub(selfVelocity, _cachedCircleRelativeVelocity)
+    _cachedCircleSelfPosition:add(self.currentOffset, _cachedCircleSelfPosition)
+    _cachedCircleOtherPosition:add(self.otherOffset, _cachedCircleOtherPosition)
+
+    local intersection, r1x, r1y, r2x, r2y = slickmath.circleCircleIntersection(
+        _cachedCircleSelfPosition, selfShape.radius,
+        _cachedCircleOtherPosition, otherShape.radius)
+
+    if intersection and r1x and r1y and r2x and r2y then
+        _cachedCircleContactPoint1:init(r1x, r1y)
+        _cachedCircleContactPoint2:init(r2x, r2y)
+
+        if _cachedCircleContactPoint1:distance(_cachedCircleContactPoint2) > 0 then
+            self:_addContactPoint(_cachedCircleContactPoint1.x, _cachedCircleContactPoint1.y)
+            self:_addContactPoint(_cachedCircleContactPoint2.x, _cachedCircleContactPoint2.y)
+        else
+            self:_addContactPoint(_cachedCircleContactPoint1.x, _cachedCircleContactPoint1.y)
+        end
+
+        _cachedCircleContactPoint1:direction(_cachedCircleSelfPosition, self.normal)
+
+        local distance = _cachedCircleNormal:length()
+        if distance > 0 then
+            self.normal:divideScalar(distance, self.normal)
+        end
+
+        self.depth = (selfShape.radius + otherShape.radius) - distance
+    end
 end
 
 local _cachedRelativeVelocity = point.new()

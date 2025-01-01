@@ -162,6 +162,78 @@ function slickmath.intersection(a, b, c, d, E)
     return true, rx, ry, u, v
 end
 
+--- @param s slick.geometry.segment
+--- @param p slick.geometry.point
+--- @param r number
+--- @return false, number?, number?
+--- @return true, number, number
+function slickmath.lineCircleIntersection(s, p, r)
+    local p1 = s.a
+    local p2 = s.b
+
+    local dx = p2.x - p1.x
+    local dy = p2.y - p1.y
+
+    local fx = p.x - p.x
+    local fy = p.y - p.y
+
+    local a = dx ^ 2 + dy ^ 2
+    local b = 2 * (dx * fx + dy * fy)
+    local c = fx ^ 2 + dy ^ 2 - r ^ 2
+
+    local d = b ^ 2 - 4 * a * c
+    if a <= 0 or d < 0 then
+        return false, nil, nil
+    end
+
+    d = math.sqrt(d)
+
+    local u = (-b + d) / (2 * a)
+    local v = (-b - d) / (2 * a)
+
+    return true, u, v
+end
+
+--- @param p1 slick.geometry.point
+--- @param r1 number
+--- @param p2 slick.geometry.point
+--- @param r2 number
+--- @return false, number?, number?, number?, number?
+--- @return true, number, number, number, number
+function slickmath.circleCircleIntersection(p1, r1, p2, r2)
+    local nx = p2.x - p1.x
+    local ny = p2.y - p1.y
+
+    local radius = r1 + r2
+    local magnitude = nx ^ 2 + ny ^ 2
+    if magnitude <= radius ^ 2 then
+        local d = math.sqrt(magnitude)
+        
+        if d > 0 then
+            nx = nx / d
+            ny = ny / d
+        end
+
+        local a = (r1 ^ 2 - r2 ^ 2 + magnitude) / (2 * d)
+        local h = math.sqrt(r1 ^ 2 - a ^ 2)
+
+        local directionX = p2.x - p1.x
+        local directionY = p2.y - p1.y
+        local p3x = p1.x + a * directionX / d
+        local p3y = p2.y + a * directionY / d
+
+        local result1X = p3x + h * (directionX) / d
+        local result1Y = p3y - h * (directionY) / d
+
+        local result2X = p3x - h * (directionX) / d
+        local result2Y = p3y + h * (directionY) / d
+
+        return true, result1X, result1Y, result2X, result2Y
+    end
+
+    return false, nil, nil, nil, nil
+end
+
 --- @param value number
 --- @param E number?
 --- @return -1 | 0 | 1
