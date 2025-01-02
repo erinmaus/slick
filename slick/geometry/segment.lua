@@ -43,6 +43,40 @@ function segment:bottom()
     return math.max(self.a.y, self.b.y)
 end
 
+local _cachedProjectionBMinusA = point.new()
+local _cachedProjectionPMinusA = point.new()
+local _cachedProjectionPProjectedAB = point.new()
+
+--- @param p slick.geometry.point
+--- @param result slick.geometry.point
+function segment:project(p, result)
+    local distanceSquared = self.a:distanceSquared(self.b)
+    if distanceSquared == 0 then
+        result:init(self.a.x, self.a.y)
+        return
+    end
+    
+    p:sub(self.a, _cachedProjectionPMinusA)
+    self.b:sub(self.a, _cachedProjectionBMinusA)
+    
+    local t = math.max(0, math.min(1, _cachedProjectionPMinusA:dot(_cachedProjectionBMinusA) / distanceSquared))
+    
+    _cachedProjectionBMinusA:multiplyScalar(t, result)
+    self.a:add(result, result)
+end
+
+local _cachedDistancePProjectedAB = point.new()
+--- @param p slick.geometry.point
+function segment:distanceSquared(p)
+    self:project(p, _cachedDistancePProjectedAB)
+    return _cachedDistancePProjectedAB:distanceSquared(p)
+end
+
+--- @param p slick.geometry.point
+function segment:distance(p)
+    return math.sqrt(self:distanceSquared(p))
+end
+
 --- @alias slick.geometry.segmentCompareFunc fun(a: slick.geometry.segment, b: slick.geometry.segment): slick.util.search.compareResult
 
 --- @param a slick.geometry.segment
@@ -104,6 +138,42 @@ function segment:overlap(other)
 
     return (selfLeft <= otherRight and selfRight >= otherLeft) and
            (selfTop <= otherBottom and selfBottom >= otherTop)
+end
+
+--- @param other slick.geometry.segment
+--- @param E number?
+--- @return boolean
+--- @return number?
+--- @return number?
+--- @return number?
+function segment:intersection(other, E)
+    E = E or 0
+
+    local bax = self.b.x - self.a.x
+    local bay = self.b.y - self.a.y
+    local dcx = other.b.x - other.a.x
+    local dcy = other.b.y - other.a.y
+
+    local baCrossDC = bax * dcy - bay * dcx
+    local dcCrossBA = dcx * bay - dcy * bax
+    if baCrossDC == 0 or dcCrossBA == 0 then
+        return false, nil, nil, nil
+    end
+
+    local acx = self.a.x - other.a.x
+    local acy = self.a.y - other.a.y
+
+    local dcCrossAC = dcx * acy - dcy * acx
+
+    local u = dcCrossAC / baCrossDC
+    if u < -E or u > (1 + E) then
+        return false
+    end
+
+    local rx = self.a.x + bax * u
+    local ry = self.a.y + bay * u
+
+    return true, rx, ry, u
 end
 
 return segment

@@ -1,330 +1,285 @@
+if love.system.getOS() == "OS X" and jit and jit.arch == "arm64" then
+    jit.off()
+end
+
 local slick = require("slick")
 
-local shapes = {
-    {
-        name = "custom",
+local GRAVITY_Y = 1200
+local PLAYER_SPEED = 500
+local PLAYER_JUMP_VELOCITY = 800
+local isGravityEnabled = false
+local isZoomEnabled = false
+local isQueryEnabled = false
+local query
 
-        points = {
-            337, 182,
-            538, 282,
-            589, 208,
-            684, 470,
-            453, 695,
-            173, 518,
+local function makePlayer(world)
+    local player = {
+        type = "player",
 
-            -- Hole
-            365, 261,
-            515, 332,
-            407, 559,
-            278, 452
-        },
-
-        edges = {
-            1, 2,
-            2, 3,
-            3, 4,
-            4, 5,
-            5, 6,
-            6, 1,
-
-            7, 8,
-            8, 9,
-            9, 10,
-            10, 7
-        }
+        x = love.graphics.getWidth() / 2,
+        y = love.graphics.getHeight() / 8,
+        w = 32,
+        h = 32,
+        nx = 0,
+        ny = 0,
+        
+        jumpVelocityY = 0,
+        isJumping = false
     }
-}
-do
-    local items = love.filesystem.getDirectoryItems("test/data")
 
-    for _, item in ipairs(items) do
-        local filename = string.format("test/data/%s", item)
+    --world:add(player, player.x, player.y, slick.newBoxShape(0, 0, player.w, player.h))
+    world:add(player, player.x, player.y, slick.newCircleShape(16, 16, 16))
 
-        local result = {
-            name = item,
-            points = {},
-            edges = {}
-        }
+    return player
+end
 
-        local startIndex = 1
-        local lastIndex
+local function movePlayer(player, world, deltaTime)
+    --- @cast world slick.world
+    
+    local isInAir = true
+    if isGravityEnabled then
+        world:queryRectangle(player.x, player.y + player.h, player.w, 1, function(item)
+            return item ~= player
+        end, query)
 
-        local mode = "shape"
-        for line in love.filesystem.lines(filename) do
-            local x, y = line:match("([^%s]+)%s+([^%s]+)")
-            x = x and tonumber(x)
-            y = y and tonumber(y)
+        for _, result in ipairs(query.results) do
+            if result.normal.y > 0 then
+                isInAir = false
+            end
+        end
+    end
+    
+    local groundNormal = slick.geometry.point.new(0, 0)
+    if not isInAir then
+        world:queryRay(player.x + player.w / 2, player.y + player.h, 0, 1, function(item)
+            return item ~= player
+        end, query)
 
-            if x and y then
-                table.insert(result.points, x)
-                table.insert(result.points, y)
+        if #query.results >= 1 then
+            --groundNormal:init(query.results[1].normal.x, query.results[1].normal.y)
+        end
+    end
 
-                if lastIndex and mode ~= "steiner" then
-                    table.insert(result.edges, lastIndex)
-                    table.insert(result.edges, (#result.points / 2))
-                end
+    if not isInAir and love.keyboard.isDown("w") then
+        player.isJumping = true
+        player.jumpVelocityY = -PLAYER_JUMP_VELOCITY
+        isInAir = true
+    end
 
-                lastIndex = #result.points / 2
+    local x = 0
+    if love.keyboard.isDown("a") then
+        x = x - 1
+    end
+    
+    if love.keyboard.isDown("d") then
+        x = x + 1
+    end
+
+    local y = 0
+    if not isGravityEnabled then
+        if love.keyboard.isDown("w") then
+            y = y - 1
+        end
+
+        if love.keyboard.isDown("s") then
+            y = y + 1
+        end
+
+        if love.keyboard.isDown("q") then
+            x = x - 1
+            y = y - 1
+        end
+
+        if love.keyboard.isDown("e") then
+            x = x + 1
+            y = y - 1
+        end
+
+        if love.keyboard.isDown("z") then
+            x = x - 1
+            y = y + 1
+        end
+
+        if love.keyboard.isDown("c") then
+            x = x + 1
+            y = y + 1
+        end
+    end
+
+    local offsetY = 0
+    if isGravityEnabled then
+        if isInAir then
+            player.jumpVelocityY = player.jumpVelocityY + GRAVITY_Y * deltaTime
+            if player.isJumping then
+                offsetY = player.jumpVelocityY * deltaTime
             else
-                if mode == "shape" or mode == "hole" then
-                    table.insert(result.edges, lastIndex)
-                    table.insert(result.edges, startIndex)
+                offsetY = GRAVITY_Y * deltaTime
+            end
+        else
+            if player.isJumping then
+                player.isJumping = false
+            end
+
+            offsetY = 0
+        end
+    end
+
+    local n = slick.geometry.point.new(x, y)
+    if groundNormal:lengthSquared() > 0 then
+        local d = n:dot(groundNormal)
+        groundNormal:multiplyScalar(d, n)
+    end
+
+    n:normalize(n)
+    n:multiplyScalar(PLAYER_SPEED * deltaTime, n)
+
+    local goalX, goalY = player.x + n.x, player.y + n.y + offsetY
+
+    if goalX ~= player.x or goalY ~= player.y then
+        local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
+        player.x, player.y = actualX, actualY
+        player.nx = n.x
+        player.ny = n.y + offsetY
+
+        if isGravityEnabled then
+            for _, hit in ipairs(hits) do
+                if player.isJumping then
+                    if hit.normal.y < 0 then
+                        player.jumpVelocityY = 0
+                    end
                 end
-
-                mode = line:lower()
-
-                startIndex = #result.points / 2 + 1
-                lastIndex = nil
             end
         end
 
-        if mode == "shape" or mode == "hole" then
-            table.insert(result.edges, lastIndex)
-            table.insert(result.edges, startIndex)
-        end
-
-        table.insert(shapes, result)
+        return true
     end
 end
 
-local minX, minY, maxX, maxY
-local options = {
-    refine = true,
-    interior = true,
-    exterior = false,
-    polygonization = true
-}
+local function makeLevel(world)
+    local level = { type = "level" }
 
-<<<<<<< HEAD
-local index = 1
-=======
-local index = 7
->>>>>>> 18ade21 (Wrapping up quad trees.)
-local shape, edges
-local triangles, trianglesCount
-local polygons, polygonCount
-local time, memory
-local deletedPoints = {}
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
 
---- @type slick.collision.quadTree
-local quadTree
+    world:add(level, slick.newTransform(), 
+        slick.newShapeGroup(
+            slick.newBoxShape(0, 0, 8, h),
+            slick.newBoxShape(w - 8, 0, 8, h),
+            slick.newBoxShape(0, h - 8, w, 8),
+            slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
+            slick.newPolygonShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }),
+            slick.newBoxShape(w / 2 + w / 5, h - 150, w / 6, 60),
+            slick.newCircleShape(w / 2 - 64, h - 256, 128)
+        )
+    )
 
-local triangulator = slick.geometry.triangulation.delaunay.new()
-local function build()
-    collectgarbage("stop")
-    local memoryBefore = collectgarbage("count")
-    local timeBefore = love.timer.getTime()
-    shape, edges = triangulator:clean(shapes[index].points, shapes[index].edges, nil, nil, shape, edges)
-    triangles, trianglesCount, polygons, polygonCount = triangulator:triangulate(shape, edges, options, triangles, polygons)
-    local timeAfter = love.timer.getTime()
-    local memoryAfter = collectgarbage("count")
-    collectgarbage("restart")
+    return level
+end
 
-    time = (timeAfter - timeBefore) * 1000
-    memory = memoryAfter - memoryBefore
+local world, player
+function love.load()
+    world = slick.newWorld(love.graphics.getWidth(), love.graphics.getHeight(), {
+        quadTreeMaxData = 4,
+        quadTreeX = 0,
+        quadTreeY = 0
+    })
 
-    minX = nil
-    minY = nil
-    maxX = nil
-    maxY = nil
-
-    for i = 1, (#shape / 2) do
-        minX = math.min(shape[(i - 1) * 2 + 1], minX or math.huge)
-        maxX = math.max(shape[(i - 1) * 2 + 1], maxX or -math.huge)
-        minY = math.min(shape[(i - 1) * 2 + 2], minY or math.huge)
-        maxY = math.max(shape[(i - 1) * 2 + 2], maxY or -math.huge)
-    end
-
-    quadTree = slick.collision.quadTree.new({ x = minX, y = minY, width = math.max(maxX - minX, 1), height = math.max(maxY - minY, 1) })
-    slick.util.table.clear(deletedPoints)
+    makeLevel(world)
     
-    for i = 1, #shape / 2 do
-        local index1 = (i - 1) * 2 + 1
-        local index2 = index1 + 1
-        
-        local x = shape[index1]
-        local y = shape[index2]
-        
-        quadTree:insert(i, x - 1, y - 1, x + 1, y + 1)
+    player = makePlayer(world)
+    query = slick.newWorldQuery(world)
+end
+
+local function getCameraTransform()
+    local t = love.math.newTransform()
+    if isZoomEnabled then
+        local mx, my = love.mouse.getPosition()
+        local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+        t:translate(-mx - w / 2, -my - h / 2)
+        t:translate(-w / 2, -h / 2)
+        t:scale(2)
+        t:translate(w / 2, h / 2)
+    end
+
+    return t
+end
+
+function love.mousepressed(x, y, button)
+    local t = getCameraTransform()
+    x, y = t:inverseTransformPoint(x, y)
+    if button == 1 then
+        player.x, player.y = x - 16, y - 16
+        world:update(player, player.x, player.y)
     end
 end
 
-build()
-
-local showPolygons = false
-local showTriangles = true
-local showQuadTree = false
-
-function love.keypressed(key)
-    if key == "1" then
-        options.refine = not options.refine
+function love.keypressed(key, _, isRepeat)
+    if key == "tab" and not isRepeat then
+        isGravityEnabled = not isGravityEnabled
+    elseif key == "`" and not isRepeat then
+        isZoomEnabled = not isZoomEnabled
+    elseif key == "escape" and not isRepeat then
+        isQueryEnabled = not isQueryEnabled
     end
+end
 
-    if key == "2" then
-        options.interior = not options.interior
-    end
-
-    if key == "3" then
-        options.exterior = not options.exterior
-    end
-
-    if key == "t" then
-        showTriangles = not showTriangles
-    end
-
-    if key == "p" then
-        showPolygons = not showPolygons
-    end
-
-    if key == "q" then
-        showQuadTree = not showQuadTree
-    end
-
-    if key == "left" then
-        index = ((index - 2) % #shapes) + 1
-    end
+local time = 0
+function love.update(deltaTime)
+    local b = love.timer.getTime()
+    local m = movePlayer(player, world, deltaTime)
+    local a = love.timer.getTime()
     
-    if key == "right" or key == "space" then
-        index = (index % #shapes) + 1
-    end
-
-    
-    build()
-end
-
-function love.mousemoved(x, y)
-    if not love.mouse.isDown(1) then
-        return
-    end
-
-    local w1 = maxX - minX
-    local h1 = maxY - minY
-    local w2 = love.graphics.getWidth()
-    local h2 = love.graphics.getHeight()
-
-    local tx = x + minX - (w2 - w1) / 2
-    local ty = y + minY - (h2 - h1) / 2
-
-    local query = slick.collision.quadTreeQuery.new(quadTree)
-    local r = slick.geometry.rectangle.new(tx - 8, ty - 8, tx + 8, ty + 8)
-    if query:perform(r) then
-        for _, hit in ipairs(query.results) do
-            quadTree:remove(hit)
-            deletedPoints[hit] = true
-        end
+    if m then
+        time = (a - b) * 1000
     end
 end
+
+local smallFont = love.graphics.getFont()
+local bigFont = love.graphics.newFont(32)
 
 function love.draw()
     love.graphics.push("all")
-    love.graphics.print(string.format("%d (%s): %f ms, %f kb", index, shapes[index].name, time, memory), 0, 0)
-    love.graphics.print(string.format("%d polygons, %d triangles, %d points", polygonCount or 0, trianglesCount, math.floor(#shape / 2)), 0, 16)
-    love.graphics.print(table.concat({
-        string.format("1) delaunay? %s", options.refine and "yes" or "no"),
-        string.format("2) interior? %s", options.interior and "yes" or "no"),
-        string.format("3) exterior? %s", options.exterior and "yes" or "no"),
-    }, "\n"), 0, 32)
-
-    local w1 = maxX - minX
-    local h1 = maxY - minY
-    local w2 = love.graphics.getWidth()
-    local h2 = love.graphics.getHeight()
+    love.graphics.setFont(smallFont)
+    love.graphics.printf(string.format("Logic: %2.2f ms", time), 0, 0, love.graphics.getWidth(), "center")
     
-    --love.graphics.translate(w2 / 2, h2 / 2)
-    love.graphics.translate(-minX, -minY)
-    love.graphics.translate(w1 / 2, h1 / 2)
-    love.graphics.translate((w2 - w1) / 2, (h2 - h1) / 2)
-    love.graphics.translate(-w1 / 2, -h1 / 2)
+    love.graphics.setFont(bigFont)
+    if isGravityEnabled then
+        love.graphics.printf("2D Mario Platformer Mode", 0, 32, love.graphics.getWidth(), "center")
+    else
+        love.graphics.printf("2D Top-Down Zelda Mode", 0, 32, love.graphics.getWidth(), "center")
+    end
     
-    love.graphics.setLineJoin("none")
-    love.graphics.setLineWidth(1)
+    love.graphics.setFont(smallFont)
 
-    if showPolygons then
-        for index = 1, polygonCount or 0 do
-            local polygon = polygons[index]
-            local vertices = {}
+    local t = getCameraTransform()
+    love.graphics.applyTransform(t)
 
-            for i = 1, #polygon do
-                table.insert(vertices, shape[(polygon[i] - 1) * 2 + 1])
-                table.insert(vertices, shape[(polygon[i] - 1) * 2 + 2])
-            end
+    slick.drawWorld(world)
 
-            love.graphics.setColor(0.1, 0.1, 0.6, 1)
-            love.graphics.polygon("fill", vertices)
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.polygon("line", vertices)
-        end
-    end
+    if isQueryEnabled then
+        local hits = world:project(player, player.x, player.y, player.x + player.nx, player.y + player.ny)
 
-    if showTriangles then
-        for index = 1, trianglesCount do
-            local triangle = triangles[index]
+        love.graphics.setColor(1, 1, 1, 0.5)
+        love.graphics.circle("line", player.x + 16, player.y + 16, 16)
 
-            if not (deletedPoints[triangle[1]] or deletedPoints[triangle[2]] or deletedPoints[triangle[3]]) then
-                local point1 = triangle[1]
-                point1 = (point1 - 1) * 2 + 1
-                local point2 = triangle[2]
-                point2 = (point2 - 1) * 2 + 1
-                local point3 = triangle[3]
-                point3 = (point3 - 1) * 2 + 1
-                
-                local x1, y1 = unpack(shape, point1, point1 + 1)
-                local x2, y2 = unpack(shape, point2, point2 + 1)
-                local x3, y3 = unpack(shape, point3, point3 + 1)
-                
-                love.graphics.setColor(0.5, 0.5, 0.5, 0.5)
-                love.graphics.polygon("fill", x1, y1, x2, y2, x3, y3)
-                love.graphics.setColor(1, 1, 1, 1)
-                love.graphics.polygon("line", x1, y1, x2, y2, x3, y3)
-
-                love.graphics.setColor(1, 0, 0, 1)
-                local centerX = (x1 + x2 + x3) / 3
-                local centerY = (y1 + y2 + y3) / 3
-                love.graphics.print(index, centerX - love.graphics.getFont():getWidth(index) / 2, centerY - 8)
-            end
-        end
-    end
-
-    if showQuadTree then
-        love.graphics.setColor(0, 1, 1, 0.5)
-
-        quadTree.root:visit(function(node)
-            love.graphics.rectangle("line", node:left(), node:top(), node:right() - node:left(), node:bottom() - node:top())
-        end)
-    end
-
-    if love.keyboard.isDown("e") then
-        for i = 1, #edges, 2 do
-            local edge1 = edges[i]
-            edge1 = (edge1 - 1) * 2 + 1
-
-            local edge2 = edges[i + 1]
-            edge2 = (edge2 - 1) * 2 + 1
-
-            local x1, y1 = unpack(shape, edge1, edge1 + 1)
-            local x2, y2 = unpack(shape, edge2, edge2 + 1)
-
+        for _, hit in ipairs(hits) do
             love.graphics.setColor(0, 1, 0, 1)
-            love.graphics.line(x1, y1, x2, y2)
+            love.graphics.line(hit.contactPoint.x, hit.contactPoint.y, hit.contactPoint.x + hit.normal.x * 100, hit.contactPoint.y + hit.normal.y * 100)
 
-            love.graphics.setColor(1, 1, 1, 1)
-            love.graphics.print(edges[i], x1, y1)
-        end
-    end
-    
-    love.graphics.setColor(1, 1, 1, 1)
-    for i = 1, #shape, 2 do
-        if not deletedPoints[math.floor(i / 2) + 1] then
-            local x, y = unpack(shape, i, i + 1)
+            local perpendicular = slick.geometry.point.new()
+            hit.normal:left(perpendicular)
+            
+            love.graphics.setColor(1, 0, 0, 1)
+            love.graphics.line(hit.contactPoint.x - perpendicular.x * 50, hit.contactPoint.y - perpendicular.y * 50, hit.contactPoint.x + perpendicular.x * 50, hit.contactPoint.y + perpendicular.y * 50)
 
-            if love.keyboard.isDown("space") then
-                love.graphics.print(math.ceil(i / 2), x - love.graphics.getFont():getWidth(math.ceil(i / 2)) / 2, y - 16)
+            for _, point in ipairs(hit.contactPoints) do
+                love.graphics.setColor(1, 0, 0, 0.5)
+                love.graphics.rectangle("fill", point.x - 2, point.y - 2, 4, 4)
             end
 
-            love.graphics.circle("fill", x, y, 2)
+            love.graphics.setColor(0, 1, 0, 0.5)
+            love.graphics.rectangle("fill", hit.touch.x - 2, hit.touch.y - 2, 4, 4)
         end
     end
 
     love.graphics.pop()
 end
-

@@ -1,6 +1,6 @@
 local slickmath = {}
 
-slickmath.EPSILON = 0.01
+slickmath.EPSILON = 1e-5
 
 function slickmath.angle(a, b, c)
     local abx = a.x - b.x
@@ -41,10 +41,11 @@ end
 --- @param a slick.geometry.point
 --- @param b slick.geometry.point
 --- @param c slick.geometry.point
+--- @param E number?
 --- @return -1 | 0 | 1
-function slickmath.direction(a, b, c)
+function slickmath.direction(a, b, c, E)
     local result = slickmath.cross(a, b, c)
-    return slickmath.sign(result)
+    return slickmath.sign(result, E)
 end
 
 --- Checks if `d` is inside the circumscribed circle created by `a`, `b`, and `c`
@@ -87,22 +88,45 @@ end
 --- @param b slick.geometry.point
 --- @param c slick.geometry.point
 --- @param d slick.geometry.point
+--- @return boolean
+function slickmath.collinear(a, b, c, d, E)
+    E = E or 0
+
+    local acdSign = slickmath.direction(a, c, d, E)
+    local bcdSign = slickmath.direction(b, c, d, E)
+    local cabSign = slickmath.direction(c, a, b, E)
+    local dabSign = slickmath.direction(d, a, b, E)
+
+    if acdSign == 0 and bcdSign == 0 and cabSign == 0 and dabSign == 0 then
+        return _collinear(a.x, b.x, c.x, d.x) and _collinear(a.y, b.y, c.y, d.y)
+    end
+
+    return false
+end
+
+--- @param a slick.geometry.point
+--- @param b slick.geometry.point
+--- @param c slick.geometry.point
+--- @param d slick.geometry.point
+--- @param E number?
 --- @return boolean, number?, number?, number?, number?
-function slickmath.intersection(a, b, c, d)
-    local acdSign = slickmath.direction(a, c, d)
-    local bcdSign = slickmath.direction(b, c, d)
+function slickmath.intersection(a, b, c, d, E)
+    E = E or 0
+
+    local acdSign = slickmath.direction(a, c, d, E)
+    local bcdSign = slickmath.direction(b, c, d, E)
     if (acdSign < 0 and bcdSign < 0) or (acdSign > 0 and bcdSign > 0) then
         return false
     end
-    
-    local cabSign = slickmath.direction(c, a, b)
-    local dabSign = slickmath.direction(d, a, b)
+
+    local cabSign = slickmath.direction(c, a, b, E)
+    local dabSign = slickmath.direction(d, a, b, E)
     if (cabSign < 0 and dabSign < 0) or (cabSign > 0 and dabSign > 0) then
         return false
     end
 
     if acdSign == 0 and bcdSign == 0 and cabSign == 0 and dabSign == 0 then
-        return _collinear(a.x, b.x, c.x, d.x) and _collinear(a.y, b.y, c.y, d.y)
+        return slickmath.collinear(a, b, c, d)
     end
 
     local bax = b.x - a.x
@@ -128,7 +152,7 @@ function slickmath.intersection(a, b, c, d)
     local u = dcCrossAC / baCrossDC
     local v = dcCrossCA / dcCrossBA
 
-    if u < 0 or u > 1 or v < 0 or v > 1 then
+    if u < -E or u > (1 + E) or v < -E or v > (1 + E) then
         return false
     end
 
@@ -138,15 +162,103 @@ function slickmath.intersection(a, b, c, d)
     return true, rx, ry, u, v
 end
 
+--- @param s slick.geometry.segment
+--- @param p slick.geometry.point
+--- @param r number
+--- @return boolean, number?, number?
+function slickmath.lineCircleIntersection(s, p, r)
+    local p1 = s.a
+    local p2 = s.b
+
+    local dx = p2.x - p1.x
+    local dy = p2.y - p1.y
+
+    local fx = p1.x - p.x
+    local fy = p1.y - p.y
+
+    local a = dx ^ 2 + dy ^ 2
+    local b = 2 * (dx * fx + dy * fy)
+    local c = fx ^ 2 + fy ^ 2 - r ^ 2
+
+    local d = b ^ 2 - 4 * a * c
+    if a <= 0 or d < 0 then
+        return false, nil, nil
+    end
+
+    d = math.sqrt(d)
+
+    local u = (-b - d) / (2 * a)
+    local v = (-b + d) / (2 * a)
+
+    return true, u, v
+end
+
+--- @param p1 slick.geometry.point
+--- @param r1 number
+--- @param p2 slick.geometry.point
+--- @param r2 number
+--- @param E? number
+--- @return boolean, number?, number?, number?, number?
+function slickmath.circleCircleIntersection(p1, r1, p2, r2, E)
+    E = E or slickmath.EPSILON
+    -- r1 = r1 + E
+    -- r2 = r2 + E
+
+    local nx = p2.x - p1.x
+    local ny = p2.y - p1.y
+
+    local radius = r1 + r2
+    local magnitude = nx ^ 2 + ny ^ 2
+    if magnitude <= radius ^ 2 then
+        if magnitude == 0 then
+            return true, nil, nil, nil, nil
+        elseif magnitude < math.abs(r1 - r2) ^ 2 then
+            return true, nil, nil, nil, nil
+        end
+
+        local d = math.sqrt(magnitude)
+
+        if d > 0 then
+            nx = nx / d
+            ny = ny / d
+        end
+
+        local a = (r1 ^ 2 - r2 ^ 2 + magnitude) / (2 * d)
+        local h = math.sqrt(r1 ^ 2 - a ^ 2)
+
+        local directionX = p2.x - p1.x
+        local directionY = p2.y - p1.y
+        local p3x = p1.x + a * directionX / d
+        local p3y = p1.y + a * directionY / d
+
+        local result1X = p3x + h * directionY / d
+        local result1Y = p3y - h * directionX / d
+
+        local result2X = p3x - h * directionY / d
+        local result2Y = p3y + h * directionX / d
+
+        return true, result1X, result1Y, result2X, result2Y
+    end
+
+    return false, nil, nil, nil, nil
+end
+
 --- @param value number
+--- @param E number?
 --- @return -1 | 0 | 1
-function slickmath.sign(value)
+function slickmath.sign(value, E)
+    E = E or 0
+
+    if math.abs(value) <= E then
+        return 0
+    end
+
     if value > 0 then
         return 1
     elseif value < 0 then
         return -1
     end
-    
+
     return 0
 end
 

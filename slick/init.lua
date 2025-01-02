@@ -1,10 +1,25 @@
 local PATH = (...):gsub("[^%.]+$", "")
 
+--- @module "slick.cache"
+local cache
+
 --- @module "slick.collision"
 local collision
 
+--- @module "slick.draw"
+local draw
+
+--- @module "slick.entity"
+local entity
+
 --- @module "slick.geometry"
 local geometry
+
+--- @module "slick.options"
+local defaultOptions
+
+--- @module "slick.responses"
+local responses
 
 --- @module "slick.shape"
 local shape
@@ -12,11 +27,33 @@ local shape
 --- @module "slick.util"
 local util
 
+--- @module "slick.world"
+local world
+
+--- @module "slick.worldQuery"
+local worldQuery
+
+--- @module "slick.worldQueryResponse"
+local worldQueryResponse
+
+--- @module "slick.meta"
+local meta
+
 local function load()
+    cache = require("slick.cache")
     collision = require("slick.collision")
+    draw = require("slick.draw")
+    entity = require("slick.entity")
     geometry = require("slick.geometry")
+    defaultOptions = require("slick.options")
+    responses = require("slick.responses")
     shape = require("slick.shape")
     util = require("slick.util")
+    world = require("slick.world")
+    worldQuery = require("slick.worldQuery")
+    worldQueryResponse = require("slick.worldQueryResponse")
+
+    meta = require("slick.meta")
 end
 
 do
@@ -51,8 +88,35 @@ do
 end
 
 return {
+    _VERSION = meta._VERSION,
+    _DESCRIPTION = meta._DESCRIPTION,
+    _URL = meta._URL,
+    _LICENSE = meta._LICENSE,
+
+    cache = cache,
     collision = collision,
+    defaultOptions = defaultOptions,
+    entity = entity,
     geometry = geometry,
     shape = shape,
     util = util,
+    world = world,
+    worldQuery = worldQuery,
+    worldQueryResponse = worldQueryResponse,
+    responses = responses,
+
+    newCache = cache.new,
+    newWorld = world.new,
+    newWorldQuery = worldQuery.new,
+    newTransform = geometry.transform.new,
+
+    newBoxShape = shape.newBox,
+    newCircleShape = shape.newCircle,
+    newLineSegmentShape = shape.newLineSegment,
+    newPolygonShape = shape.newPolygon,
+    newPolylineShape = shape.newPolyline,
+    newPolygonMeshShape = shape.newPolygonMesh,
+    newShapeGroup = shape.newShapeGroup,
+
+    drawWorld = draw
 }

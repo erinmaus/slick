@@ -19,6 +19,8 @@ function point.new(x, y)
     return setmetatable({ x = x or 0, y = y or 0 }, metatable)
 end
 
+--- @param x number
+--- @param y number
 function point:init(x, y)
     self.x = x
     self.y = y
@@ -99,10 +101,26 @@ function point:lessThanOrEqual(other)
     return self:lessThan(other) or self:equal(other)
 end
 
---- @param segment slick.geometry.segment
---- @return boolean left true if this point is to the left of segment, false otherwise
-function point:left(segment)
-    return slickmath.direction(segment.a, segment.b, self) < 0
+--- @param other slick.geometry.point
+--- @param result slick.geometry.point
+function point:direction(other, result)
+    result:init(other.x - self.x, other.y - self.y)
+end
+
+--- @param other slick.geometry.point
+function point:left(other)
+    other:init(self.y, -self.x)
+end
+
+--- @param other slick.geometry.point
+function point:right(other)
+    other:init(-self.y, self.x)
+end
+
+--- @param other slick.geometry.point
+--- @return number
+function point:dot(other)
+    return self.x * other.x + self.y * other.y
 end
 
 --- @param other slick.geometry.point
@@ -162,23 +180,40 @@ function point:divideScalar(other, result)
 end
 
 --- @return number
+function point:lengthSquared()
+    return self.x ^ 2 + self.y ^ 2
+end
+
+--- @return number
 function point:length()
-    return math.sqrt(self.x ^ 2 + self.y ^ 2)
+    return math.sqrt(self:lengthSquared())
+end
+
+--- @param other slick.geometry.point
+--- @return number
+function point:distanceSquared(other)
+    return (self.x - other.x) ^ 2 + (self.y - other.y) ^ 2
 end
 
 --- @param other slick.geometry.point
 --- @return number
 function point:distance(other)
-    return math.sqrt((self.x - other.x) ^ 2 + (self.y - other.y) ^ 2)
+    return math.sqrt(self:distanceSquared(other))
 end
 
---- Warning does not check for 0 length.
 --- @param result slick.geometry.point
 function point:normalize(result)
     local length = self:length()
+    if length > 0 then
+        result.x = self.x / length
+        result.y = self.y / length
+    end
+end
 
-    result.x = self.x / length
-    result.y = self.y / length
+--- @param result slick.geometry.point
+function point:negate(result)
+    result.x = -self.x
+    result.y = -self.y
 end
 
 return point

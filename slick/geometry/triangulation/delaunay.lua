@@ -68,11 +68,6 @@ local defaultCleanupOptions = {
 local delaunay = {}
 local metatable = { __index = delaunay }
 
-local default = {
-    epsilon = slickmath.EPSILON,
-    debug = false
-}
-
 --- @param triangle number[]
 --- @return number
 --- @return number
@@ -162,11 +157,17 @@ local function _compareSortedEdgePoint(e, p)
     return slickmath.sign(left - p.x)
 end
 
---- @param t { epsilon?: number }?
-function delaunay.new(t)
-    t = t or default
-    local epsilon = t.epsilon or slickmath.EPSILON
-    local debug = not not t.debug
+--- @class slick.geometry.triangulation.delaunayOptions
+local defaultDelaunayOptions = {
+    epsilon = slickmath.EPSILON,
+    debug = false
+}
+
+--- @param options slick.geometry.triangulation.delaunayOptions?
+function delaunay.new(options)
+    options = options or defaultDelaunayOptions
+    local epsilon = options.epsilon or defaultDelaunayOptions.epsilon
+    local debug = options.debug == nil and defaultDelaunayOptions.debug or not not options.debug
 
     return setmetatable({
         epsilon = epsilon,

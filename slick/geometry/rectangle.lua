@@ -51,11 +51,50 @@ function rectangle:bottom()
     return self.bottomRight.y
 end
 
+function rectangle:width()
+    return self:right() - self:left()
+end
+
+function rectangle:height()
+    return self:bottom() - self:top()
+end
+
+--- @param x number
+--- @param y number
+function rectangle:expand(x, y)
+    self.topLeft.x = math.min(self.topLeft.x, x)
+    self.topLeft.y = math.min(self.topLeft.y, y)
+    self.bottomRight.x = math.max(self.bottomRight.x, x)
+    self.bottomRight.y = math.max(self.bottomRight.y, y)
+end
+
+---@param x number
+---@param y number
+function rectangle:move(x, y)
+    self.topLeft.x = self.topLeft.x + x
+    self.topLeft.y = self.topLeft.y + y
+    self.bottomRight.x = self.bottomRight.x + x
+    self.bottomRight.y = self.bottomRight.y + y
+end
+
+--- @param x number
+--- @param y number
+function rectangle:sweep(x, y)
+    self:expand(x, y)
+    self:expand(x + self:width(), y + self:height())
+end
+
 --- @param other slick.geometry.rectangle
 --- @return boolean
 function rectangle:overlaps(other)
     return self:left() <= other:right() and self:right() >= other:left() and
            self:top() <= other:bottom() and self:bottom() >= other:top()
+end
+
+--- @param p slick.geometry.point
+--- @return boolean
+function rectangle:inside(p)
+    return p.x >= self:left() and p.x <= self:right() and p.y >= self:top() and p.y <= self:bottom()
 end
 
 return rectangle
