@@ -7,6 +7,7 @@ local slick = require("slick")
 local GRAVITY_Y = 1200
 local PLAYER_SPEED = 500
 local PLAYER_JUMP_VELOCITY = 800
+local PLAYER_ROTATION_SPEED = math.pi / 2
 local isGravityEnabled = false
 local isZoomEnabled = false
 local isQueryEnabled = false
@@ -22,13 +23,14 @@ local function makePlayer(world)
         h = 32,
         nx = 0,
         ny = 0,
+        rotation = 0,
         
         jumpVelocityY = 0,
         isJumping = false
     }
 
-    --world:add(player, player.x, player.y, slick.newBoxShape(0, 0, player.w, player.h))
-    world:add(player, player.x, player.y, slick.newCircleShape(16, 16, 16))
+    world:add(player, player.x, player.y, slick.newBoxShape(-player.w / 2, -player.h / 2, player.w, player.h))
+    --world:add(player, player.x, player.y, slick.newCircleShape(16, 16, 16))
 
     return player
 end
@@ -38,9 +40,7 @@ local function movePlayer(player, world, deltaTime)
     
     local isInAir = true
     if isGravityEnabled then
-        world:queryRectangle(player.x, player.y + player.h, player.w, 1, function(item)
-            return item ~= player
-        end, query)
+        world:project(player, player.x, player.y, player.x, player.y + 1)
 
         for _, result in ipairs(query.results) do
             if result.normal.y > 0 then
@@ -64,6 +64,14 @@ local function movePlayer(player, world, deltaTime)
         player.isJumping = true
         player.jumpVelocityY = -PLAYER_JUMP_VELOCITY
         isInAir = true
+    end
+
+    local rx = 0
+    if love.keyboard.isDown("left") then
+        rx = rx - 1
+    end
+    if love.keyboard.isDown("right") then
+        rx = rx + 1
     end
 
     local x = 0
@@ -135,7 +143,11 @@ local function movePlayer(player, world, deltaTime)
 
     local goalX, goalY = player.x + n.x, player.y + n.y + offsetY
 
-    if goalX ~= player.x or goalY ~= player.y then
+    if goalX ~= player.x or goalY ~= player.y or rx ~= 0 then
+        player.rotation = player.rotation + rx * deltaTime * PLAYER_ROTATION_SPEED
+
+        world:update(player, slick.newTransform(player.x, player.y, player.rotation))
+
         local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
         player.x, player.y = actualX, actualY
         player.nx = n.x
@@ -225,7 +237,8 @@ end
 local time = 0
 function love.update(deltaTime)
     local b = love.timer.getTime()
-    local m = movePlayer(player, world, deltaTime)
+    --local m = movePlayer(player, world, deltaTime)
+    local m = movePlayer(player, world, 1 / 60)
     local a = love.timer.getTime()
     
     if m then
