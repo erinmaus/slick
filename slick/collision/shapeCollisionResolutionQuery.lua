@@ -725,19 +725,23 @@ function shapeCollisionResolutionQuery:getClosestVertex(shape, point)
     return result
 end
 
+local _cachedGetAxesCircleCenter = point.new()
 function shapeCollisionResolutionQuery:getAxes()
     if util.is(self.otherShape.shape, circle) then
         local c = self.otherShape.shape
 
+        _cachedGetAxesCircleCenter:init(c.center.x, c.center.y)
+        c.center:add(self.otherShape.offset, _cachedGetAxesCircleCenter)
+
         --- @cast c slick.collision.circle
-        local closest = self:getClosestVertex(self.currentShape.shape, c.center)
+        local closest = self:getClosestVertex(self.currentShape.shape, _cachedGetAxesCircleCenter)
 
         if closest then
             local axis = self:addAxis()
 
-            closest:direction(c.center, axis.normal)
+            closest:direction(_cachedGetAxesCircleCenter, axis.normal)
             axis.normal:normalize(axis.normal)
-            axis.segment:init(c.center, closest)
+            axis.segment:init(_cachedGetAxesCircleCenter, closest)
         end
     end
 

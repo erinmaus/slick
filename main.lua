@@ -12,19 +12,12 @@ local isZoomEnabled = false
 local isQueryEnabled = false
 local query
 
--- local c1 = slick.collision.circle.new(nil, 0, 0, 16)
--- local c2 = slick.collision.circle.new(nil, -14, 0, 256)
--- local q = slick.collision.shapeCollisionResolutionQuery.new(slick.util.math.EPSILON)
--- q:perform(c1, c2, slick.geometry.point.new(), slick.geometry.point.new(), slick.geometry.point.new(0, 0), slick.geometry.point.new())
-
 local function makePlayer(world)
     local player = {
         type = "player",
 
-        --x = love.graphics.getWidth() / 2,
-        --y = love.graphics.getHeight() / 2,
-        x = 210 - 16,
-        y = 270 - 16,
+        x = love.graphics.getWidth() / 2,
+        y = love.graphics.getHeight() / 8,
         w = 32,
         h = 32,
         nx = 0,
@@ -232,12 +225,11 @@ end
 local time = 0
 function love.update(deltaTime)
     local b = love.timer.getTime()
-    --local m = movePlayer(player, world, deltaTime)
-    local m = movePlayer(player, world, 1 / 60)
+    local m = movePlayer(player, world, deltaTime)
     local a = love.timer.getTime()
     
     if m then
-        time = (a - b) * 10000
+        time = (a - b) * 1000
     end
 end
 
