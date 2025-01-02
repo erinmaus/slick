@@ -10,12 +10,19 @@ local PLAYER_JUMP_VELOCITY = 800
 local isGravityEnabled = false
 local query
 
+-- local c1 = slick.collision.circle.new(nil, 0, 0, 16)
+-- local c2 = slick.collision.circle.new(nil, -14, 0, 256)
+-- local q = slick.collision.shapeCollisionResolutionQuery.new(slick.util.math.EPSILON)
+-- q:perform(c1, c2, slick.geometry.point.new(), slick.geometry.point.new(), slick.geometry.point.new(0, 0), slick.geometry.point.new())
+
 local function makePlayer(world)
     local player = {
         type = "player",
 
-        x = love.graphics.getWidth() / 2,
-        y = love.graphics.getHeight() / 2,
+        --x = love.graphics.getWidth() / 2,
+        --y = love.graphics.getHeight() / 2,
+        x = 210 - 16,
+        y = 270 - 16,
         w = 32,
         h = 32,
         
@@ -228,6 +235,9 @@ function love.draw()
     local mouseX, mouseY = love.mouse.getPosition()
 
     local hits = world:queryCircle(player.x + 16, player.y + 16, 16, function(item) return item ~= player end)
+    love.graphics.setColor(1, 1, 1, 0.5)
+    love.graphics.circle("line", player.x + 16, player.y + 16, 16)
+
     for _, hit in ipairs(hits) do
         for _, point in ipairs(hit.contactPoints) do
             love.graphics.setColor(1, 0, 0, 0.5)

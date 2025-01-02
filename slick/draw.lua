@@ -35,7 +35,7 @@ local function draw(world, queries)
             if util.is(shape, circle) then
                 --- @cast shape slick.collision.circle
 
-                love.graphics.print(string.format("%.2f, %.2f", shape.center.x, shape.center.y), shape.bounds.topLeft.x, shape.bounds.topLeft.y)
+                love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.bounds.topLeft.x, shape.bounds.topLeft.y)
                 love.graphics.print(string.format("%.2f radius", shape.radius), shape.bounds.topLeft.x, shape.bounds.topLeft.y + 8)
                 love.graphics.circle("line", shape.center.x, shape.center.y, shape.radius)
             elseif util.is(shape, lineSegment) then

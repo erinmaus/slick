@@ -324,6 +324,7 @@ function world:check(item, goalX, goalY, filter, query)
 
         local result = query.results[1]
         local responseName = _cachedCheckVisits[result.otherShape] or (result.response == true and "slide" or result.response)
+        local nextResponseName
 
         --- @cast responseName string
         local response = self:getResponse(responseName)

@@ -198,8 +198,6 @@ function worldQuery:perform(entity, x, y, goalX, goalY, filter)
                         
                         if self.collisionQuery.collision then
                             self:_addCollision(shape, otherShape, response, _cachedSelfOffsetPosition, false)
-                        else
-                            self.collisionQuery:perform(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
                         end
                     end
                 end
