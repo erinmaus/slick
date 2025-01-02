@@ -63,7 +63,7 @@ function shapeGroup:attach()
             --- @cast shape slick.collision.polygonMesh
             shape:build(self.entity.world.cache.triangulator)
 
-            table.remove(shape, index)
+            table.remove(shapes, index)
             for i = #shape.polygons, 1, -1 do
                 local polygon = shape.polygons[i]
                 table.insert(shapes, index, polygon)

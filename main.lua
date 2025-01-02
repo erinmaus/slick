@@ -178,7 +178,7 @@ local function makeLevel(world)
             slick.newBoxShape(w - 8, 0, 8, h),
             slick.newBoxShape(0, h - 8, w, 8),
             slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
-            slick.newPolygonShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }),
+            slick.newPolygonMeshShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }, { w - w / 4, h, w - 8, h / 2, w - 8, h }),
             slick.newBoxShape(w / 2 + w / 5, h - 150, w / 6, 60),
             slick.newCircleShape(w / 2 - 64, h - 256, 128)
         )

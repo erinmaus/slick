@@ -41,8 +41,10 @@ function polygonMesh:build(triangulator)
             local j = (i - 1) * 2 + 1
             local x, y = unpack(boundary, j, j + 1)
 
-            table.insert(points, x, y)
-            table.insert(edges, i, i % numPoints + 1)
+            table.insert(points, x)
+            table.insert(points, y)
+            table.insert(edges, i)
+            table.insert(edges, i % numPoints + 1)
         end
     end
 
@@ -51,17 +53,17 @@ function polygonMesh:build(triangulator)
 
     local p = polygons or triangles
     for _, vertices in ipairs(p) do
-        local vertices = {}
+        local outputVertices = {}
 
         for _, vertex in ipairs(vertices) do
             local index = (vertex - 1) * 2 + 1
             local x, y = unpack(points, index, index + 1)
 
-            table.insert(vertices, x)
-            table.insert(vertices, y)
+            table.insert(outputVertices, x)
+            table.insert(outputVertices, y)
         end
 
-        table.insert(self.polygons, polygon.new(self.entity, unpack(vertices)))
+        table.insert(self.polygons, polygon.new(self.entity, unpack(outputVertices)))
     end
 end
 
