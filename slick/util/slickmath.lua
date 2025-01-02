@@ -1,6 +1,6 @@
 local slickmath = {}
 
-slickmath.EPSILON = 1e-10
+slickmath.EPSILON = 1e-5
 
 function slickmath.angle(a, b, c)
     local abx = a.x - b.x

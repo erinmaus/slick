@@ -8,6 +8,8 @@ local GRAVITY_Y = 1200
 local PLAYER_SPEED = 500
 local PLAYER_JUMP_VELOCITY = 800
 local isGravityEnabled = false
+local isZoomEnabled = false
+local isQueryEnabled = false
 local query
 
 -- local c1 = slick.collision.circle.new(nil, 0, 0, 16)
@@ -25,6 +27,8 @@ local function makePlayer(world)
         y = 270 - 16,
         w = 32,
         h = 32,
+        nx = 0,
+        ny = 0,
         
         jumpVelocityY = 0,
         isJumping = false
@@ -141,6 +145,8 @@ local function movePlayer(player, world, deltaTime)
     if goalX ~= player.x or goalY ~= player.y then
         local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
         player.x, player.y = actualX, actualY
+        player.nx = n.x
+        player.ny = n.y + offsetY
 
         if isGravityEnabled then
             for _, hit in ipairs(hits) do
@@ -190,7 +196,23 @@ function love.load()
     query = slick.newWorldQuery(world)
 end
 
+local function getCameraTransform()
+    local t = love.math.newTransform()
+    if isZoomEnabled then
+        local mx, my = love.mouse.getPosition()
+        local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+        t:translate(-mx - w / 2, -my - h / 2)
+        t:translate(-w / 2, -h / 2)
+        t:scale(2)
+        t:translate(w / 2, h / 2)
+    end
+
+    return t
+end
+
 function love.mousepressed(x, y, button)
+    local t = getCameraTransform()
+    x, y = t:inverseTransformPoint(x, y)
     if button == 1 then
         player.x, player.y = x - 16, y - 16
         world:update(player, player.x, player.y)
@@ -200,6 +222,10 @@ end
 function love.keypressed(key, _, isRepeat)
     if key == "tab" and not isRepeat then
         isGravityEnabled = not isGravityEnabled
+    elseif key == "`" and not isRepeat then
+        isZoomEnabled = not isZoomEnabled
+    elseif key == "escape" and not isRepeat then
+        isQueryEnabled = not isQueryEnabled
     end
 end
 
@@ -211,7 +237,7 @@ function love.update(deltaTime)
     local a = love.timer.getTime()
     
     if m then
-        time = (a - b) * 1000
+        time = (a - b) * 10000
     end
 end
 
@@ -219,6 +245,7 @@ local smallFont = love.graphics.getFont()
 local bigFont = love.graphics.newFont(32)
 
 function love.draw()
+    love.graphics.push("all")
     love.graphics.setFont(smallFont)
     love.graphics.printf(string.format("Logic: %2.2f ms", time), 0, 0, love.graphics.getWidth(), "center")
     
@@ -230,20 +257,37 @@ function love.draw()
     end
     
     love.graphics.setFont(smallFont)
+
+    local t = getCameraTransform()
+    love.graphics.applyTransform(t)
+
     slick.drawWorld(world)
 
-    local mouseX, mouseY = love.mouse.getPosition()
+    if isQueryEnabled then
+        local hits = world:project(player, player.x, player.y, player.x + player.nx, player.y + player.ny)
 
-    local hits = world:queryCircle(player.x + 16, player.y + 16, 16, function(item) return item ~= player end)
-    love.graphics.setColor(1, 1, 1, 0.5)
-    love.graphics.circle("line", player.x + 16, player.y + 16, 16)
+        love.graphics.setColor(1, 1, 1, 0.5)
+        love.graphics.circle("line", player.x + 16, player.y + 16, 16)
 
-    for _, hit in ipairs(hits) do
-        for _, point in ipairs(hit.contactPoints) do
-            love.graphics.setColor(1, 0, 0, 0.5)
-            love.graphics.rectangle("fill", point.x - 2, point.y - 2, 4, 4)
+        for _, hit in ipairs(hits) do
+            love.graphics.setColor(0, 1, 0, 1)
+            love.graphics.line(hit.contactPoint.x, hit.contactPoint.y, hit.contactPoint.x + hit.normal.x * 100, hit.contactPoint.y + hit.normal.y * 100)
+
+            local perpendicular = slick.geometry.point.new()
+            hit.normal:left(perpendicular)
+            
+            love.graphics.setColor(1, 0, 0, 1)
+            love.graphics.line(hit.contactPoint.x - perpendicular.x * 50, hit.contactPoint.y - perpendicular.y * 50, hit.contactPoint.x + perpendicular.x * 50, hit.contactPoint.y + perpendicular.y * 50)
+
+            for _, point in ipairs(hit.contactPoints) do
+                love.graphics.setColor(1, 0, 0, 0.5)
+                love.graphics.rectangle("fill", point.x - 2, point.y - 2, 4, 4)
+            end
+
+            love.graphics.setColor(0, 1, 0, 0.5)
+            love.graphics.rectangle("fill", hit.touch.x - 2, hit.touch.y - 2, 4, 4)
         end
     end
 
-    love.graphics.setColor(1, 1, 1, 1)
+    love.graphics.pop()
 end

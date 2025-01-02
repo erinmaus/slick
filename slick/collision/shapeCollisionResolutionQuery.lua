@@ -135,6 +135,8 @@ local _cachedCircleSelfPosition = point.new()
 local _cachedCircleOtherPosition = point.new()
 local _cachedCircleContactPoint1 = point.new()
 local _cachedCircleContactPoint2 = point.new()
+local _cachedCirclePerpendicularNormal = point.new()
+local _cachedCircleRelativeVelocityDirection = point.new()
 
 --- @private
 --- @param selfShape slick.collision.circle
@@ -148,7 +150,7 @@ function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, sel
     otherShape.center:add(otherOffset, _cachedCircleOtherPosition)
 
     _cachedCircleOtherPosition:sub(_cachedCircleSelfPosition, _cachedCirclePointPosition)
-    selfVelocity:direction(otherVelocity, _cachedCirclePointVelocity)
+    selfVelocity:sub(otherVelocity, _cachedCirclePointVelocity)
 
     otherVelocity:direction(selfVelocity, _cachedCirclePointVelocity)
 
@@ -214,8 +216,18 @@ function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, sel
         end
     end
 
-    if self.depth == 0 and (self.firstTime <= 0 and self.lastTime == 0) then
-        self.collision = false
+    if self.time < self.epsilon then
+        self.normal:left(_cachedCirclePerpendicularNormal)
+        _cachedCirclePointVelocity:normalize(_cachedCircleRelativeVelocityDirection)
+
+        local dot = _cachedCircleRelativeVelocityDirection:dot(self.normal)
+        if math.abs(dot) < self.epsilon then
+            self.collision = false
+        end
+    end
+    
+    if not self.collision then
+        self:_clear()
     end
 end
 
@@ -228,6 +240,7 @@ local _cachedOtherVelocityDirection = point.new()
 
 local _cachedSegmentA = segment.new()
 local _cachedSegmentB = segment.new()
+local _cachedCircleSegmentContactPoint = point.new()
 
 --- @private
 --- @param index number
@@ -482,8 +495,7 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
                     if util.is(otherShape, circle) then
                         _cachedSegmentB.a:direction(_cachedSegmentB.b, self.normal)
                     end
-                end
-                
+                end                
             end
 
             self.normal:normalize(self.normal)
@@ -493,22 +505,33 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
                 self.normal:negate(self.normal)
             end
 
-            local intersection, x, y
-            if _cachedSegmentA:overlap(_cachedSegmentB) then
-                intersection, x, y = slickmath.intersection(_cachedSegmentA.a, _cachedSegmentA.b, _cachedSegmentB.a, _cachedSegmentB.b, self.epsilon)
-                if not intersection or not (x and y) then
-                    intersection, x, y = _cachedSegmentA:intersection(_cachedSegmentB, self.epsilon)
-                    if intersection and x and y then
-                        self:_addContactPoint(x, y)
-                    end
+            if util.is(selfShape, circle) or util.is(otherShape, circle) then
+                local circleShape = util.is(selfShape, circle) and selfShape or otherShape
+                local polygonSegment = util.is(selfShape, circle) and _cachedSegmentA or _cachedSegmentB
 
-                    intersection, x, y = _cachedSegmentB:intersection(_cachedSegmentA, self.epsilon)
-                    if intersection and x and y then
-                        self:_addContactPoint(x, y)
-                    end
-                else
-                    if intersection and x and y then
-                        self:_addContactPoint(x, y)
+                self:_getClosestVertexToEdge(polygonSegment, circleShape, _cachedCircleSegmentContactPoint)
+                if slickmath.collinear(_cachedSegmentA.a, _cachedSegmentA.b, _cachedCircleSegmentContactPoint, _cachedCircleSegmentContactPoint, self.epsilon) then
+                    self:_addContactPoint(_cachedCircleSegmentContactPoint.x, _cachedCircleSegmentContactPoint.y)
+                end
+            elseif util.is(otherShape, circle) then
+            else
+                local intersection, x, y
+                if _cachedSegmentA:overlap(_cachedSegmentB) then
+                    intersection, x, y = slickmath.intersection(_cachedSegmentA.a, _cachedSegmentA.b, _cachedSegmentB.a, _cachedSegmentB.b, self.epsilon)
+                    if not intersection or not (x and y) then
+                        intersection, x, y = _cachedSegmentA:intersection(_cachedSegmentB, self.epsilon)
+                        if intersection and x and y then
+                            self:_addContactPoint(x, y)
+                        end
+
+                        intersection, x, y = _cachedSegmentB:intersection(_cachedSegmentA, self.epsilon)
+                        if intersection and x and y then
+                            self:_addContactPoint(x, y)
+                        end
+                    else
+                        if intersection and x and y then
+                            self:_addContactPoint(x, y)
+                        end
                     end
                 end
             end
@@ -517,12 +540,11 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
                 local circleShape = util.is(selfShape, circle) and selfShape or otherShape
                 local polygonShape = util.is(selfShape, circle) and otherShape or selfShape
 
-                local p = point.new()
                 for i = 1, polygonShape.vertexCount do
                     _cachedSegmentA:init(polygonShape.vertices[i], polygonShape.vertices[i % polygonShape.vertexCount + 1])
-                    self:_getClosestVertexToEdge(_cachedSegmentA, circleShape, p)
-                    if slickmath.collinear(_cachedSegmentA.a, _cachedSegmentA.b, p, p, self.epsilon) then
-                        self:_addContactPoint(p.x, p.y)
+                    self:_getClosestVertexToEdge(_cachedSegmentA, circleShape, _cachedCircleSegmentContactPoint)
+                    if slickmath.collinear(_cachedSegmentA.a, _cachedSegmentA.b, _cachedCircleSegmentContactPoint, _cachedCircleSegmentContactPoint, self.epsilon) then
+                        self:_addContactPoint(_cachedCircleSegmentContactPoint.x, _cachedCircleSegmentContactPoint.y)
                     end
                 end
             else
@@ -555,15 +577,20 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
 
         self.time = math.max(self.firstTime, 0)
     else
-        self.depth = 0
-        self.time = 0
-        self.normal:init(0, 0)
-        self.contactPointsCount = 0
-        self.segment.a:init(0, 0)
-        self.segment.b:init(0, 0)
+        self:_clear()
     end
 
     return self.collision
+end
+
+--- @private
+function shapeCollisionResolutionQuery:_clear()
+    self.depth = 0
+    self.time = 0
+    self.normal:init(0, 0)
+    self.contactPointsCount = 0
+    self.segment.a:init(0, 0)
+    self.segment.b:init(0, 0)
 end
 
 local _cachedCircleCenterProjectedS = point.new()

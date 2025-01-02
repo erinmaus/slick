@@ -24,7 +24,7 @@ local function slide(world, query, response, x, y, goalX, goalY, filter)
     _cachedSlideGoalPosition:init(goalX, goalY)
 
     response.normal:left(_cachedSlideGoalDirection)
-    
+
     _cachedSlideCurrentPosition:direction(_cachedSlideGoalPosition, _cachedSlideNewGoalPosition)
     _cachedSlideNewGoalPosition:normalize(_cachedSlideDirection)
 

@@ -50,7 +50,7 @@ function worldQuery:_performShapeQuery(shape, filter)
         if response then
             self.collisionQuery:perform(shape, otherShape, _cachedQueryOffset, _cachedQueryOffset, _cachedQueryVelocity, _cachedQueryVelocity)
             if self.collisionQuery.collision then
-                self:_addCollision(otherShape, nil, response, _cachedQueryOffset, true)
+                self:_addCollision(otherShape, nil, response, shape.center, true)
             end
         end
     end
