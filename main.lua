@@ -17,8 +17,10 @@ local function makePlayer(world)
     local player = {
         type = "player",
 
-        x = love.graphics.getWidth() / 2,
-        y = love.graphics.getHeight() / 8,
+        --x = love.graphics.getWidth() / 2,
+        x = 536.6 + 16,
+        --y = love.graphics.getHeight() / 8,
+        y = 430,
         w = 32,
         h = 32,
         nx = 0,
@@ -29,34 +31,35 @@ local function makePlayer(world)
         isJumping = false
     }
 
-    world:add(player, player.x, player.y, slick.newBoxShape(-player.w / 2, -player.h / 2, player.w, player.h))
-    --world:add(player, player.x, player.y, slick.newCircleShape(16, 16, 16))
+    local x, y = (love.filesystem.read("data.txt") or ""):match("([^%s]+)%s+([^%s]+)")
+    x = tonumber(x or player.x)
+    y = tonumber(y or player.y)
+
+    --world:add(player, player.x, player.y, slick.newBoxShape(0, 0, player.w, player.h))
+    world:add(player, x, y, slick.newCircleShape(0, 0, player.w / 2))
+    player.x = x
+    player.y = y
 
     return player
 end
 
+local function notPlayerFilter(item)
+    return item.type ~= "player"
+end
+
+local normal = slick.geometry.point.new()
 local function movePlayer(player, world, deltaTime)
     --- @cast world slick.world
     
     local isInAir = true
     if isGravityEnabled then
-        world:project(player, player.x, player.y, player.x, player.y + 1)
+        local p = world:get(player)
+        world:queryRectangle(p.bounds:left(), p.bounds:bottom(), p.bounds:width(), 2, notPlayerFilter, query)
 
         for _, result in ipairs(query.results) do
             if result.normal.y > 0 then
                 isInAir = false
             end
-        end
-    end
-    
-    local groundNormal = slick.geometry.point.new(0, 0)
-    if not isInAir then
-        world:queryRay(player.x + player.w / 2, player.y + player.h, 0, 1, function(item)
-            return item ~= player
-        end, query)
-
-        if #query.results >= 1 then
-            --groundNormal:init(query.results[1].normal.x, query.results[1].normal.y)
         end
     end
 
@@ -132,16 +135,11 @@ local function movePlayer(player, world, deltaTime)
         end
     end
 
-    local n = slick.geometry.point.new(x, y)
-    if groundNormal:lengthSquared() > 0 then
-        local d = n:dot(groundNormal)
-        groundNormal:multiplyScalar(d, n)
-    end
+    normal:init(x, y)
+    normal:normalize(normal)
+    normal:multiplyScalar(PLAYER_SPEED * deltaTime, normal)
 
-    n:normalize(n)
-    n:multiplyScalar(PLAYER_SPEED * deltaTime, n)
-
-    local goalX, goalY = player.x + n.x, player.y + n.y + offsetY
+    local goalX, goalY = player.x + normal.x, player.y + normal.y + offsetY
 
     if goalX ~= player.x or goalY ~= player.y or rx ~= 0 then
         player.rotation = player.rotation + rx * deltaTime * PLAYER_ROTATION_SPEED
@@ -150,8 +148,8 @@ local function movePlayer(player, world, deltaTime)
 
         local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
         player.x, player.y = actualX, actualY
-        player.nx = n.x
-        player.ny = n.y + offsetY
+        player.nx = normal.x
+        player.ny = normal.y + offsetY
 
         if isGravityEnabled then
             for _, hit in ipairs(hits) do
@@ -234,15 +232,21 @@ function love.keypressed(key, _, isRepeat)
     end
 end
 
-local time = 0
+local time, memory = 0, 0
 function love.update(deltaTime)
-    local b = love.timer.getTime()
-    --local m = movePlayer(player, world, deltaTime)
-    local m = movePlayer(player, world, 1 / 60)
-    local a = love.timer.getTime()
+    collectgarbage("stop")
+    local memoryBefore = collectgarbage("count")
+    local timeBefore = love.timer.getTime()
+    local didMove = movePlayer(player, world, 1 / 120)
+    local timeAfter = love.timer.getTime()
+    local memoryAfter = collectgarbage("count")
+    collectgarbage("restart")
     
-    if m then
-        time = (a - b) * 1000
+    if didMove then
+        time = (timeAfter - timeBefore) * 1000
+        memory = (memoryAfter - memoryBefore)
+
+        love.timer.sleep(0.2)
     end
 end
 
@@ -252,7 +256,7 @@ local bigFont = love.graphics.newFont(32)
 function love.draw()
     love.graphics.push("all")
     love.graphics.setFont(smallFont)
-    love.graphics.printf(string.format("Logic: %2.2f ms", time), 0, 0, love.graphics.getWidth(), "center")
+    love.graphics.printf(string.format("Logic: %2.2f ms (%.2f kb)", time, memory), 0, 0, love.graphics.getWidth(), "center")
     
     love.graphics.setFont(bigFont)
     if isGravityEnabled then
@@ -295,4 +299,8 @@ function love.draw()
     end
 
     love.graphics.pop()
+end
+
+function love.quit()
+    love.filesystem.write("data.txt", string.format("%f %f", player.x, player.y))
 end

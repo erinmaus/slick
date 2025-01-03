@@ -160,7 +160,7 @@ end
 --- @class slick.geometry.triangulation.delaunayOptions
 local defaultDelaunayOptions = {
     epsilon = slickmath.EPSILON,
-    debug = true
+    debug = false
 }
 
 --- @param options slick.geometry.triangulation.delaunayOptions?

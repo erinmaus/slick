@@ -2,6 +2,7 @@ local point = require("slick.geometry.point")
 local rectangle = require("slick.geometry.rectangle")
 local segment = require("slick.geometry.segment")
 local slickmath = require("slick.util.slickmath")
+local slicktable= require("slick.util.slicktable")
 
 --- @class slick.collision.commonShape
 --- @field entity slick.entity?
@@ -102,9 +103,12 @@ end
 
 local _cachedNormal = point.new()
 function commonShape:buildNormals()
-    local direction = slickmath.direction(self.preTransformedVertices[1], self.preTransformedVertices[2],
-    self.preTransformedVertices[3])
+    local direction = slickmath.direction(self.preTransformedVertices[1], self.preTransformedVertices[2], self.preTransformedVertices[3])
     assert(direction ~= 0, "polygon is degenerate")
+    if direction < 0 then
+        slicktable.reverse(self.preTransformedVertices)
+    end
+
 
     for i = 1, self.vertexCount do
         local j = i % self.vertexCount + 1
@@ -115,11 +119,7 @@ function commonShape:buildNormals()
         p1:direction(p2, _cachedNormal)
 
         local n = self:addNormal(_cachedNormal.x, _cachedNormal.y)
-        if direction < 0 then
-            n:right(n)
-        else
-            n:left(n)
-        end
+        n:right(n)
     end
 end
 

@@ -163,7 +163,7 @@ local _cachedOtherOffset = point.new()
 --- @param goalX number
 --- @param goalY number
 --- @param filter slick.worldFilterQueryFunc
-function worldQuery:perform(entity, x, y, goalX, goalY, filter)
+function worldQuery:performProjection(entity, x, y, goalX, goalY, filter)
     self:_beginQuery(entity, x, y, goalX, goalY)
 
     _cachedSelfPosition:init(entity.transform.x, entity.transform.y)
@@ -194,7 +194,7 @@ function worldQuery:perform(entity, x, y, goalX, goalY, filter)
                 if _cachedShapeBounds:overlaps(otherShape.bounds) then
                     local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
                     if response then
-                        self.collisionQuery:perform(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
+                        self.collisionQuery:performProjection(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
                         
                         if self.collisionQuery.collision then
                             self:_addCollision(shape, otherShape, response, _cachedSelfOffsetPosition, false)

@@ -128,6 +128,197 @@ function shapeCollisionResolutionQuery:addAxis()
     return axis
 end
 
+local _cachedCircleVelocity = point.new()
+local _cachedPolygonOffset = point.new()
+local _cachedCircleCenter = point.new()
+local _cachedCirclePolygonRelativeVelocity = point.new()
+local _cachedCirclePolygonSegmentPerpendicular = segment.new()
+local _cachedCirclePolygonDirection = point.new()
+local _cachedCirclePolygonSegmentDirection = point.new()
+local _cachedCircleProjectedVelocity = point.new()
+local _cachedCircleCenterDirectionProjectedVelocity = point.new()
+local _cachedCirclePolygonSegment = segment.new()
+local _cachedCirclePolygonIntersection = point.new()
+local _cachedCircleProjectedPolygonSegment = segment.new()
+
+--- @private
+--- @param i number
+--- @param j number
+--- @param polygonShape slick.collision.shape
+--- @param circleCenter slick.geometry.point
+--- @param radius number
+--- @param polygonOffset slick.geometry.point
+function shapeCollisionResolutionQuery:_tryAddCirclePolygonContactPoint(i, j, polygonShape, circleCenter, radius, polygonOffset)
+    _cachedCirclePolygonSegment:init(polygonShape.vertices[i], polygonShape.vertices[j])
+    polygonOffset:add(_cachedCirclePolygonSegment.a, _cachedCirclePolygonSegment.a)
+    polygonOffset:add(_cachedCirclePolygonSegment.b, _cachedCirclePolygonSegment.b)
+
+    local intersection, u, v = slickmath.lineCircleIntersection(_cachedCirclePolygonSegment, circleCenter, radius)
+    if intersection and u and v and ((u >= 0 and u <= 1) or (v >= 0 and v <= 1)) then
+        if u >= 0 and u <= 1 then
+            _cachedCirclePolygonSegment:lerp(1 - u, _cachedCirclePolygonIntersection)
+            self:_addContactPoint(_cachedCirclePolygonIntersection.x, _cachedCirclePolygonIntersection.y)
+        end
+        
+        if v >= 0 and v <= 1 and u ~= v then
+            _cachedCirclePolygonSegment:lerp(1 - v, _cachedCirclePolygonIntersection)
+            self:_addContactPoint(_cachedCirclePolygonIntersection.x, _cachedCirclePolygonIntersection.y)
+        end
+    end
+
+    return _cachedCirclePolygonSegment:distanceSquared(circleCenter)
+end
+
+--- @private
+--- @param circleShape slick.collision.circle
+--- @param polygonShape slick.collision.shape
+--- @param circleOffset slick.geometry.point
+--- @param polygonOffset slick.geometry.point
+--- @param circleVelocity slick.geometry.point
+--- @param polygonVelocity slick.geometry.point
+function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleShape, polygonShape, circleOffset, polygonOffset, circleVelocity, polygonVelocity)
+    polygonVelocity:sub(circleVelocity, _cachedCirclePolygonRelativeVelocity)
+    circleShape.center:add(circleOffset, _cachedCircleCenter)
+
+    local minS = math.huge
+    local index
+
+    for i = 1, polygonShape.vertexCount do
+        local j = i % polygonShape.vertexCount + 1
+        
+        local a = _cachedCirclePolygonSegment.a
+        local b = _cachedCirclePolygonSegment.b
+
+        polygonShape.vertices[i]:add(polygonOffset, a)
+        polygonShape.vertices[j]:add(polygonOffset, b)
+
+        a:left(_cachedCirclePolygonSegmentPerpendicular.a)
+        b:left(_cachedCirclePolygonSegmentPerpendicular.b)
+
+        local distanceAB = a:distance(b)
+
+        _cachedCircleCenter:sub(a, _cachedCirclePolygonDirection)
+        _cachedCirclePolygonSegmentPerpendicular.a:sub(_cachedCirclePolygonSegmentPerpendicular.b, _cachedCirclePolygonSegmentDirection)
+
+        local dotCircleCenterDirectionSegmentDirection = _cachedCirclePolygonSegmentDirection:dot(_cachedCirclePolygonDirection)
+
+        local sDenominator = _cachedCirclePolygonRelativeVelocity:dot(_cachedCirclePolygonSegmentDirection)
+        if math.abs(sDenominator) > self.epsilon and distanceAB > self.epsilon then
+            sDenominator =  1 / sDenominator
+            local sPlus = (dotCircleCenterDirectionSegmentDirection + circleShape.radius * distanceAB) * sDenominator
+            local sMinus = (dotCircleCenterDirectionSegmentDirection - circleShape.radius * distanceAB) * sDenominator
+
+            _cachedCircleCenter:sub(b, _cachedCirclePolygonDirection)
+            a:sub(b, _cachedCirclePolygonSegmentDirection)
+
+            local tDenominator = 1 / distanceAB ^ 2
+
+            _cachedCirclePolygonRelativeVelocity:multiplyScalar(sPlus, _cachedCircleProjectedVelocity)
+            _cachedCirclePolygonDirection:sub(_cachedCircleProjectedVelocity, _cachedCircleCenterDirectionProjectedVelocity)
+            local tPositiveNumerator = _cachedCircleCenterDirectionProjectedVelocity:dot(_cachedCirclePolygonSegmentDirection)
+            local tMinus = tPositiveNumerator * tDenominator
+            
+            _cachedCirclePolygonRelativeVelocity:multiplyScalar(-sMinus, _cachedCircleProjectedVelocity)
+            _cachedCirclePolygonDirection:sub(_cachedCircleProjectedVelocity, _cachedCircleCenterDirectionProjectedVelocity)
+            local tNegativeNumerator = _cachedCircleCenterDirectionProjectedVelocity:dot(_cachedCirclePolygonSegmentDirection)
+            local tPlus = tNegativeNumerator * tDenominator
+
+            if sPlus >= -1 and sPlus <= 1 and tPlus >= -1 and tPlus <= 1 then
+                if sPlus < minS then
+                    index = i
+                    minS = sPlus
+                end
+            end
+            
+            if sMinus >= -1 and sMinus <= 1 and tMinus >= -1 and tMinus <= 1 then
+                if sMinus < minS then
+                    index = i
+                    minS = sMinus
+                end
+            end
+        end
+
+        do
+            _cachedCircleProjectedPolygonSegment:init(a, a)
+            _cachedCircleProjectedPolygonSegment.a:add(_cachedCirclePolygonRelativeVelocity, _cachedCircleProjectedPolygonSegment.a)
+            local intersection, u, v = slickmath.lineCircleIntersection(_cachedCircleProjectedPolygonSegment, _cachedCircleCenter, circleShape.radius)
+            if intersection and u and v then
+                if u >= -1 and u <= 1 and u < minS then
+                    index = i
+                    minS = u
+                end
+
+                if v >= -1 and v <= 1 and v < minS then
+                    index = i
+                    minS = v
+                end
+            end
+        end
+
+        do
+            _cachedCircleProjectedPolygonSegment:init(b, b)
+            _cachedCircleProjectedPolygonSegment.a:add(_cachedCirclePolygonRelativeVelocity, _cachedCircleProjectedPolygonSegment.a)
+            local intersection, u, v = slickmath.lineCircleIntersection(_cachedCircleProjectedPolygonSegment, _cachedCircleCenter, circleShape.radius)
+            if intersection and u and v then
+                if u >= -1 and u <= 1 and u < minS then
+                    index = i
+                    minS = u
+                end
+
+                if v >= -1 and v <= 1 and v < minS then
+                    index = i
+                    minS = v
+                end
+            end
+        end
+    end
+
+    -- No collision.
+    if minS == math.huge then
+        self:_clear()
+        return
+    end
+
+    assert(minS >= -1 and minS <= 1)
+    minS = math.max(minS, 0)
+
+    circleVelocity:multiplyScalar(minS, _cachedCircleVelocity)
+    _cachedCircleCenter:add(_cachedCircleVelocity, _cachedCircleCenter)
+
+    polygonVelocity:multiplyScalar(minS, _cachedPolygonOffset)
+    polygonOffset:add(_cachedPolygonOffset, _cachedPolygonOffset)
+
+    local indexI = slickmath.wrap(index, -1, polygonShape.vertexCount)
+    local indexJ = index
+    local indexK = slickmath.wrap(index, 1, polygonShape.vertexCount)
+
+    local distanceIJ = self:_tryAddCirclePolygonContactPoint(indexI, indexJ, polygonShape, _cachedCircleCenter, circleShape.radius, _cachedPolygonOffset)
+    local distanceJK = self:_tryAddCirclePolygonContactPoint(indexJ, indexK, polygonShape, _cachedCircleCenter, circleShape.radius, _cachedPolygonOffset)
+
+    do
+        local i, j
+        if distanceIJ < distanceJK then
+            i = indexI
+            j = indexJ
+        else
+            i = indexJ
+            j = indexK
+        end
+
+        local a = polygonShape.vertices[i]
+        local b = polygonShape.vertices[j]
+
+        a:direction(b, self.normal)
+        self.normal:normalize(self.normal)
+        self.normal:right(self.normal)
+
+        self.segment:init(a, b)
+    end
+
+    self.time = minS
+    self.collision = true
+end
+
 local _cachedCirclePointPosition = point.new()
 local _cachedCirclePointVelocity = point.new()
 local _cachedCirclePointSegment = segment.new()
@@ -145,7 +336,7 @@ local _cachedCircleRelativeVelocityDirection = point.new()
 --- @param otherOffset slick.geometry.point
 --- @param selfVelocity slick.geometry.point
 --- @param otherVelocity slick.geometry.point
-function shapeCollisionResolutionQuery:_performCircle(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
+function shapeCollisionResolutionQuery:_performCircleCircleProjection(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
     selfShape.center:add(selfOffset, _cachedCircleSelfPosition)
     otherShape.center:add(otherOffset, _cachedCircleOtherPosition)
 
@@ -314,13 +505,31 @@ end
 --- @param otherOffset slick.geometry.point
 --- @param selfVelocity slick.geometry.point
 --- @param otherVelocity slick.geometry.point
-function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
+function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
     self:_beginQuery()
 
     if util.is(selfShape, circle) and util.is(otherShape, circle) then
         --- @cast selfShape slick.collision.circle
         --- @cast otherShape slick.collision.circle
-        self:_performCircle(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
+        self:_performCircleCircleProjection(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
+        return
+    elseif util.is(selfShape, circle) then
+        --- @cast selfShape slick.collision.circle
+        self:_performCirclePolygonProjection(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
+        if self.collision then
+            selfVelocity:multiplyScalar(self.time, self.currentOffset)
+            otherVelocity:multiplyScalar(self.time, self.otherOffset)
+        end
+
+        return
+    elseif util.is(otherShape, circle) then
+        --- @cast otherShape slick.collision.circle
+        self:_performCirclePolygonProjection(otherShape, selfShape, otherOffset, selfOffset, otherVelocity, selfVelocity)
+        if self.collision then
+            selfVelocity:multiplyScalar(self.time, self.currentOffset)
+            otherVelocity:multiplyScalar(self.time, self.otherOffset)
+        end
+
         return
     end
 
@@ -470,10 +679,6 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
                 if not util.is(selfShape, circle) then
                     selfShape.vertices[currentInterval.indices[currentInterval.minIndex].index]:add(self.currentOffset, _cachedSegmentA.a)
                     selfShape.vertices[currentInterval.indices[currentInterval.minIndex + 1].index]:add(self.currentOffset, _cachedSegmentA.b)
-
-                    if util.is(otherShape, circle) then
-                        _cachedSegmentA.a:direction(_cachedSegmentA.b, self.normal)
-                    end
                 end
 
                 if not util.is(otherShape, circle) then
@@ -491,30 +696,41 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
                 if not util.is(selfShape, circle) then
                     selfShape.vertices[currentInterval.indices[currentInterval.maxIndex - 1].index]:add(self.currentOffset, _cachedSegmentB.a)
                     selfShape.vertices[currentInterval.indices[currentInterval.maxIndex].index]:add(self.currentOffset, _cachedSegmentB.b)
-
-                    if util.is(otherShape, circle) then
-                        _cachedSegmentB.a:direction(_cachedSegmentB.b, self.normal)
-                    end
-                end                
-            end
-
-            self.normal:normalize(self.normal)
-            self.normal:right(self.normal)
-
-            if isSelfMovingTowardsOther then
-                self.normal:negate(self.normal)
+                end
             end
 
             if util.is(selfShape, circle) or util.is(otherShape, circle) then
                 local circleShape = util.is(selfShape, circle) and selfShape or otherShape
-                local polygonSegment = util.is(selfShape, circle) and _cachedSegmentA or _cachedSegmentB
+                local polygonSegment
+                if side == SIDE_LEFT then
+                    polygonSegment = util.is(selfShape, circle) and _cachedSegmentB or _cachedSegmentA
+                else
+                    polygonSegment = util.is(selfShape, circle) and _cachedSegmentA or _cachedSegmentB
+                end
 
                 self:_getClosestVertexToEdge(polygonSegment, circleShape, _cachedCircleSegmentContactPoint)
-                if slickmath.collinear(_cachedSegmentA.a, _cachedSegmentA.b, _cachedCircleSegmentContactPoint, _cachedCircleSegmentContactPoint, self.epsilon) then
+                if slickmath.collinear(polygonSegment.a, polygonSegment.b, _cachedCircleSegmentContactPoint, _cachedCircleSegmentContactPoint, self.epsilon) then
                     self:_addContactPoint(_cachedCircleSegmentContactPoint.x, _cachedCircleSegmentContactPoint.y)
                 end
-            elseif util.is(otherShape, circle) then
+
+                polygonSegment.a:direction(polygonSegment.b, self.normal)
+                self.normal:normalize(self.normal)
+                self.normal:left(self.normal)
+
+                _cachedCircleSegmentContactPoint:direction(circleShape.center, self.normal)
+                self.normal:normalize(self.normal)
+
+                if util.is(otherShape, circle) then
+                    self.normal:negate(self.normal)
+                end
+
+                if isSelfMovingTowardsOther then
+                    --self.normal:negate(self.normal)
+                end
             else
+                self.normal:normalize(self.normal)
+                self.normal:right(self.normal)
+
                 local intersection, x, y
                 if _cachedSegmentA:overlap(_cachedSegmentB) then
                     intersection, x, y = slickmath.intersection(_cachedSegmentA.a, _cachedSegmentA.b, _cachedSegmentB.a, _cachedSegmentB.b, self.epsilon)
@@ -546,6 +762,13 @@ function shapeCollisionResolutionQuery:perform(selfShape, otherShape, selfOffset
                     if slickmath.collinear(_cachedSegmentA.a, _cachedSegmentA.b, _cachedCircleSegmentContactPoint, _cachedCircleSegmentContactPoint, self.epsilon) then
                         self:_addContactPoint(_cachedCircleSegmentContactPoint.x, _cachedCircleSegmentContactPoint.y)
                     end
+                end
+
+                _cachedCircleSegmentContactPoint:direction(circleShape.center, self.normal)
+                self.normal:normalize(self.normal)
+
+                if util.is(otherShape, circle) then
+                    self.normal:negate(self.normal)
                 end
             else
                 for j = 1, selfShape.vertexCount do

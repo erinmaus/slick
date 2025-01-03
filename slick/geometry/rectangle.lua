@@ -80,7 +80,7 @@ end
 --- @param x number
 --- @param y number
 function rectangle:sweep(x, y)
-    self:expand(x, y)
+    self:expand(x - self:width(), y - self:height())
     self:expand(x + self:width(), y + self:height())
 end
 

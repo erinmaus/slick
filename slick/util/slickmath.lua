@@ -2,6 +2,18 @@ local slickmath = {}
 
 slickmath.EPSILON = 1e-5
 
+--- @param value number
+--- @param increment number
+--- @param max number
+--- @return number
+function slickmath.wrap(value, increment, max)
+    return (value + increment - 1) % max + 1
+end
+
+--- @param a slick.geometry.point
+--- @param b slick.geometry.point
+--- @param c slick.geometry.point
+--- @return number
 function slickmath.angle(a, b, c)
     local abx = a.x - b.x
     local aby = a.y - b.y

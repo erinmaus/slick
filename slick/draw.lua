@@ -74,7 +74,7 @@ local function draw(world, queries)
             local shape = q.shape
             local filter = q.filter
 
-            love.graphics.setColor(cr, cg, cb, 0.5)
+            love.graphics.setColor(0, 0.5, 1, 0.5)
             if util.is(shape, point) then
                 --- @cast shape slick.geometry.point
                 love.graphics.circle("fill", shape.x, shape.y, 4)

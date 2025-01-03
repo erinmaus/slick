@@ -200,7 +200,7 @@ function world:project(item, x, y, goalX, goalY, filter, query)
     query = query or worldQuery.new(self)
     local e = self:get(item)
 
-    query:perform(e, x, y, goalX, goalY, filter or defaultWorldFilterQueryFunc)
+    query:performProjection(e, x, y, goalX, goalY, filter or defaultWorldFilterQueryFunc)
 
     return query.results, #query.results, query
 end

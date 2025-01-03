@@ -43,9 +43,15 @@ function segment:bottom()
     return math.max(self.a.y, self.b.y)
 end
 
+--- @param delta number
+--- @param result slick.geometry.point
+function segment:lerp(delta, result)
+    result.x = self.a.x * delta + self.b.x * (1 - delta)
+    result.y = self.a.y * delta + self.b.y * (1 - delta)
+end
+
 local _cachedProjectionBMinusA = point.new()
 local _cachedProjectionPMinusA = point.new()
-local _cachedProjectionPProjectedAB = point.new()
 
 --- @param p slick.geometry.point
 --- @param result slick.geometry.point
@@ -65,11 +71,11 @@ function segment:project(p, result)
     self.a:add(result, result)
 end
 
-local _cachedDistancePProjectedAB = point.new()
+local _cachedDistanceProjectedAB = point.new()
 --- @param p slick.geometry.point
 function segment:distanceSquared(p)
-    self:project(p, _cachedDistancePProjectedAB)
-    return _cachedDistancePProjectedAB:distanceSquared(p)
+    self:project(p, _cachedDistanceProjectedAB)
+    return _cachedDistanceProjectedAB:distanceSquared(p)
 end
 
 --- @param p slick.geometry.point
