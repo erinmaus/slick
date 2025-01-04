@@ -314,15 +314,12 @@ function world:check(item, goalX, goalY, filter, query)
 
     self:project(item, x, y, goalX, goalY, filter, query)
     if #query.results == 0 then
-        print("")
-        print("")
         return goalX, goalY, query.results, #query.results, query
     end
     
     local actualX, actualY
     local bounces = 0
     while bounces < self.options.maxBounces and #query.results > 0 do
-        print("bounced")
         bounces = bounces + 1
 
         local result = query.results[1]
@@ -334,7 +331,7 @@ function world:check(item, goalX, goalY, filter, query)
 
         x, y, goalX, goalY, nextResponseName = response(self, query, result, x, y, goalX, goalY, filter)
 
-        if #query.results == 0 then-- or #query.results == 1 and _cachedCheckVisits[result.otherShape] then
+        if #query.results == 0 then
             actualX = goalX
             actualY = goalY
         else
@@ -344,9 +341,6 @@ function world:check(item, goalX, goalY, filter, query)
 
         _cachedCheckVisits[result.otherShape] = nextResponseName or "touch"
     end
-
-    print("bounced", bounces)
-    print("")
 
     slicktable.clear(_cachedCheckVisits)
     return actualX, actualY, query.results, #query.results, query

@@ -35,8 +35,6 @@ local function slide(world, query, response, x, y, goalX, goalY, filter)
     local newGoalX = _cachedSlideNewGoalPosition.x
     local newGoalY = _cachedSlideNewGoalPosition.y
 
-    print("@@@ newGoal xy", newGoalX, newGoalY, "curr xy", response.touch.x, response.touch.y)
-
     world:project(response.item, response.touch.x, response.touch.y, newGoalX, newGoalY, filter, query)
     return response.touch.x, response.touch.y, newGoalX, newGoalY, "touch"
 end

@@ -241,6 +241,10 @@ function quadTreeNode:remove(data, bounds)
 
         self.count = self.count - 1
 
+        if self.count <= self.tree.maxData then
+            self:collapse()
+        end
+
         return
     end
 
@@ -249,13 +253,9 @@ function quadTreeNode:remove(data, bounds)
     for i, d in ipairs(self.data) do
         if d == data then
             table.remove(self.data, i)
-            self.count = self.count - 1            
+            self.count = self.count - 1
 
             self.uniqueData[d] = nil
-            if self.parent and self.parent.count <= self.tree.maxData then
-                self.parent:collapse()
-            end
-
 
             return
         end

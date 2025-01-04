@@ -35,8 +35,14 @@ local function makePlayer(world)
     x = tonumber(x or player.x)
     y = tonumber(y or player.y)
 
-    world:add(player, x, y, slick.newBoxShape(0, 0, player.w, player.h))
+    --world:add(player, x, y, slick.newBoxShape(0, 0, player.w, player.h))
     --world:add(player, x, y, slick.newCircleShape(0, 0, player.w / 2))
+    world:add(player, x, y, slick.newShapeGroup(
+        slick.newBoxShape(0, 0, player.w, player.h),
+        slick.newCircleShape(player.w / 2, 0, player.w / 2),
+        slick.newCircleShape(player.w / 2, player.h, player.w / 2)
+    ))
+
     player.x = x
     player.y = y
 
@@ -147,7 +153,6 @@ local function movePlayer(player, world, deltaTime)
         world:update(player, slick.newTransform(player.x, player.y, player.rotation))
 
         local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
-        print(">>> xy", actualX, actualY)
         player.x, player.y = actualX, actualY
         player.nx = normal.x
         player.ny = normal.y + offsetY
@@ -240,7 +245,8 @@ function love.update(deltaTime)
     collectgarbage("stop")
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
-    local didMove = movePlayer(player, world, deltaTime)
+    --local didMove = movePlayer(player, world, deltaTime)
+    local didMove = movePlayer(player, world, 1 / 30)
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
@@ -248,6 +254,7 @@ function love.update(deltaTime)
     if didMove then
         time = (timeAfter - timeBefore) * 1000
         memory = (memoryAfter - memoryBefore)
+        love.timer.sleep(0.1)
     end
 end
 

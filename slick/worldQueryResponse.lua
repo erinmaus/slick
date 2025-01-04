@@ -60,7 +60,6 @@ function worldQueryResponse.less(a, b)
 end
 
 local _cachedInitItemPosition = point.new()
-local _cachedBumpOffset = point.new()
 
 --- @param shape slick.collision.shapeInterface
 --- @param otherShape slick.collision.shapeInterface?
