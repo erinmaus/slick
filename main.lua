@@ -35,7 +35,7 @@ local function makePlayer(world)
     x = tonumber(x or player.x)
     y = tonumber(y or player.y)
 
-    world:add(player, player.x, player.y, slick.newBoxShape(0, 0, player.w, player.h))
+    world:add(player, x, y, slick.newBoxShape(0, 0, player.w, player.h))
     --world:add(player, x, y, slick.newCircleShape(0, 0, player.w / 2))
     player.x = x
     player.y = y
@@ -240,8 +240,7 @@ function love.update(deltaTime)
     collectgarbage("stop")
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
-    local didMove = movePlayer(player, world, 1 / 30)
-    --local didMove = movePlayer(player, world, 1 / 120)
+    local didMove = movePlayer(player, world, deltaTime)
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
@@ -249,8 +248,6 @@ function love.update(deltaTime)
     if didMove then
         time = (timeAfter - timeBefore) * 1000
         memory = (memoryAfter - memoryBefore)
-
-        love.timer.sleep(0.2)
     end
 end
 

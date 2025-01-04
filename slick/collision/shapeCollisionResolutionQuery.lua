@@ -134,20 +134,11 @@ local _cachedCircleCenter = point.new()
 local _cachedCircleProjectedSegment = segment.new()
 local _cachedCircleOffsetCenter = point.new()
 local _cachedCirclePolygonRelativeVelocity = point.new()
-local _cachedCirclePolygonSegmentPerpendicular = segment.new()
-local _cachedCirclePolygonDirection = point.new()
-local _cachedCirclePolygonSegmentDirection = point.new()
-local _cachedCircleProjectedVelocity = point.new()
 local _cachedCircleClosestPoint = point.new()
 local _cachedCirclePolygonSegment = segment.new()
 local _cachedCirclePolygonSegmentNormal = point.new()
 local _cachedCirclePolygonIntersection = point.new()
-local _cachedCircleProjectedPolygonSegment = segment.new()
-local _cachedCircleCenterPolygonSegmentProjection = point.new()
-local _cachedCircleSegmentProjection = segment.new()
-local _cachedCircleCenterContactPoints = point.new()
-local _cachedCircleVelocityDirection = point.new()
-local _cachedCircleEdgeInteresctionPoint = point.new()
+local _cachedCirclePolygonRelativeVelocityDirection = point.new()
 local _cachedCirclePolygonProjectedLine = point.new()
 local _cachedCirclePolygonProjectedSegment = point.new()
 local _cachedCirclePolygonProjectedLineOffset = point.new()
@@ -299,8 +290,19 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
     local distanceJK = self:_tryAddCirclePolygonContactPoint(indexJ, indexK, polygonShape, _cachedCircleOffsetCenter, circleShape.radius, _cachedPolygonOffset)
 
     if self.contactPointsCount == 0 then
-        self:_clear()
-        return
+        local closestDistance = math.huge
+        local closestIndex
+        for i = math.min(indexI, indexJ, indexK), math.max(indexI, indexJ, indexK) do
+            polygonShape.vertices[i]:add(_cachedPolygonOffset, _cachedCircleClosestPoint)
+            local distanceSquared = _cachedCircleClosestPoint:distanceSquared(_cachedCircleOffsetCenter)
+            if distanceSquared < closestDistance then
+                closestDistance = distanceSquared
+                closestIndex = i
+            end
+        end
+
+        local v = polygonShape.vertices[closestIndex]
+        self:_addContactPoint(v.x, v.y)
     end
 
     local minVertexDistance = math.huge
@@ -363,9 +365,10 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
     end
 
     if not moved then
-        circleVelocity:normalize(_cachedCircleVelocityDirection)
-        local velocityDotNormal = _cachedCircleVelocityDirection:dot(self.normal)
-        if velocityDotNormal <= self.epsilon and circleVelocity:lengthSquared() > 0 then
+        _cachedCirclePolygonRelativeVelocity:normalize(_cachedCirclePolygonRelativeVelocityDirection)
+        local velocityDotNormal = _cachedCirclePolygonRelativeVelocityDirection:dot(self.normal)
+        print(">>> dot", velocityDotNormal, "n", self.normal.x, self.normal.y)
+        if velocityDotNormal <= self.epsilon and _cachedCirclePolygonRelativeVelocityDirection:lengthSquared() > 0 then
             self:_clear()
             return
         end
