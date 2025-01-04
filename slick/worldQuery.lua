@@ -156,6 +156,7 @@ local _cachedOtherVelocity = point.new()
 local _cachedEntityBounds = rectangle.new()
 local _cachedShapeBounds = rectangle.new()
 local _cachedSelfPosition = point.new()
+local _cachedSelfProjectedPosition = point.new()
 local _cachedSelfOffsetPosition = point.new()
 local _cachedOtherOffset = point.new()
 
@@ -167,9 +168,8 @@ function worldQuery:performProjection(entity, x, y, goalX, goalY, filter)
     self:_beginQuery(entity, x, y, goalX, goalY)
 
     _cachedSelfPosition:init(entity.transform.x, entity.transform.y)
-
-    _cachedSelfOffset:init(x, y)
-    _cachedSelfPosition:direction(_cachedSelfOffset, _cachedSelfOffset)
+    _cachedSelfProjectedPosition:init(x, y)
+    _cachedSelfPosition:direction(_cachedSelfProjectedPosition, _cachedSelfOffset)
 
     local offsetX = -entity.transform.x + x
     local offsetY = -entity.transform.y + y
@@ -204,7 +204,7 @@ function worldQuery:performProjection(entity, x, y, goalX, goalY, filter)
 
                         if self.collisionQuery.collision then
                             print("!!! collision")
-                            self:_addCollision(shape, otherShape, response, _cachedSelfOffsetPosition, false)
+                            self:_addCollision(shape, otherShape, response, _cachedSelfProjectedPosition, false)
                         else
                             print("no collision")
                         end

@@ -51,7 +51,7 @@ end
 --- @param filter slick.worldFilterQueryFunc
 --- @return number, number, number, number, string
 local function touch(world, query, response, x, y, goalX, goalY, filter)
-    world:project(response.item, x, y, response.touch.x, response.touch.y, filter, query)
+    world:project(response.item, response.touch.x, response.touch.y, response.touch.x, response.touch.y, filter, query)
     return response.touch.x, response.touch.y, response.touch.x, response.touch.y, "touch"
 end
 

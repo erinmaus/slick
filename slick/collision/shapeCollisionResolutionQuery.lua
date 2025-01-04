@@ -738,9 +738,6 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
         selfVelocity:multiplyScalar(self.time, self.currentOffset)
         otherVelocity:multiplyScalar(self.time, self.otherOffset)
 
-        self.currentOffset:sub(selfOffset, self.currentOffset)
-        self.otherOffset:sub(otherOffset, self.otherOffset)
-
         if self.time > 0 and self.currentOffset:lengthSquared() == 0 then
             self.time = 0
             self.depth = 0

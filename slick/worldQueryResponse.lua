@@ -85,9 +85,6 @@ function worldQueryResponse:init(shape, otherShape, response, position, query)
     self.offset:init(query.currentOffset.x, query.currentOffset.y)
     position:add(self.offset, self.touch)
 
-    -- self.normal:multiplyScalar(-self.query.world.options.minBounceDepth, _cachedBumpOffset)
-    -- self.touch:sub(_cachedBumpOffset, self.touch)
-
     local closestContactPointDistance = math.huge
 
     --- @type slick.geometry.point

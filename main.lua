@@ -35,8 +35,8 @@ local function makePlayer(world)
     x = tonumber(x or player.x)
     y = tonumber(y or player.y)
 
-    --world:add(player, player.x, player.y, slick.newBoxShape(0, 0, player.w, player.h))
-    world:add(player, x, y, slick.newCircleShape(0, 0, player.w / 2))
+    world:add(player, player.x, player.y, slick.newBoxShape(0, 0, player.w, player.h))
+    --world:add(player, x, y, slick.newCircleShape(0, 0, player.w / 2))
     player.x = x
     player.y = y
 
