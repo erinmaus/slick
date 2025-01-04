@@ -147,6 +147,7 @@ local function movePlayer(player, world, deltaTime)
         world:update(player, slick.newTransform(player.x, player.y, player.rotation))
 
         local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
+        print(">>> xy", actualX, actualY)
         player.x, player.y = actualX, actualY
         player.nx = normal.x
         player.ny = normal.y + offsetY
@@ -219,6 +220,8 @@ function love.mousepressed(x, y, button)
     if button == 1 then
         player.x, player.y = x - 16, y - 16
         world:update(player, player.x, player.y)
+    elseif button == 2 then
+        player.x, player.y = world:move(player, x, y, function() return "touch" end, query)
     end
 end
 
@@ -237,7 +240,8 @@ function love.update(deltaTime)
     collectgarbage("stop")
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
-    local didMove = movePlayer(player, world, 1 / 120)
+    local didMove = movePlayer(player, world, 1 / 30)
+    --local didMove = movePlayer(player, world, 1 / 120)
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
@@ -275,18 +279,15 @@ function love.draw()
     if isQueryEnabled then
         local hits = world:project(player, player.x, player.y, player.x + player.nx, player.y + player.ny)
 
-        love.graphics.setColor(1, 1, 1, 0.5)
-        love.graphics.circle("line", player.x + 16, player.y + 16, 16)
-
         for _, hit in ipairs(hits) do
             love.graphics.setColor(0, 1, 0, 1)
-            love.graphics.line(hit.contactPoint.x, hit.contactPoint.y, hit.contactPoint.x + hit.normal.x * 100, hit.contactPoint.y + hit.normal.y * 100)
+            love.graphics.line(hit.shape.center.x, hit.shape.center.y, hit.shape.center.x + hit.normal.x * 100, hit.shape.center.y + hit.normal.y * 100)
 
             local perpendicular = slick.geometry.point.new()
             hit.normal:left(perpendicular)
             
             love.graphics.setColor(1, 0, 0, 1)
-            love.graphics.line(hit.contactPoint.x - perpendicular.x * 50, hit.contactPoint.y - perpendicular.y * 50, hit.contactPoint.x + perpendicular.x * 50, hit.contactPoint.y + perpendicular.y * 50)
+            love.graphics.line(hit.shape.center.x - perpendicular.x * 50, hit.shape.center.y - perpendicular.y * 50, hit.shape.center.x + perpendicular.x * 50, hit.shape.center.y + perpendicular.y * 50)
 
             for _, point in ipairs(hit.contactPoints) do
                 love.graphics.setColor(1, 0, 0, 0.5)

@@ -48,7 +48,7 @@ function worldQuery:_performShapeQuery(shape, filter)
         local response = filter(otherShape.entity.item, otherShape)
 
         if response then
-            self.collisionQuery:perform(shape, otherShape, _cachedQueryOffset, _cachedQueryOffset, _cachedQueryVelocity, _cachedQueryVelocity)
+            self.collisionQuery:performProjection(shape, otherShape, _cachedQueryOffset, _cachedQueryOffset, _cachedQueryVelocity, _cachedQueryVelocity)
             if self.collisionQuery.collision then
                 self:_addCollision(otherShape, nil, response, shape.center, true)
             end
@@ -171,13 +171,13 @@ function worldQuery:performProjection(entity, x, y, goalX, goalY, filter)
     _cachedSelfOffset:init(x, y)
     _cachedSelfPosition:direction(_cachedSelfOffset, _cachedSelfOffset)
 
-    _cachedSelfVelocity:init(goalX, goalY)
-    _cachedSelfPosition:direction(_cachedSelfVelocity, _cachedSelfVelocity)
-
     local offsetX = -entity.transform.x + x
     local offsetY = -entity.transform.y + y
 
     _cachedSelfOffsetPosition:init(x, y)
+
+    _cachedSelfVelocity:init(goalX, goalY)
+    _cachedSelfOffsetPosition:direction(_cachedSelfVelocity, _cachedSelfVelocity)
 
     _cachedEntityBounds:init(entity.bounds:left(), entity.bounds:top(), entity.bounds:right(), entity.bounds:bottom())
     _cachedEntityBounds:move(offsetX, offsetY)
@@ -195,9 +195,18 @@ function worldQuery:performProjection(entity, x, y, goalX, goalY, filter)
                     local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
                     if response then
                         self.collisionQuery:performProjection(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
-                        
+                        for i, s in ipairs(otherShape.entity.shapes.shapes) do
+                            if s == otherShape then
+                                print("checking", otherShape.entity.item.type, "shape", i)
+                                break
+                            end
+                        end
+
                         if self.collisionQuery.collision then
+                            print("!!! collision")
                             self:_addCollision(shape, otherShape, response, _cachedSelfOffsetPosition, false)
+                        else
+                            print("no collision")
                         end
                     end
                 end

@@ -1,6 +1,6 @@
 local slickmath = {}
 
-slickmath.EPSILON = 1e-5
+slickmath.EPSILON = 1e-2
 
 --- @param value number
 --- @param increment number
@@ -177,10 +177,15 @@ end
 --- @param s slick.geometry.segment
 --- @param p slick.geometry.point
 --- @param r number
+--- @param E number?
 --- @return boolean, number?, number?
-function slickmath.lineCircleIntersection(s, p, r)
+function slickmath.lineCircleIntersection(s, p, r, E)
+    E = E or 0
+
     local p1 = s.a
     local p2 = s.b
+
+    local rSquared = r ^ 2
 
     local dx = p2.x - p1.x
     local dy = p2.y - p1.y
@@ -190,14 +195,14 @@ function slickmath.lineCircleIntersection(s, p, r)
 
     local a = dx ^ 2 + dy ^ 2
     local b = 2 * (dx * fx + dy * fy)
-    local c = fx ^ 2 + fy ^ 2 - r ^ 2
+    local c = fx ^ 2 + fy ^ 2 - rSquared
 
     local d = b ^ 2 - 4 * a * c
-    if a <= 0 or d < 0 then
+    if a <= 0 or d < -E then
         return false, nil, nil
     end
 
-    d = math.sqrt(d)
+    d = math.sqrt(math.max(d, 0))
 
     local u = (-b - d) / (2 * a)
     local v = (-b + d) / (2 * a)
@@ -209,13 +214,8 @@ end
 --- @param r1 number
 --- @param p2 slick.geometry.point
 --- @param r2 number
---- @param E? number
 --- @return boolean, number?, number?, number?, number?
-function slickmath.circleCircleIntersection(p1, r1, p2, r2, E)
-    E = E or slickmath.EPSILON
-    -- r1 = r1 + E
-    -- r2 = r2 + E
-
+function slickmath.circleCircleIntersection(p1, r1, p2, r2)
     local nx = p2.x - p1.x
     local ny = p2.y - p1.y
 
@@ -288,6 +288,12 @@ function slickmath.random(min, max, rng)
     end
 
     return math.random(min, max)
+end
+
+function slickmath.withinRange(value, min, max, E)
+    E = E or slickmath.EPSILON
+
+    return value > min - E and value < max + E
 end
 
 return slickmath

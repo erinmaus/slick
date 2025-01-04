@@ -82,7 +82,6 @@ function worldQueryResponse:init(shape, otherShape, response, position, query)
     self.depth = query.depth
     self.time = query.time
 
-    self.isProjection = position:lengthSquared() > 0
     self.offset:init(query.currentOffset.x, query.currentOffset.y)
     position:add(self.offset, self.touch)
 

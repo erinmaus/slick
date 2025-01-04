@@ -34,11 +34,13 @@ function box:init(x, y, w, h)
 
     self:addNormal(0, 1)
     self:addNormal(-1, 0)
+    self:addNormal(0, -1)
+    self:addNormal(1, 0)
 
     self:transform(transform.IDENTITY)
 
     assert(self.vertexCount == 4, "box must have 4 points")
-    assert(self.normalCount == 2, "box must have 2 normals")
+    assert(self.normalCount == 4, "box must have 4 normals")
 end
 
 function box:inside(p)

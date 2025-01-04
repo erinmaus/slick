@@ -46,20 +46,43 @@ end
 --- @param delta number
 --- @param result slick.geometry.point
 function segment:lerp(delta, result)
-    result.x = self.a.x * delta + self.b.x * (1 - delta)
-    result.y = self.a.y * delta + self.b.y * (1 - delta)
+    result.x = self.b.x * delta + self.a.x * (1 - delta)
+    result.y = self.b.y * delta + self.a.y * (1 - delta)
 end
 
 local _cachedProjectionBMinusA = point.new()
 local _cachedProjectionPMinusA = point.new()
 
+--- Unlike `project`, this treats the line segment as a line.
 --- @param p slick.geometry.point
 --- @param result slick.geometry.point
+--- @return number
+function segment:projectLine(p, result)
+    local distanceSquared = self.a:distanceSquared(self.b)
+    if distanceSquared == 0 then
+        result:init(self.a.x, self.a.y)
+        return 0
+    end
+    
+    p:sub(self.a, _cachedProjectionPMinusA)
+    self.b:sub(self.a, _cachedProjectionBMinusA)
+    
+    local t = _cachedProjectionPMinusA:dot(_cachedProjectionBMinusA) / distanceSquared
+    
+    _cachedProjectionBMinusA:multiplyScalar(t, result)
+    self.a:add(result, result)
+    
+    return t
+end
+
+--- @param p slick.geometry.point
+--- @param result slick.geometry.point
+--- @return number?
 function segment:project(p, result)
     local distanceSquared = self.a:distanceSquared(self.b)
     if distanceSquared == 0 then
         result:init(self.a.x, self.a.y)
-        return
+        return 0
     end
     
     p:sub(self.a, _cachedProjectionPMinusA)
@@ -69,6 +92,8 @@ function segment:project(p, result)
     
     _cachedProjectionBMinusA:multiplyScalar(t, result)
     self.a:add(result, result)
+
+    return t
 end
 
 local _cachedDistanceProjectedAB = point.new()
