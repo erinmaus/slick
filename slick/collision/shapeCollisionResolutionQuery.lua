@@ -195,8 +195,6 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
     local minS = math.huge
     local minSIndex
 
-    local willCollide = false
-
     for i = 1, polygonShape.vertexCount do
         local j = slickmath.wrap(i, 1, polygonShape.vertexCount)
 
@@ -224,8 +222,11 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
             _cachedCirclePolygonSegment.a:add(_cachedCirclePolygonSegmentNormal, _cachedCirclePolygonSegment.a)
             _cachedCirclePolygonSegment.b:add(_cachedCirclePolygonSegmentNormal, _cachedCirclePolygonSegment.b)
 
+            local didIntersect = false
             local intersection, _, _, u, v = slickmath.intersection(_cachedCircleProjectedSegment.a, _cachedCircleProjectedSegment.b, _cachedCirclePolygonSegment.a, _cachedCirclePolygonSegment.b)
             if intersection and u and v and ((slickmath.withinRange(u, 0, 1, self.epsilon)) or (slickmath.withinRange(v, 0, 1, self.epsilon))) then
+                didIntersect = true
+
                 if slickmath.withinRange(u, 0, 1, self.epsilon) then
                     if u < minT then
                         minT = u
@@ -243,6 +244,8 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
 
             intersection, u, v = slickmath.lineCircleIntersection(_cachedCircleProjectedSegment, a, circleShape.radius, self.epsilon)
             if intersection and u and v and ((slickmath.withinRange(u, 0, 1, self.epsilon)) or (slickmath.withinRange(v, 0, 1, self.epsilon))) then
+                didIntersect = true
+
                 if slickmath.withinRange(u, 0, 1, self.epsilon) then
                     if u < minT then
                         minT = u
@@ -254,6 +257,16 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
                     if v < minT then
                         minT = v
                         minTIndex = i
+                    end
+                end
+            end
+
+            if not didIntersect then
+                local distance = _cachedCirclePolygonSegment:distance(_cachedCircleCenter)
+                if distance < self.epsilon then
+                    if minS > 0 then
+                        minS = 0
+                        minSIndex = i
                     end
                 end
             end

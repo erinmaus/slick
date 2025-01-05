@@ -322,8 +322,6 @@ function world:check(item, goalX, goalY, filter, query)
 
     self:project(item, x, y, goalX, goalY, filter, cachedQuery)
     if #cachedQuery.results == 0 then
-        print()
-        print()
         return goalX, goalY, query.results, #query.results, query
     end
     

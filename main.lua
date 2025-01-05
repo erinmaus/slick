@@ -74,19 +74,15 @@ local function movePlayer(player, world, deltaTime)
             end
             
             local leftD = result.normal:dot(left)
-            print("leftD", upD)
             if leftD > 0.8 then
                 canMoveRight = false
             end
             
             local rightD = result.normal:dot(right)
-            print("rightD", rightD)
             if rightD > 0.8 then
                 canMoveLeft = false
             end
         end
-
-        print("canMoveLeft", canMoveLeft, "canMoveRight", canMoveRight)
     end
 
     if not isInAir and love.keyboard.isDown("w") then
