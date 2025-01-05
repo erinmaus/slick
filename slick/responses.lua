@@ -17,7 +17,7 @@ local _cachedSlideDirection = point.new()
 --- @param goalX number
 --- @param goalY number
 --- @param filter slick.worldFilterQueryFunc
---- @return number, number, number, number, string
+--- @return number, number, number, number, string?
 local function slide(world, query, response, x, y, goalX, goalY, filter)
     _cachedSlideCurrentPosition:init(x, y)
     _cachedSlideTouchPosition:init(response.touch.x, response.touch.y)
@@ -47,12 +47,12 @@ end
 --- @param goalX number
 --- @param goalY number
 --- @param filter slick.worldFilterQueryFunc
---- @return number, number, number, number, string
+--- @return number, number, number, number, string?
 local function touch(world, query, response, x, y, goalX, goalY, filter)
     local touchX, touchY = response.touch.x, response.touch.y
-    world:project(response.item, response.touch.x, response.touch.y, response.touch.x, response.touch.y, filter, query)
+    world:project(response.item, x, y, response.touch.x, response.touch.y, filter, query)
 
-    return touchX, touchY, touchX, touchY, "touch"
+    return touchX, touchY, touchX, touchY, nil
 end
 
 --- @param world slick.world
@@ -63,10 +63,10 @@ end
 --- @param goalX number
 --- @param goalY number
 --- @param filter slick.worldFilterQueryFunc
---- @return number, number, number, number, string
+--- @return number, number, number, number, string?
 local function cross(world, query, response, x, y, goalX, goalY, filter)
     world:project(response.item, x, y, goalX, goalY, filter, query)
-    return goalX, goalY, goalX, goalY, "cross"
+    return goalX, goalY, goalX, goalY, nil
 end
 
 return {

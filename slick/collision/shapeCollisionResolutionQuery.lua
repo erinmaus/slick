@@ -391,9 +391,9 @@ local _cachedCircleSelfPosition = point.new()
 local _cachedCircleOtherPosition = point.new()
 local _cachedCircleContactPoint1 = point.new()
 local _cachedCircleContactPoint2 = point.new()
-local _cachedCirclePerpendicularNormal = point.new()
 local _cachedCircleRelativeVelocityDirection = point.new()
 local _cachedCirclePenetratingOffset = point.new()
+local _cachedCircleSelfOtherDirection = point.new()
 
 --- @private
 --- @param selfShape slick.collision.circle
@@ -415,15 +415,15 @@ function shapeCollisionResolutionQuery:_performCircleCircleProjection(selfShape,
     _cachedCirclePointSegment.a:add(_cachedCirclePointVelocity, _cachedCirclePointSegment.b)
 
     local willCollide, u, v = slickmath.lineCircleIntersection(_cachedCirclePointSegment, _cachedCircleOtherPosition, selfShape.radius + otherShape.radius, self.epsilon)
-    if willCollide and u and v and ((u >= 0 and u <= 1) or (v >= 0 and v <= 1)) then
+    if willCollide and u and v and (slickmath.withinRange(u, 0, 1, self.epsilon) or slickmath.withinRange(v, 0, 1, self.epsilon)) then
         self.depth = 0
 
         self.firstTime = math.min(u, v)
         self.lastTime = math.max(u, v)
 
-        if (u >= 0 and u <= 1) and (v >= 0 and v <= 1) then
+        if slickmath.withinRange(u, 0, 1, self.epsilon) and slickmath.withinRange(v, 0, 1, self.epsilon) then
             self.time = math.min(u, v)
-        elseif u >= 0 and u <= 1 then
+        elseif slickmath.withinRange(u, 0, 1, self.epsilon) then
             self.time = u
         else
             self.time = v
@@ -450,11 +450,9 @@ function shapeCollisionResolutionQuery:_performCircleCircleProjection(selfShape,
             else
                 self:_addContactPoint(_cachedCircleContactPoint1.x, _cachedCircleContactPoint1.y)
             end
-
-            _cachedCircleContactPoint1:sub(_cachedCircleSelfPosition, self.normal)
-        else
-            _cachedCircleSelfPosition:sub(_cachedCircleOtherPosition, self.normal)
         end
+
+        _cachedCircleOtherPosition:direction(_cachedCircleSelfPosition, self.normal)
 
         local distance = self.normal:length()
         if distance > 0 then
@@ -474,14 +472,16 @@ function shapeCollisionResolutionQuery:_performCircleCircleProjection(selfShape,
 
     if not self.collision then
         self:_clear()
+        return
     end
 
-    if self.time < self.epsilon then
-        self.normal:left(_cachedCirclePerpendicularNormal)
+    if self.time < self.epsilon and _cachedCirclePointVelocity:lengthSquared() > 0 then
+        _cachedCircleSelfPosition:direction(_cachedCircleOtherPosition, _cachedCircleSelfOtherDirection)
+        _cachedCircleSelfOtherDirection:normalize(_cachedCircleSelfOtherDirection)
         _cachedCirclePointVelocity:normalize(_cachedCircleRelativeVelocityDirection)
 
         local dot = _cachedCircleRelativeVelocityDirection:dot(self.normal)
-        if math.abs(dot) < self.epsilon then
+        if dot > -self.epsilon then
             self.collision = false
             self:_clear()
             return
@@ -834,9 +834,6 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
         --- @cast selfShape slick.collision.circle
         --- @cast otherShape slick.collision.circle
         self:_performCircleCircleProjection(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
-        if self.collision then
-            self.normal:negate(self.normal)
-        end
     elseif util.is(selfShape, circle) then
         --- @cast selfShape slick.collision.circle
         _cachedProjectCircleBumpOffset:init(0, 0)
@@ -862,9 +859,6 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
             
             self.otherOffset:add(_cachedProjectCircleBumpOffset, self.otherOffset)
             otherVelocity:multiplyScalar(self.time, _cachedProjectScaledVelocity)
-            _cachedProjectScaledVelocity:add(self.otherOffset, self.otherOffset)
-
-            self.normal:negate(self.normal)
         end
     else
         --self:_performPolygonPolygonProjection(otherShape, selfShape, otherOffset, selfOffset, otherVelocity, selfVelocity)

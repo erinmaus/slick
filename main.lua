@@ -55,20 +55,38 @@ end
 
 local normal = slick.geometry.point.new()
 local up = slick.geometry.point.new(0, 1)
+local left = slick.geometry.point.new(-1, 0)
+local right = slick.geometry.point.new(1, 0)
 local transform = slick.newTransform()
 local function movePlayer(player, world, deltaTime)
     --- @cast world slick.world
-    
+
     local isInAir = true
+    local canMoveLeft = true
+    local canMoveRight = true
     if isGravityEnabled then
-        world:queryCircle(player.x + player.w / 2, player.y + player.h + 1, player.w / 2, notPlayerFilter, query)
+        world:queryCircle(player.x + player.w / 2, player.y + player.h + 1, player.w / 2 + 1, notPlayerFilter, query)
 
         for _, result in ipairs(query.results) do
-            local d = result.normal:dot(up)
-            if d < 0 then
+            local upD = result.normal:dot(up)
+            if upD < -0.5 then
                 isInAir = false
             end
+            
+            local leftD = result.normal:dot(left)
+            print("leftD", upD)
+            if leftD > 0.8 then
+                canMoveRight = false
+            end
+            
+            local rightD = result.normal:dot(right)
+            print("rightD", rightD)
+            if rightD > 0.8 then
+                canMoveLeft = false
+            end
         end
+
+        print("canMoveLeft", canMoveLeft, "canMoveRight", canMoveRight)
     end
 
     if not isInAir and love.keyboard.isDown("w") then
@@ -86,11 +104,11 @@ local function movePlayer(player, world, deltaTime)
     end
 
     local x = 0
-    if love.keyboard.isDown("a") then
+    if love.keyboard.isDown("a") and canMoveLeft then
         x = x - 1
     end
     
-    if love.keyboard.isDown("d") then
+    if love.keyboard.isDown("d") and canMoveRight then
         x = x + 1
     end
 
@@ -187,7 +205,7 @@ local function makeLevel(world)
             slick.newBoxShape(0, h - 8, w, 8),
             slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
             slick.newPolygonMeshShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }, { w - w / 4, h, w - 8, h / 2, w - 8, h }),
-            slick.newBoxShape(w / 2 + w / 5, h - 150, w / 6, 60),
+            slick.newBoxShape(w / 2 + w / 5, h - 150, w / 5, 60),
             slick.newCircleShape(w / 2 - 64, h - 256, 128)
         )
     )

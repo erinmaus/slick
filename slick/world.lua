@@ -24,7 +24,7 @@ local function defaultWorldShapeFilterQueryFunc()
     return true
 end
 
---- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc): number, number, number, number, string
+--- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc): number, number, number, number, string?
 
 --- @class slick.world
 --- @field cache slick.cache
@@ -35,6 +35,7 @@ end
 --- @field private entities slick.entity[]
 --- @field private itemToEntity table<any, number>
 --- @field private freeList number[]
+--- @field private cachedQuery slick.worldQuery
 local world = {}
 local metatable = { __index = world }
 
@@ -76,6 +77,7 @@ function world.new(width, height, options)
         responses = {}
     }, metatable)
 
+    self.cachedQuery = worldQuery.new(self)
     
     self:addResponse("slide", responses.slide)
     self:addResponse("touch", responses.touch)
@@ -306,40 +308,49 @@ local _cachedCheckVisits = {}
 --- @param query slick.worldQuery?
 --- @return number, number, slick.worldQueryResponse[], number, slick.worldQuery
 function world:check(item, goalX, goalY, filter, query)
-    query = query or worldQuery.new(self)
+    if query then
+        query:reset()
+    else
+        query = worldQuery.new(self)
+    end
+
+    local cachedQuery = self.cachedQuery
     filter = filter or defaultWorldFilterQueryFunc
 
     local e = self:get(item)
     local x, y = e.transform.x, e.transform.y
 
-    self:project(item, x, y, goalX, goalY, filter, query)
-    if #query.results == 0 then
+    self:project(item, x, y, goalX, goalY, filter, cachedQuery)
+    if #cachedQuery.results == 0 then
+        print()
+        print()
         return goalX, goalY, query.results, #query.results, query
     end
     
     local actualX, actualY
     local bounces = 0
-    while bounces < self.options.maxBounces and #query.results > 0 do
+    local nextResponseName
+    while bounces < self.options.maxBounces and #cachedQuery.results > 0 do
         bounces = bounces + 1
 
-        local result = query.results[1]
-        local responseName = _cachedCheckVisits[result.otherShape] or (result.response == true and "slide" or result.response)
-        local nextResponseName
+        local result = cachedQuery.results[1]
+
+        query:push(result)
+
+        local responseName = nextResponseName or (result.response == true and "slide" or result.response)
 
         --- @cast responseName string
         local response = self:getResponse(responseName)
+        x, y, goalX, goalY, nextResponseName = response(self, cachedQuery, result, x, y, goalX, goalY, filter)
 
-        x, y, goalX, goalY, nextResponseName = response(self, query, result, x, y, goalX, goalY, filter)
-
-        if #query.results == 0 then
+        if #cachedQuery.results == 0 then
             actualX = goalX
             actualY = goalY
+            break
         else
             actualX = x
             actualY = y
         end
-
-        _cachedCheckVisits[result.otherShape] = nextResponseName or "touch"
     end
 
     slicktable.clear(_cachedCheckVisits)
