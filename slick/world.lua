@@ -349,6 +349,8 @@ function world:check(item, goalX, goalY, filter, query)
             actualX = x
             actualY = y
         end
+
+        break
     end
 
     slicktable.clear(_cachedCheckVisits)

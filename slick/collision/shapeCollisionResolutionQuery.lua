@@ -223,20 +223,13 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
             _cachedCirclePolygonSegment.b:add(_cachedCirclePolygonSegmentNormal, _cachedCirclePolygonSegment.b)
 
             local didIntersect = false
-            local intersection, _, _, u, v = slickmath.intersection(_cachedCircleProjectedSegment.a, _cachedCircleProjectedSegment.b, _cachedCirclePolygonSegment.a, _cachedCirclePolygonSegment.b)
+            local intersection, _, _, u, v = slickmath.intersection(_cachedCircleProjectedSegment.a, _cachedCircleProjectedSegment.b, _cachedCirclePolygonSegment.a, _cachedCirclePolygonSegment.b, self.epsilon)
             if intersection and u and v and ((slickmath.withinRange(u, 0, 1, self.epsilon)) or (slickmath.withinRange(v, 0, 1, self.epsilon))) then
                 didIntersect = true
 
                 if slickmath.withinRange(u, 0, 1, self.epsilon) then
                     if u < minT then
                         minT = u
-                        minTIndex = i
-                    end
-                end
-
-                if slickmath.withinRange(v, 0, 1, self.epsilon) then
-                    if v < minT then
-                        minT = v
                         minTIndex = i
                     end
                 end
@@ -426,6 +419,25 @@ function shapeCollisionResolutionQuery:_performCircleCircleProjection(selfShape,
 
     _cachedCirclePointSegment.a:init(_cachedCircleSelfPosition.x, _cachedCircleSelfPosition.y)
     _cachedCirclePointSegment.a:add(_cachedCirclePointVelocity, _cachedCirclePointSegment.b)
+
+    local combinedCircleRadius = selfShape.radius + otherShape.radius
+
+    local distance = _cachedCircleSelfPosition:distance(_cachedCircleOtherPosition)
+    if distance < combinedCircleRadius - self.epsilon then
+        local distance = math.sqrt(distance)
+
+        self.depth = combinedCircleRadius - distance
+        _cachedCircleOtherPosition:direction(_cachedCircleSelfPosition, self.normal)
+        self.normal:normalize(self.normal)
+
+        self.normal:multiplyScalar(self.depth, self.currentOffset)
+        self.normal:multiplyScalar(-self.depth, self.otherOffset)
+
+        self.time = 0
+        self.collision = true
+
+        return
+    end
 
     local willCollide, u, v = slickmath.lineCircleIntersection(_cachedCirclePointSegment, _cachedCircleOtherPosition, selfShape.radius + otherShape.radius, self.epsilon)
     if willCollide and u and v and (slickmath.withinRange(u, 0, 1, self.epsilon) or slickmath.withinRange(v, 0, 1, self.epsilon)) then

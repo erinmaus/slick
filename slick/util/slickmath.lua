@@ -154,15 +154,14 @@ function slickmath.intersection(a, b, c, d, E)
 
     local acx = a.x - c.x
     local acy = a.y - c.y
-
-    local bdx = c.x - a.x
-    local bdy = c.y - a.y
+    local cax = c.x - a.x
+    local cay = c.y - a.y
 
     local dcCrossAC = dcx * acy - dcy * acx
-    local dcCrossCA = dcx * bdy - dcy * bdx
-
+    local baCrossCA = bax * cay - bay * cax
+    
     local u = dcCrossAC / baCrossDC
-    local v = dcCrossCA / dcCrossBA
+    local v = baCrossCA / dcCrossBA
 
     if u < -E or u > (1 + E) or v < -E or v > (1 + E) then
         return false

@@ -17,10 +17,8 @@ local function makePlayer(world)
     local player = {
         type = "player",
 
-        --x = love.graphics.getWidth() / 2,
-        x = 536.6 + 16,
-        --y = love.graphics.getHeight() / 8,
-        y = 430,
+        x = love.graphics.getWidth() / 2,
+        y = love.graphics.getHeight() / 8,
         w = 32,
         h = 32,
         nx = 0,
@@ -35,8 +33,6 @@ local function makePlayer(world)
     x = tonumber(x or player.x)
     y = tonumber(y or player.y)
 
-    --world:add(player, x, y, slick.newBoxShape(0, 0, player.w, player.h))
-    --world:add(player, x, y, slick.newCircleShape(0, 0, player.w / 2))
     world:add(player, x, y, slick.newShapeGroup(
         slick.newBoxShape(0, 0, player.w, player.h),
         slick.newCircleShape(player.w / 2, 0, player.w / 2),
@@ -206,15 +202,18 @@ local function makeLevel(world)
         )
     )
 
+    world:add({ type = level }, slick.newTransform(w / 3, h / 3, -math.pi / 4), slick.newBoxShape(-w / 8, -30, w / 4, 60))
+
     return level
 end
 
 local world, player
 function love.load()
-    world = slick.newWorld(love.graphics.getWidth(), love.graphics.getHeight(), {
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    world = slick.newWorld(w * 2, h * 2, {
         quadTreeMaxData = 8,
-        quadTreeX = 0,
-        quadTreeY = 0
+        quadTreeX = -w,
+        quadTreeY = -h
     })
 
     makeLevel(world)

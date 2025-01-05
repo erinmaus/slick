@@ -77,7 +77,7 @@ end
 
 --- @param p slick.geometry.point
 --- @param result slick.geometry.point
---- @return number?
+--- @return number
 function segment:project(p, result)
     local distanceSquared = self.a:distanceSquared(self.b)
     if distanceSquared == 0 then
