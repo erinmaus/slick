@@ -189,24 +189,15 @@ function worldQuery:performProjection(entity, x, y, goalX, goalY, filter)
             for _, shape in ipairs(entity.shapes.shapes) do
                 _cachedShapeBounds:init(shape.bounds:left(), shape.bounds:top(), shape.bounds:right(), shape.bounds:bottom())
                 _cachedShapeBounds:move(offsetX, offsetY)
-                _cachedShapeBounds:sweep(goalX, goalY)
+                _cachedShapeBounds:sweep(goalX + shape.bounds:left() - entity.bounds:left(), goalY + shape.bounds:top() - entity.bounds:top())
 
                 if _cachedShapeBounds:overlaps(otherShape.bounds) then
                     local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
                     if response then
                         self.collisionQuery:performProjection(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
-                        for i, s in ipairs(otherShape.entity.shapes.shapes) do
-                            if s == otherShape then
-                                print("checking", otherShape.entity.item.type, "shape", i)
-                                break
-                            end
-                        end
 
                         if self.collisionQuery.collision then
-                            print("!!! collision")
                             self:_addCollision(shape, otherShape, response, _cachedSelfProjectedPosition, false)
-                        else
-                            print("no collision")
                         end
                     end
                 end

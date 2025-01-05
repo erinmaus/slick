@@ -3,7 +3,7 @@ local slickmath = require("slick.util.slickmath")
 
 --- @class slick.geometry.rectangle
 --- @field topLeft slick.geometry.point
---- @field topRight slick.geometry.point
+--- @field bottomRight slick.geometry.point
 local rectangle = {}
 local metatable = {
     __index = rectangle
@@ -15,7 +15,7 @@ local metatable = {
 --- @param y2 number?
 --- @return slick.geometry.rectangle
 function rectangle.new(x1, y1, x2, y2)
-    local result = setmetatable({}, metatable)
+    local result = setmetatable({ topLeft = point.new(), bottomRight = point.new() }, metatable)
     result:init(x1, y1, x2, y2)
 
     return result
@@ -31,8 +31,8 @@ function rectangle:init(x1, y1, x2, y2)
     y1 = y1 or 0
     y2 = y2 or y1 
 
-    self.topLeft = point.new(math.min(x1, x2), math.min(y1, y2))
-    self.bottomRight = point.new(math.max(x1, x2), math.max(y1, y2))
+    self.topLeft:init(math.min(x1, x2), math.min(y1, y2))
+    self.bottomRight:init(math.max(x1, x2), math.max(y1, y2))
 end
 
 function rectangle:left()

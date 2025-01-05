@@ -54,6 +54,7 @@ local function notPlayerFilter(item)
 end
 
 local normal = slick.geometry.point.new()
+local transform = slick.newTransform()
 local function movePlayer(player, world, deltaTime)
     --- @cast world slick.world
     
@@ -150,7 +151,8 @@ local function movePlayer(player, world, deltaTime)
     if goalX ~= player.x or goalY ~= player.y or rx ~= 0 then
         player.rotation = player.rotation + rx * deltaTime * PLAYER_ROTATION_SPEED
 
-        world:update(player, slick.newTransform(player.x, player.y, player.rotation))
+        transform:init(player.x, player.y, player.rotation)
+        world:update(player, transform)
 
         local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
         player.x, player.y = actualX, actualY
@@ -245,8 +247,7 @@ function love.update(deltaTime)
     collectgarbage("stop")
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
-    --local didMove = movePlayer(player, world, deltaTime)
-    local didMove = movePlayer(player, world, 1 / 30)
+    local didMove = movePlayer(player, world, deltaTime)
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
@@ -254,7 +255,6 @@ function love.update(deltaTime)
     if didMove then
         time = (timeAfter - timeBefore) * 1000
         memory = (memoryAfter - memoryBefore)
-        love.timer.sleep(0.1)
     end
 end
 
