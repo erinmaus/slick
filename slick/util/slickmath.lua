@@ -1,6 +1,6 @@
 local slickmath = {}
 
-slickmath.EPSILON = 1e-2
+slickmath.EPSILON = 1e-5
 
 --- @param value number
 --- @param increment number

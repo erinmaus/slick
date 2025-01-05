@@ -31,6 +31,7 @@ function entity:_updateBounds()
     local shapes = self.shapes.shapes
     if #shapes == 0 then
         self.bounds:init(0, 0, 0, 0)
+        return
     end
 
     self.bounds:init(shapes[1].bounds:left(), shapes[1].bounds:top(), shapes[1].bounds:right(), shapes[1].bounds:bottom())

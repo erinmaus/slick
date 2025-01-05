@@ -34,6 +34,7 @@ function polygonMesh:build(triangulator)
     local points = {}
     local edges = {}
 
+    local totalPoints = 0
     for _, boundary in ipairs(self.boundaries) do
         local numPoints = #boundary / 2
 
@@ -43,9 +44,11 @@ function polygonMesh:build(triangulator)
 
             table.insert(points, x)
             table.insert(points, y)
-            table.insert(edges, i)
-            table.insert(edges, i % numPoints + 1)
+            table.insert(edges, i + totalPoints)
+            table.insert(edges, i % numPoints + 1 + totalPoints)
         end
+
+        totalPoints = totalPoints + numPoints
     end
 
     points, edges = triangulator:clean(points, edges, self.cleanupOptions)

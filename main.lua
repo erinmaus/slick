@@ -54,17 +54,18 @@ local function notPlayerFilter(item)
 end
 
 local normal = slick.geometry.point.new()
+local up = slick.geometry.point.new(0, 1)
 local transform = slick.newTransform()
 local function movePlayer(player, world, deltaTime)
     --- @cast world slick.world
     
     local isInAir = true
     if isGravityEnabled then
-        local p = world:get(player)
-        world:queryRectangle(p.bounds:left(), p.bounds:bottom(), p.bounds:width(), 2, notPlayerFilter, query)
+        world:queryCircle(player.x + player.w / 2, player.y + player.h + 1, player.w / 2, notPlayerFilter, query)
 
         for _, result in ipairs(query.results) do
-            if result.normal.y > 0 then
+            local d = result.normal:dot(up)
+            if d < 0 then
                 isInAir = false
             end
         end
@@ -162,7 +163,8 @@ local function movePlayer(player, world, deltaTime)
         if isGravityEnabled then
             for _, hit in ipairs(hits) do
                 if player.isJumping then
-                    if hit.normal.y < 0 then
+                    local dot = hit.normal:dot(up)
+                    if dot >= 0 then
                         player.jumpVelocityY = 0
                     end
                 end
@@ -196,7 +198,7 @@ end
 local world, player
 function love.load()
     world = slick.newWorld(love.graphics.getWidth(), love.graphics.getHeight(), {
-        quadTreeMaxData = 4,
+        quadTreeMaxData = 8,
         quadTreeX = 0,
         quadTreeY = 0
     })
@@ -221,17 +223,28 @@ local function getCameraTransform()
     return t
 end
 
+local function touchFilter()
+    return "touch"
+end
+
+local points = {}
 function love.mousepressed(x, y, button)
     local t = getCameraTransform()
     x, y = t:inverseTransformPoint(x, y)
     if button == 1 then
-        player.x, player.y = x - 16, y - 16
-        world:update(player, player.x, player.y)
+        if love.keyboard.isDown("lshift", "rshift") then
+            player.x, player.y = world:move(player, x, y, touchFilter, query)
+        else
+            player.x, player.y = x - 16, y - 16
+            world:update(player, player.x, player.y)
+        end
     elseif button == 2 then
-        player.x, player.y = world:move(player, x, y, function() return "touch" end, query)
+        table.insert(points, x)
+        table.insert(points, y)
     end
 end
 
+local contours = {}
 function love.keypressed(key, _, isRepeat)
     if key == "tab" and not isRepeat then
         isGravityEnabled = not isGravityEnabled
@@ -239,6 +252,19 @@ function love.keypressed(key, _, isRepeat)
         isZoomEnabled = not isZoomEnabled
     elseif key == "escape" and not isRepeat then
         isQueryEnabled = not isQueryEnabled
+    elseif key == "return" and not isRepeat then
+        if #points >= 6  then
+            table.insert(contours, points)
+            points = {}
+        end
+
+        if not love.keyboard.isDown("lshift", "rshift") then
+            if #contours > 0 then
+                world:add({ type = "level" }, 0, 0, slick.newPolygonMeshShape(unpack(contours)))
+                
+                contours = {}
+            end
+        end
     end
 end
 
@@ -301,6 +327,25 @@ function love.draw()
             love.graphics.setColor(0, 1, 0, 0.5)
             love.graphics.rectangle("fill", hit.touch.x - 2, hit.touch.y - 2, 4, 4)
         end
+    end
+
+    if #contours > 0 then
+        love.graphics.setColor(1, 1, 0, 0.5)
+        for _, contour in ipairs(contours) do
+            love.graphics.line(unpack(contour))
+            love.graphics.line(contour[1], contour[2], contour[#contour - 1], contour[#contour - 2])
+        end
+    end
+    
+    if #points >= 2 then
+        local alpha = math.abs(math.sin(love.timer.getTime())) * 0.5 + 0.5
+        love.graphics.setColor(0, 1, 0, alpha)
+        if #points >= 4 then
+            love.graphics.line(unpack(points))
+        end
+
+        local x, y = t:transformPoint(love.mouse.getPosition())
+        love.graphics.line(points[#points - 1], points[#points], x, y)
     end
 
     love.graphics.pop()
