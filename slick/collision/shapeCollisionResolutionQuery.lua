@@ -382,7 +382,7 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
         end
     end
 
-    if distanceIJ >= circleRadiusSquared + self.epsilon and distanceJK >= circleRadiusSquared + self.epsilon and not willCollide then
+    if distanceIJ >= circleRadiusSquared + self.epsilon and distanceJK >= circleRadiusSquared + self.epsilon then
         self:_clear()
         return
     end
