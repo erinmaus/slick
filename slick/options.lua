@@ -14,7 +14,7 @@ local slickmath = require "slick.util.slickmath"
 local defaultOptions = {
     debug = false,
 
-    maxBounces = 2,
+    maxBounces = 8,
     minSlideDistance = 0.5,
 
     quadTreeMaxLevels = 8,

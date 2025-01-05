@@ -21,4 +21,19 @@ end
 
 slicktable.clear = clear
 
+--- @param t table
+--- @param i number?
+--- @param j number?
+local function reverse(t, i, j)
+    i = i or 1
+    j = j or #t
+
+    if i > j then
+        t[i], t[j] = t[j], t[i]
+        return reverse(t, i + 1, j - 1)
+    end
+end
+
+slicktable.reverse = reverse
+
 return slicktable

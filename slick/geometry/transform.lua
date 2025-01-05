@@ -69,8 +69,6 @@ end
 --- @param offsetX number? offset along the x axis
 --- @param offsetY number? offsete along the y axis
 function transform:setTransform(x, y, rotation, scaleX, scaleY, offsetX, offsetY)
-    assert(not self.immutable)
-
     self.x = x or self.x or 0
     self.y = y or self.y or 0
     self.rotation = rotation or self.rotation or 0

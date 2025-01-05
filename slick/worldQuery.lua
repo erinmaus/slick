@@ -48,7 +48,7 @@ function worldQuery:_performShapeQuery(shape, filter)
         local response = filter(otherShape.entity.item, otherShape)
 
         if response then
-            self.collisionQuery:perform(shape, otherShape, _cachedQueryOffset, _cachedQueryOffset, _cachedQueryVelocity, _cachedQueryVelocity)
+            self.collisionQuery:performProjection(shape, otherShape, _cachedQueryOffset, _cachedQueryOffset, _cachedQueryVelocity, _cachedQueryVelocity)
             if self.collisionQuery.collision then
                 self:_addCollision(otherShape, nil, response, shape.center, true)
             end
@@ -156,6 +156,7 @@ local _cachedOtherVelocity = point.new()
 local _cachedEntityBounds = rectangle.new()
 local _cachedShapeBounds = rectangle.new()
 local _cachedSelfPosition = point.new()
+local _cachedSelfProjectedPosition = point.new()
 local _cachedSelfOffsetPosition = point.new()
 local _cachedOtherOffset = point.new()
 
@@ -163,21 +164,20 @@ local _cachedOtherOffset = point.new()
 --- @param goalX number
 --- @param goalY number
 --- @param filter slick.worldFilterQueryFunc
-function worldQuery:perform(entity, x, y, goalX, goalY, filter)
+function worldQuery:performProjection(entity, x, y, goalX, goalY, filter)
     self:_beginQuery(entity, x, y, goalX, goalY)
 
     _cachedSelfPosition:init(entity.transform.x, entity.transform.y)
-
-    _cachedSelfOffset:init(x, y)
-    _cachedSelfPosition:direction(_cachedSelfOffset, _cachedSelfOffset)
-
-    _cachedSelfVelocity:init(goalX, goalY)
-    _cachedSelfPosition:direction(_cachedSelfVelocity, _cachedSelfVelocity)
+    _cachedSelfProjectedPosition:init(x, y)
+    _cachedSelfPosition:direction(_cachedSelfProjectedPosition, _cachedSelfOffset)
 
     local offsetX = -entity.transform.x + x
     local offsetY = -entity.transform.y + y
 
     _cachedSelfOffsetPosition:init(x, y)
+
+    _cachedSelfVelocity:init(goalX, goalY)
+    _cachedSelfOffsetPosition:direction(_cachedSelfVelocity, _cachedSelfVelocity)
 
     _cachedEntityBounds:init(entity.bounds:left(), entity.bounds:top(), entity.bounds:right(), entity.bounds:bottom())
     _cachedEntityBounds:move(offsetX, offsetY)
@@ -189,15 +189,15 @@ function worldQuery:perform(entity, x, y, goalX, goalY, filter)
             for _, shape in ipairs(entity.shapes.shapes) do
                 _cachedShapeBounds:init(shape.bounds:left(), shape.bounds:top(), shape.bounds:right(), shape.bounds:bottom())
                 _cachedShapeBounds:move(offsetX, offsetY)
-                _cachedShapeBounds:sweep(goalX, goalY)
+                _cachedShapeBounds:sweep(goalX + shape.bounds:left() - entity.bounds:left(), goalY + shape.bounds:top() - entity.bounds:top())
 
                 if _cachedShapeBounds:overlaps(otherShape.bounds) then
                     local response = filter(entity.item, otherShape.entity.item, shape, otherShape)
                     if response then
-                        self.collisionQuery:perform(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
-                        
+                        self.collisionQuery:performProjection(shape, otherShape, _cachedSelfOffset, _cachedOtherOffset, _cachedSelfVelocity, _cachedOtherVelocity)
+
                         if self.collisionQuery.collision then
-                            self:_addCollision(shape, otherShape, response, _cachedSelfOffsetPosition, false)
+                            self:_addCollision(shape, otherShape, response, _cachedSelfProjectedPosition, false)
                         end
                     end
                 end

@@ -7,6 +7,7 @@ local slick = require("slick")
 local GRAVITY_Y = 1200
 local PLAYER_SPEED = 500
 local PLAYER_JUMP_VELOCITY = 800
+local PLAYER_ROTATION_SPEED = math.pi / 2
 local isGravityEnabled = false
 local isZoomEnabled = false
 local isQueryEnabled = false
@@ -22,41 +23,61 @@ local function makePlayer(world)
         h = 32,
         nx = 0,
         ny = 0,
+        rotation = 0,
         
         jumpVelocityY = 0,
         isJumping = false
     }
 
-    --world:add(player, player.x, player.y, slick.newBoxShape(0, 0, player.w, player.h))
-    world:add(player, player.x, player.y, slick.newCircleShape(16, 16, 16))
+    local x, y = (love.filesystem.read("data.txt") or ""):match("([^%s]+)%s+([^%s]+)")
+    x = tonumber(x or player.x)
+    y = tonumber(y or player.y)
+
+    world:add(player, x, y, slick.newShapeGroup(
+        slick.newBoxShape(0, 0, player.w, player.h),
+        slick.newCircleShape(player.w / 2, 0, player.w / 2),
+        slick.newCircleShape(player.w / 2, player.h, player.w / 2)
+    ))
+
+    player.x = x
+    player.y = y
 
     return player
 end
 
+local function notPlayerFilter(item)
+    return item.type ~= "player"
+end
+
+local normal = slick.geometry.point.new()
+local up = slick.geometry.point.new(0, 1)
+local left = slick.geometry.point.new(-1, 0)
+local right = slick.geometry.point.new(1, 0)
+local transform = slick.newTransform()
 local function movePlayer(player, world, deltaTime)
     --- @cast world slick.world
-    
+
     local isInAir = true
+    local canMoveLeft = true
+    local canMoveRight = true
     if isGravityEnabled then
-        world:queryRectangle(player.x, player.y + player.h, player.w, 1, function(item)
-            return item ~= player
-        end, query)
+        world:queryCircle(player.x + player.w / 2, player.y + player.h + 1, player.w / 2 + 1, notPlayerFilter, query)
 
         for _, result in ipairs(query.results) do
-            if result.normal.y > 0 then
+            local upD = result.normal:dot(up)
+            if upD < -0.5 then
                 isInAir = false
             end
-        end
-    end
-    
-    local groundNormal = slick.geometry.point.new(0, 0)
-    if not isInAir then
-        world:queryRay(player.x + player.w / 2, player.y + player.h, 0, 1, function(item)
-            return item ~= player
-        end, query)
-
-        if #query.results >= 1 then
-            --groundNormal:init(query.results[1].normal.x, query.results[1].normal.y)
+            
+            local leftD = result.normal:dot(left)
+            if leftD > 0.8 then
+                canMoveRight = false
+            end
+            
+            local rightD = result.normal:dot(right)
+            if rightD > 0.8 then
+                canMoveLeft = false
+            end
         end
     end
 
@@ -66,12 +87,20 @@ local function movePlayer(player, world, deltaTime)
         isInAir = true
     end
 
+    local rx = 0
+    if love.keyboard.isDown("left") then
+        rx = rx - 1
+    end
+    if love.keyboard.isDown("right") then
+        rx = rx + 1
+    end
+
     local x = 0
-    if love.keyboard.isDown("a") then
+    if love.keyboard.isDown("a") and canMoveLeft then
         x = x - 1
     end
     
-    if love.keyboard.isDown("d") then
+    if love.keyboard.isDown("d") and canMoveRight then
         x = x + 1
     end
 
@@ -124,27 +153,28 @@ local function movePlayer(player, world, deltaTime)
         end
     end
 
-    local n = slick.geometry.point.new(x, y)
-    if groundNormal:lengthSquared() > 0 then
-        local d = n:dot(groundNormal)
-        groundNormal:multiplyScalar(d, n)
-    end
+    normal:init(x, y)
+    normal:normalize(normal)
+    normal:multiplyScalar(PLAYER_SPEED * deltaTime, normal)
 
-    n:normalize(n)
-    n:multiplyScalar(PLAYER_SPEED * deltaTime, n)
+    local goalX, goalY = player.x + normal.x, player.y + normal.y + offsetY
 
-    local goalX, goalY = player.x + n.x, player.y + n.y + offsetY
+    if goalX ~= player.x or goalY ~= player.y or rx ~= 0 then
+        player.rotation = player.rotation + rx * deltaTime * PLAYER_ROTATION_SPEED
 
-    if goalX ~= player.x or goalY ~= player.y then
+        transform:init(player.x, player.y, player.rotation)
+        world:update(player, transform)
+
         local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
         player.x, player.y = actualX, actualY
-        player.nx = n.x
-        player.ny = n.y + offsetY
+        player.nx = normal.x
+        player.ny = normal.y + offsetY
 
         if isGravityEnabled then
             for _, hit in ipairs(hits) do
                 if player.isJumping then
-                    if hit.normal.y < 0 then
+                    local dot = hit.normal:dot(up)
+                    if dot >= 0 then
                         player.jumpVelocityY = 0
                     end
                 end
@@ -166,21 +196,24 @@ local function makeLevel(world)
             slick.newBoxShape(w - 8, 0, 8, h),
             slick.newBoxShape(0, h - 8, w, 8),
             slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
-            slick.newPolygonShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }),
-            slick.newBoxShape(w / 2 + w / 5, h - 150, w / 6, 60),
+            slick.newPolygonMeshShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }, { w - w / 4, h, w - 8, h / 2, w - 8, h }),
+            slick.newBoxShape(w / 2 + w / 5, h - 150, w / 5, 60),
             slick.newCircleShape(w / 2 - 64, h - 256, 128)
         )
     )
+
+    world:add({ type = level }, slick.newTransform(w / 3, h / 3, -math.pi / 4), slick.newBoxShape(-w / 8, -30, w / 4, 60))
 
     return level
 end
 
 local world, player
 function love.load()
-    world = slick.newWorld(love.graphics.getWidth(), love.graphics.getHeight(), {
-        quadTreeMaxData = 4,
-        quadTreeX = 0,
-        quadTreeY = 0
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    world = slick.newWorld(w * 2, h * 2, {
+        quadTreeMaxData = 8,
+        quadTreeX = -w,
+        quadTreeY = -h
     })
 
     makeLevel(world)
@@ -203,15 +236,28 @@ local function getCameraTransform()
     return t
 end
 
+local function touchFilter()
+    return "touch"
+end
+
+local points = {}
 function love.mousepressed(x, y, button)
     local t = getCameraTransform()
     x, y = t:inverseTransformPoint(x, y)
     if button == 1 then
-        player.x, player.y = x - 16, y - 16
-        world:update(player, player.x, player.y)
+        if love.keyboard.isDown("lshift", "rshift") then
+            player.x, player.y = world:move(player, x, y, touchFilter, query)
+        else
+            player.x, player.y = x - 16, y - 16
+            world:update(player, player.x, player.y)
+        end
+    elseif button == 2 then
+        table.insert(points, x)
+        table.insert(points, y)
     end
 end
 
+local contours = {}
 function love.keypressed(key, _, isRepeat)
     if key == "tab" and not isRepeat then
         isGravityEnabled = not isGravityEnabled
@@ -219,17 +265,35 @@ function love.keypressed(key, _, isRepeat)
         isZoomEnabled = not isZoomEnabled
     elseif key == "escape" and not isRepeat then
         isQueryEnabled = not isQueryEnabled
+    elseif key == "return" and not isRepeat then
+        if #points >= 6  then
+            table.insert(contours, points)
+            points = {}
+        end
+
+        if not love.keyboard.isDown("lshift", "rshift") then
+            if #contours > 0 then
+                world:add({ type = "level" }, 0, 0, slick.newPolygonMeshShape(unpack(contours)))
+                
+                contours = {}
+            end
+        end
     end
 end
 
-local time = 0
+local time, memory = 0, 0
 function love.update(deltaTime)
-    local b = love.timer.getTime()
-    local m = movePlayer(player, world, deltaTime)
-    local a = love.timer.getTime()
+    collectgarbage("stop")
+    local memoryBefore = collectgarbage("count")
+    local timeBefore = love.timer.getTime()
+    local didMove = movePlayer(player, world, deltaTime)
+    local timeAfter = love.timer.getTime()
+    local memoryAfter = collectgarbage("count")
+    collectgarbage("restart")
     
-    if m then
-        time = (a - b) * 1000
+    if didMove then
+        time = (timeAfter - timeBefore) * 1000
+        memory = (memoryAfter - memoryBefore)
     end
 end
 
@@ -239,7 +303,7 @@ local bigFont = love.graphics.newFont(32)
 function love.draw()
     love.graphics.push("all")
     love.graphics.setFont(smallFont)
-    love.graphics.printf(string.format("Logic: %2.2f ms", time), 0, 0, love.graphics.getWidth(), "center")
+    love.graphics.printf(string.format("Logic: %2.2f ms (%.2f kb)", time, memory), 0, 0, love.graphics.getWidth(), "center")
     
     love.graphics.setFont(bigFont)
     if isGravityEnabled then
@@ -258,18 +322,15 @@ function love.draw()
     if isQueryEnabled then
         local hits = world:project(player, player.x, player.y, player.x + player.nx, player.y + player.ny)
 
-        love.graphics.setColor(1, 1, 1, 0.5)
-        love.graphics.circle("line", player.x + 16, player.y + 16, 16)
-
         for _, hit in ipairs(hits) do
             love.graphics.setColor(0, 1, 0, 1)
-            love.graphics.line(hit.contactPoint.x, hit.contactPoint.y, hit.contactPoint.x + hit.normal.x * 100, hit.contactPoint.y + hit.normal.y * 100)
+            love.graphics.line(hit.shape.center.x, hit.shape.center.y, hit.shape.center.x + hit.normal.x * 100, hit.shape.center.y + hit.normal.y * 100)
 
             local perpendicular = slick.geometry.point.new()
             hit.normal:left(perpendicular)
             
             love.graphics.setColor(1, 0, 0, 1)
-            love.graphics.line(hit.contactPoint.x - perpendicular.x * 50, hit.contactPoint.y - perpendicular.y * 50, hit.contactPoint.x + perpendicular.x * 50, hit.contactPoint.y + perpendicular.y * 50)
+            love.graphics.line(hit.shape.center.x - perpendicular.x * 50, hit.shape.center.y - perpendicular.y * 50, hit.shape.center.x + perpendicular.x * 50, hit.shape.center.y + perpendicular.y * 50)
 
             for _, point in ipairs(hit.contactPoints) do
                 love.graphics.setColor(1, 0, 0, 0.5)
@@ -281,5 +342,28 @@ function love.draw()
         end
     end
 
+    if #contours > 0 then
+        love.graphics.setColor(1, 1, 0, 0.5)
+        for _, contour in ipairs(contours) do
+            love.graphics.line(unpack(contour))
+            love.graphics.line(contour[1], contour[2], contour[#contour - 1], contour[#contour - 2])
+        end
+    end
+    
+    if #points >= 2 then
+        local alpha = math.abs(math.sin(love.timer.getTime())) * 0.5 + 0.5
+        love.graphics.setColor(0, 1, 0, alpha)
+        if #points >= 4 then
+            love.graphics.line(unpack(points))
+        end
+
+        local x, y = t:transformPoint(love.mouse.getPosition())
+        love.graphics.line(points[#points - 1], points[#points], x, y)
+    end
+
     love.graphics.pop()
+end
+
+function love.quit()
+    love.filesystem.write("data.txt", string.format("%f %f", player.x, player.y))
 end

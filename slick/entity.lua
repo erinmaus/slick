@@ -31,10 +31,11 @@ function entity:_updateBounds()
     local shapes = self.shapes.shapes
     if #shapes == 0 then
         self.bounds:init(0, 0, 0, 0)
+        return
     end
 
     self.bounds:init(shapes[1].bounds:left(), shapes[1].bounds:top(), shapes[1].bounds:right(), shapes[1].bounds:bottom())
-    for i = 2, #self.shapes do
+    for i = 2, #self.shapes.shapes do
         self.bounds:expand(shapes[i].bounds:left(), shapes[i].bounds:top())
         self.bounds:expand(shapes[i].bounds:right(), shapes[i].bounds:bottom())
     end
@@ -90,6 +91,14 @@ function entity:add(world)
 end
 
 function entity:detach()
+    if self.world then
+        for _, shape in ipairs(self.shapes.shapes) do
+            --- @cast shape slick.collision.shape
+            --- @diagnostic disable-next-line: invisible
+            self.world:_removeShape(shape)
+        end
+    end
+
     self.item = nil
 end
 

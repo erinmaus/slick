@@ -241,27 +241,27 @@ function quadTreeNode:remove(data, bounds)
 
         self.count = self.count - 1
 
+        if self.count <= self.tree.maxData then
+            self:collapse()
+        end
+
         return
     end
 
-    assert(self.uniqueData[data] ~= nil, "data is not in node")
+    if not self.uniqueData[data] then
+        return
+    end
 
     for i, d in ipairs(self.data) do
         if d == data then
             table.remove(self.data, i)
-            self.count = self.count - 1            
+            self.count = self.count - 1
 
             self.uniqueData[d] = nil
-            if self.parent and self.parent.count <= self.tree.maxData then
-                self.parent:collapse()
-            end
-
 
             return
         end
     end
-
-    assert(false, "critical logic error: unique data set and data array de-synced")
 end
 
 --- Splits the node into children nodes.
@@ -340,10 +340,6 @@ function quadTreeNode:collapse()
         end
 
         self.count = #self.data
-
-        if self.parent and self.parent.count < self.tree.maxData then
-            self.parent:collapse()
-        end
 
         return true
     end

@@ -60,7 +60,6 @@ function worldQueryResponse.less(a, b)
 end
 
 local _cachedInitItemPosition = point.new()
-local _cachedBumpOffset = point.new()
 
 --- @param shape slick.collision.shapeInterface
 --- @param otherShape slick.collision.shapeInterface?
@@ -82,12 +81,8 @@ function worldQueryResponse:init(shape, otherShape, response, position, query)
     self.depth = query.depth
     self.time = query.time
 
-    self.isProjection = position:lengthSquared() > 0
     self.offset:init(query.currentOffset.x, query.currentOffset.y)
     position:add(self.offset, self.touch)
-
-    -- self.normal:multiplyScalar(-self.query.world.options.minBounceDepth, _cachedBumpOffset)
-    -- self.touch:sub(_cachedBumpOffset, self.touch)
 
     local closestContactPointDistance = math.huge
 

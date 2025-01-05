@@ -26,7 +26,7 @@ function pool:allocate(...)
     if #self.free == 0 then
         result = self.type.new()
         result:init(...)
-
+        
         self.used[result] = true
     else
         result = table.remove(self.free, #self.free)

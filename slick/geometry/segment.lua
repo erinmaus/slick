@@ -43,17 +43,46 @@ function segment:bottom()
     return math.max(self.a.y, self.b.y)
 end
 
+--- @param delta number
+--- @param result slick.geometry.point
+function segment:lerp(delta, result)
+    result.x = self.b.x * delta + self.a.x * (1 - delta)
+    result.y = self.b.y * delta + self.a.y * (1 - delta)
+end
+
 local _cachedProjectionBMinusA = point.new()
 local _cachedProjectionPMinusA = point.new()
-local _cachedProjectionPProjectedAB = point.new()
+
+--- Unlike `project`, this treats the line segment as a line.
+--- @param p slick.geometry.point
+--- @param result slick.geometry.point
+--- @return number
+function segment:projectLine(p, result)
+    local distanceSquared = self.a:distanceSquared(self.b)
+    if distanceSquared == 0 then
+        result:init(self.a.x, self.a.y)
+        return 0
+    end
+    
+    p:sub(self.a, _cachedProjectionPMinusA)
+    self.b:sub(self.a, _cachedProjectionBMinusA)
+    
+    local t = _cachedProjectionPMinusA:dot(_cachedProjectionBMinusA) / distanceSquared
+    
+    _cachedProjectionBMinusA:multiplyScalar(t, result)
+    self.a:add(result, result)
+    
+    return t
+end
 
 --- @param p slick.geometry.point
 --- @param result slick.geometry.point
+--- @return number
 function segment:project(p, result)
     local distanceSquared = self.a:distanceSquared(self.b)
     if distanceSquared == 0 then
         result:init(self.a.x, self.a.y)
-        return
+        return 0
     end
     
     p:sub(self.a, _cachedProjectionPMinusA)
@@ -63,13 +92,15 @@ function segment:project(p, result)
     
     _cachedProjectionBMinusA:multiplyScalar(t, result)
     self.a:add(result, result)
+
+    return t
 end
 
-local _cachedDistancePProjectedAB = point.new()
+local _cachedDistanceProjectedAB = point.new()
 --- @param p slick.geometry.point
 function segment:distanceSquared(p)
-    self:project(p, _cachedDistancePProjectedAB)
-    return _cachedDistancePProjectedAB:distanceSquared(p)
+    self:project(p, _cachedDistanceProjectedAB)
+    return _cachedDistanceProjectedAB:distanceSquared(p)
 end
 
 --- @param p slick.geometry.point

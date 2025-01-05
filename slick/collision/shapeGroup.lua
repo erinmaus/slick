@@ -56,14 +56,14 @@ function shapeGroup:attach()
     local shapes = self.shapes
 
     local index = 1
-    while index < #shapes do
+    while index <= #shapes do
         local shape = shapes[index]
         if util.is(shape, polygonMesh) then
             --- @diagnostic disable-next-line: cast-type-mismatch
             --- @cast shape slick.collision.polygonMesh
             shape:build(self.entity.world.cache.triangulator)
 
-            table.remove(shape, index)
+            table.remove(shapes, index)
             for i = #shape.polygons, 1, -1 do
                 local polygon = shape.polygons[i]
                 table.insert(shapes, index, polygon)
