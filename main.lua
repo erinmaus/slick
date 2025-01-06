@@ -245,7 +245,9 @@ function love.mousepressed(x, y, button)
     local t = getCameraTransform()
     x, y = t:inverseTransformPoint(x, y)
     if button == 1 then
-        if love.keyboard.isDown("lshift", "rshift") then
+        if love.keyboard.isDown("lctrl", "rctrl") then
+            player.x, player.y = world:update(player, x, y)
+        elseif love.keyboard.isDown("lshift", "rshift") then
             player.x, player.y = world:move(player, x, y, touchFilter, query)
         else
             player.x, player.y = x - 16, y - 16
@@ -286,7 +288,8 @@ function love.update(deltaTime)
     collectgarbage("stop")
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
-    local didMove = movePlayer(player, world, 1 / 120)
+    --local didMove = movePlayer(player, world, 1 / 120)
+    local didMove = movePlayer(player, world, deltaTime)
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
@@ -294,7 +297,7 @@ function love.update(deltaTime)
     if didMove then
         time = (timeAfter - timeBefore) * 1000
         memory = (memoryAfter - memoryBefore)
-        love.timer.sleep(0.2)
+        --love.timer.sleep(0.2)
     end
 end
 

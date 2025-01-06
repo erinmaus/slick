@@ -164,8 +164,8 @@ function world:has(item)
     return self:get(item) ~= nil
 end
 
---- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): slick.entity
---- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): slick.entity
+--- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): number, number
+--- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): number, number
 function world:update(item, a, b, c)
     local e = self:get(item)
 
@@ -174,6 +174,8 @@ function world:update(item, a, b, c)
         e:setShapes(shapes)
     end
     e:setTransform(transform)
+
+    return transform.x, transform.y
 end
 
 --- @type slick.worldQuery
@@ -188,8 +190,8 @@ local _pushVisitFilter = function(_, _, shape, otherShape)
     return true
 end
 
---- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): slick.entity
---- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): slick.entity
+--- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): number, number
+--- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): number, number
 function world:push(item, a, b, c)
     local e = self:get(item)
     local transform, shapes = _getTransformShapes(e, a, b, c)
