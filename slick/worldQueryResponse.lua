@@ -142,9 +142,9 @@ function worldQueryResponse:move(other)
     other.entity = self.entity
     other.item = self.item
 
-    other.otherShape = self.shape
-    other.otherEntity = self.entity
-    other.other = self.item
+    other.otherShape = self.otherShape
+    other.otherEntity = self.otherEntity
+    other.other = self.other
 
     other.normal:init(self.normal.x, self.normal.y)
     other.depth = self.depth

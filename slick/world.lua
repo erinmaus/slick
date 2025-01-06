@@ -36,6 +36,7 @@ end
 --- @field private itemToEntity table<any, number>
 --- @field private freeList number[]
 --- @field private cachedQuery slick.worldQuery
+--- @field private cachedPushQuery slick.worldQuery
 local world = {}
 local metatable = { __index = world }
 
@@ -78,6 +79,7 @@ function world.new(width, height, options)
     }, metatable)
 
     self.cachedQuery = worldQuery.new(self)
+    self.cachedPushQuery = worldQuery.new(self)
     
     self:addResponse("slide", responses.slide)
     self:addResponse("touch", responses.touch)
@@ -173,6 +175,60 @@ function world:update(item, a, b, c)
     end
     e:setTransform(transform)
 end
+
+--- @type slick.worldQuery
+local _cachedPushVisits
+local _pushVisitFilter = function(_, _, shape, otherShape)
+    for _, result in ipairs(_cachedPushVisits.results) do
+        if result.shape == shape and result.otherShape == otherShape then
+            return false
+        end
+    end
+
+    return true
+end
+
+--- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): slick.entity
+--- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): slick.entity
+function world:push(item, a, b, c)
+    local e = self:get(item)
+    local transform, shapes = _getTransformShapes(e, a, b, c)
+    self:update(item, transform, shapes)
+
+    local cachedQuery = self.cachedQuery
+    local x, y = transform.x, transform.y
+    
+    local visited = self.cachedPushQuery
+    visited:reset()
+    _cachedPushVisits = visited
+
+    self:project(item, x, y, x, y, _pushVisitFilter, cachedQuery)
+    while #cachedQuery.results > 0 do
+        local result = cachedQuery.results[1]
+        for i = 1, #e.shapes.shapes do
+            if e.shapes.shapes[i] == result.shape then
+                print("i", i)
+                break
+            end
+        end
+
+        x, y = result.touch.x, result.touch.y
+        
+        visited:push(result)
+        self:project(item, x, y, x, y, _pushVisitFilter, cachedQuery)
+    end
+
+    if shapes then
+        e:setShapes(shapes)
+    end
+
+    transform:setTransform(x, y)
+    e:setTransform(transform)
+
+    return x, y
+end
+
+world.wiggle = world.push
 
 --- @param deltaTime number
 function world:frame(deltaTime)
@@ -299,8 +355,6 @@ function world:queryCircle(x, y, radius, filter, query)
     return query.results, #query.results, query
 end
 
-local _cachedCheckVisits = {}
-
 --- @param item any
 --- @param goalX number
 --- @param goalY number
@@ -353,7 +407,6 @@ function world:check(item, goalX, goalY, filter, query)
         break
     end
 
-    slicktable.clear(_cachedCheckVisits)
     return actualX, actualY, query.results, #query.results, query
 end
 

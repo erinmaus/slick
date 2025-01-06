@@ -195,6 +195,12 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
     local minS = math.huge
     local minSIndex
 
+    local inside = true
+    local edge = false
+
+    local minD = math.huge
+    local minDIndex
+
     for i = 1, polygonShape.vertexCount do
         local j = slickmath.wrap(i, 1, polygonShape.vertexCount)
 
@@ -204,6 +210,16 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
 
         a:add(polygonOffset, _cachedCirclePolygonSegment.a)
         b:add(polygonOffset, _cachedCirclePolygonSegment.b)
+
+        if slickmath.direction(a, b, _cachedCircleCenter) > 0 then
+            inside = false
+        end
+
+        local d = _cachedCirclePolygonSegment:distanceSquared(_cachedCircleCenter)
+        if d < minD then
+            minD = d
+            minDIndex = i
+        end
     
         local intersection, u, v = slickmath.lineCircleIntersection(_cachedCirclePolygonSegment, _cachedCircleCenter, circleShape.radius, self.epsilon)
         if intersection and u and v and (slickmath.withinRange(u, 0, 1, self.epsilon) or slickmath.withinRange(v, 0, 1, self.epsilon)) then
@@ -216,6 +232,8 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
                 minS = v
                 minSIndex = i
             end
+
+            edge = true
         else
             n:multiplyScalar(-circleShape.radius, _cachedCirclePolygonSegmentNormal)
 
@@ -264,6 +282,21 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
                 end
             end
         end
+    end
+
+    if inside then
+        local n = polygonShape.normals[minDIndex]
+        self.normal:init(n.x, n.y)
+
+        local distanceFromEdge = math.sqrt(minD)
+        if inside then
+            self.depth = distanceFromEdge + circleShape.radius
+            self.normal:multiplyScalar(-self.depth, circleBumpOffset)
+        end
+
+        self.time = 0
+        self.collision = true
+        return
     end
 
     if minT == math.huge and minS == math.huge then
@@ -424,8 +457,6 @@ function shapeCollisionResolutionQuery:_performCircleCircleProjection(selfShape,
 
     local distance = _cachedCircleSelfPosition:distance(_cachedCircleOtherPosition)
     if distance < combinedCircleRadius - self.epsilon then
-        local distance = math.sqrt(distance)
-
         self.depth = combinedCircleRadius - distance
         _cachedCircleOtherPosition:direction(_cachedCircleSelfPosition, self.normal)
         self.normal:normalize(self.normal)
@@ -644,7 +675,7 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         _cachedDirection:normalize(_cachedDirection)
 
         isSelfMovingTowardsOther = _cachedDirection:dot(self.normal) < 0
-        if isSelfMovingTowardsOther then
+        if not isSelfMovingTowardsOther then
             self.normal:negate(self.normal)
         end
     end
@@ -886,7 +917,6 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
             otherVelocity:multiplyScalar(self.time, _cachedProjectScaledVelocity)
         end
     else
-        --self:_performPolygonPolygonProjection(otherShape, selfShape, otherOffset, selfOffset, otherVelocity, selfVelocity)
         self:_performPolygonPolygonProjection(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
     end
 

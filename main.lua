@@ -34,7 +34,7 @@ local function makePlayer(world)
     y = tonumber(y or player.y)
 
     world:add(player, x, y, slick.newShapeGroup(
-        slick.newBoxShape(0, 0, player.w, player.h),
+        --slick.newBoxShape(0, 0, player.w, player.h),
         slick.newCircleShape(player.w / 2, 0, player.w / 2),
         slick.newCircleShape(player.w / 2, player.h, player.w / 2)
     ))
@@ -249,7 +249,7 @@ function love.mousepressed(x, y, button)
             player.x, player.y = world:move(player, x, y, touchFilter, query)
         else
             player.x, player.y = x - 16, y - 16
-            world:update(player, player.x, player.y)
+            player.x, player.y = world:push(player, player.x, player.y)
         end
     elseif button == 2 then
         table.insert(points, x)
@@ -286,7 +286,7 @@ function love.update(deltaTime)
     collectgarbage("stop")
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
-    local didMove = movePlayer(player, world, deltaTime)
+    local didMove = movePlayer(player, world, 1 / 120)
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
@@ -294,6 +294,7 @@ function love.update(deltaTime)
     if didMove then
         time = (timeAfter - timeBefore) * 1000
         memory = (memoryAfter - memoryBefore)
+        love.timer.sleep(0.2)
     end
 end
 
