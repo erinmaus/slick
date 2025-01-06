@@ -142,6 +142,8 @@ local _cachedCirclePolygonRelativeVelocityDirection = point.new()
 local _cachedCirclePolygonProjectedLine = point.new()
 local _cachedCirclePolygonProjectedSegment = point.new()
 local _cachedCirclePolygonProjectedLineOffset = point.new()
+local _cachedCirclePolygonProjectedPoint = point.new()
+local _cachedCirclePolygonNormal = point.new()
 
 --- @private
 --- @param i number
@@ -180,7 +182,7 @@ end
 --- @param circleVelocity slick.geometry.point
 --- @param polygonVelocity slick.geometry.point
 --- @param circleBumpOffset slick.geometry.point
-function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleShape, polygonShape, circleOffset, polygonOffset, circleVelocity, polygonVelocity, circleBumpOffset)
+function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleShape, polygonShape, circleOffset, polygonOffset, circleVelocity, polygonVelocity, circleBumpOffset, polygonBumpOffset, selfShape)
     circleVelocity:sub(polygonVelocity, _cachedCirclePolygonRelativeVelocity)
     circleShape.center:add(circleOffset, _cachedCircleCenter)
 
@@ -195,9 +197,11 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
     local minS = math.huge
     local minSIndex
 
-    local inside = true
+    local circleInsidePolygon = true
+    local polygonInsideCircle = false
 
     local minD = math.huge
+    local maxD = -math.huge
     local minDIndex
 
     for i = 1, polygonShape.vertexCount do
@@ -211,13 +215,24 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
         b:add(polygonOffset, _cachedCirclePolygonSegment.b)
 
         if slickmath.direction(a, b, _cachedCircleCenter) > 0 then
-            inside = false
+            circleInsidePolygon = false
         end
 
         local d = _cachedCirclePolygonSegment:distanceSquared(_cachedCircleCenter)
         if d < minD then
             minD = d
             minDIndex = i
+        end
+
+        if d > maxD then
+            maxD = d
+        end
+
+        local distanceASquared = _cachedCirclePolygonSegment.a:distanceSquared(_cachedCircleCenter)
+        local distanceBSquared = _cachedCirclePolygonSegment.b:distanceSquared(_cachedCircleCenter)
+
+        if distanceASquared <= circleRadiusSquared or distanceBSquared <= circleRadiusSquared then
+            polygonInsideCircle = true
         end
     
         local intersection, u, v = slickmath.lineCircleIntersection(_cachedCirclePolygonSegment, _cachedCircleCenter, circleShape.radius, self.epsilon)
@@ -231,6 +246,8 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
                 minS = v
                 minSIndex = i
             end
+
+            polygonInsideCircle = true
         else
             n:multiplyScalar(-circleShape.radius, _cachedCirclePolygonSegmentNormal)
 
@@ -281,13 +298,57 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
         end
     end
 
-    if inside then
-        local n = polygonShape.normals[minDIndex]
-        self.normal:init(n.x, n.y)
+    if (minT == math.huge and minS > self.epsilon and circleInsidePolygon) or (polygonInsideCircle and minD + self.epsilon < circleRadiusSquared) then
+        local maxDistanceFromEdge = math.sqrt(maxD)
+        local minDistanceFromEdge = math.sqrt(minD)
 
-        local distanceFromEdge = math.sqrt(minD)
-        self.depth = distanceFromEdge + circleShape.radius
-        self.normal:multiplyScalar(-self.depth, circleBumpOffset)
+        if circleInsidePolygon then
+            local depth = minDistanceFromEdge + circleShape.radius
+
+            local n = polygonShape.normals[minDIndex]
+            _cachedCirclePolygonNormal:init(n.x, n.y)
+            _cachedCirclePolygonNormal:multiplyScalar(depth, circleBumpOffset)
+
+            if circleShape == selfShape then
+                self.depth = depth
+                self.normal:init(_cachedCirclePolygonNormal.x, _cachedCirclePolygonNormal.y)
+            end
+        end
+
+        if polygonInsideCircle then
+            _cachedCirclePolygonSegment:init(
+                polygonShape.vertices[minDIndex],
+                polygonShape.vertices[slickmath.wrap(minDIndex, 1, polygonShape.vertexCount)])
+            _cachedCirclePolygonSegment.a:add(polygonOffset, _cachedCirclePolygonSegment.a)
+            _cachedCirclePolygonSegment.b:add(polygonOffset, _cachedCirclePolygonSegment.b)
+
+            _cachedCirclePolygonSegment:project(_cachedCircleCenter, _cachedCirclePolygonProjectedPoint)
+            _cachedCirclePolygonProjectedPoint:direction(_cachedCircleCenter, _cachedCirclePolygonNormal)
+            _cachedCirclePolygonNormal:normalize(_cachedCirclePolygonNormal)
+            local isInExactCenter = _cachedCirclePolygonNormal:lengthSquared() == 0
+
+            local distanceFromProjectedPoint = _cachedCirclePolygonProjectedPoint:distance(_cachedCircleCenter)
+            local depth = circleShape.radius - distanceFromProjectedPoint
+            if circleInsidePolygon and not isInExactCenter and maxDistanceFromEdge < circleShape.radius then
+                local distanceFromEdge = minDistanceFromEdge + maxDistanceFromEdge
+                depth = depth + distanceFromEdge
+            end
+
+            if isInExactCenter then
+                _cachedCirclePolygonNormal:init(0, 1)
+            end
+
+            _cachedCirclePolygonNormal:multiplyScalar(-depth, polygonBumpOffset)
+            
+            if polygonShape == selfShape then
+                self.depth = depth
+                self.normal:init(_cachedCirclePolygonNormal.x, _cachedCirclePolygonNormal.y)
+            elseif circleShape == selfShape and not circleInsidePolygon then
+                _cachedCirclePolygonNormal:multiplyScalar(depth, circleBumpOffset)
+                self.depth = depth
+                self.normal:init(_cachedCirclePolygonNormal.x, _cachedCirclePolygonNormal.y)
+            end
+        end
 
         self.time = 0
         self.collision = true
@@ -401,7 +462,7 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
         end
     end
 
-    if not moved then
+    if self.time < self.epsilon and not moved then
         _cachedCirclePolygonRelativeVelocity:normalize(_cachedCirclePolygonRelativeVelocityDirection)
         local velocityDotNormal = _cachedCirclePolygonRelativeVelocityDirection:dot(self.normal)
         if velocityDotNormal >= -self.epsilon and _cachedCirclePolygonRelativeVelocityDirection:lengthSquared() > 0 then
@@ -450,6 +511,10 @@ function shapeCollisionResolutionQuery:_performCircleCircleProjection(selfShape,
         self.depth = combinedCircleRadius - distance
         _cachedCircleOtherPosition:direction(_cachedCircleSelfPosition, self.normal)
         self.normal:normalize(self.normal)
+
+        if self.normal:lengthSquared() == 0 then
+            self.normal:init(0, 1)
+        end
 
         self.normal:multiplyScalar(self.depth, self.currentOffset)
         self.normal:multiplyScalar(-self.depth, self.otherOffset)
@@ -543,6 +608,8 @@ local _cachedSelfVelocityMinusOffset = point.new()
 local _cachedDirection = point.new()
 local _cachedSelfVelocityDirection = point.new()
 local _cachedOtherVelocityDirection = point.new()
+local _cachedSelfShapeCenter = point.new()
+local _cachedOtherShapeCenter = point.new()
 
 local _cachedSegmentA = segment.new()
 local _cachedSegmentB = segment.new()
@@ -685,7 +752,7 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         end
         
         local areShapesMovingApart = selfSpeed == 0 or otherSpeed == 0 or _cachedSelfVelocityDirection:dot(_cachedOtherVelocityDirection) <= self.epsilon
-        local isOtherShapeMovingAwayFromEdge = _cachedSelfVelocityDirection:dot(self.normal) < self.epsilon
+        local isOtherShapeMovingAwayFromEdge = _cachedSelfVelocityDirection:dot(self.normal) > -self.epsilon
         local isSelfShapeMovingFasterishThanOtherShape = selfSpeed >= otherSpeed
         local isMoving = selfSpeed > 0 or otherSpeed > 0
 
@@ -790,8 +857,6 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
     self.collision = true
 end
 
-local _cachedProjectCircleBumpOffset = point.new()
-
 --- @private
 --- @param index number
 --- @return slick.collision.shapeCollisionResolutionQueryAxis
@@ -865,6 +930,8 @@ function shapeCollisionResolutionQuery:_compareIntervals(axis)
     return true
 end
 
+local _cachedProjectCircleBumpOffset = point.new()
+local _cachedProjectPolygonBumpOffset = point.new()
 local _cachedProjectScaledVelocity = point.new()
 
 --- @param selfShape slick.collision.shapeInterface
@@ -883,9 +950,11 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
     elseif util.is(selfShape, circle) then
         --- @cast selfShape slick.collision.circle
         _cachedProjectCircleBumpOffset:init(0, 0)
-        self:_performCirclePolygonProjection(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity, _cachedProjectCircleBumpOffset)
+        _cachedProjectPolygonBumpOffset:init(0, 0)
+        self:_performCirclePolygonProjection(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity, _cachedProjectCircleBumpOffset, _cachedProjectPolygonBumpOffset, selfShape)
         if self.collision then
             self.currentOffset:add(_cachedProjectCircleBumpOffset, self.currentOffset)
+            self.otherOffset:add(_cachedProjectPolygonBumpOffset, self.otherOffset)
             
             selfVelocity:multiplyScalar(self.time, _cachedProjectScaledVelocity)
             _cachedProjectScaledVelocity:add(self.currentOffset, self.currentOffset)
@@ -896,9 +965,11 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
     elseif util.is(otherShape, circle) then
         --- @cast otherShape slick.collision.circle
         _cachedProjectCircleBumpOffset:init(0, 0)
-        self:_performCirclePolygonProjection(otherShape, selfShape, otherOffset, selfOffset, otherVelocity, selfVelocity, _cachedProjectCircleBumpOffset)
+        _cachedProjectPolygonBumpOffset:init(0, 0)
+        self:_performCirclePolygonProjection(otherShape, selfShape, otherOffset, selfOffset, otherVelocity, selfVelocity, _cachedProjectCircleBumpOffset, _cachedProjectPolygonBumpOffset, selfShape)
         if self.collision then
-            _cachedProjectCircleBumpOffset:negate(self.currentOffset)
+            self.currentOffset:add(_cachedProjectPolygonBumpOffset, self.currentOffset)
+            self.otherOffset:add(_cachedProjectCircleBumpOffset, self.otherOffset)
 
             selfVelocity:multiplyScalar(self.time, _cachedProjectScaledVelocity)
             _cachedProjectScaledVelocity:add(self.currentOffset, self.currentOffset)

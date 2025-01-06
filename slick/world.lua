@@ -178,18 +178,6 @@ function world:update(item, a, b, c)
     return transform.x, transform.y
 end
 
---- @type slick.worldQuery
-local _cachedPushVisits
-local _pushVisitFilter = function(_, _, shape, otherShape)
-    for _, result in ipairs(_cachedPushVisits.results) do
-        if result.shape == shape and result.otherShape == otherShape then
-            return false
-        end
-    end
-
-    return true
-end
-
 --- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): number, number
 --- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): number, number
 function world:push(item, a, b, c)
@@ -199,29 +187,49 @@ function world:push(item, a, b, c)
 
     local cachedQuery = self.cachedQuery
     local x, y = transform.x, transform.y
+    local originalX, originalY = x, y
     
     local visited = self.cachedPushQuery
     visited:reset()
-    _cachedPushVisits = visited
 
-    self:project(item, x, y, x, y, _pushVisitFilter, cachedQuery)
+    self:project(item, x, y, x, y, nil, cachedQuery)
     while #cachedQuery.results > 0 do
-        local result = cachedQuery.results[1]
-        for i = 1, #e.shapes.shapes do
-            if e.shapes.shapes[i] == result.shape then
-                print("i", i)
+        --- @type slick.worldQueryResponse
+        local result
+        for _, r in ipairs(cachedQuery.results) do
+            if r.offset:lengthSquared() > 0 then
+                result = r
                 break
             end
         end
 
-        x, y = result.touch.x, result.touch.y
+        if not result then
+            break
+        end
+
+        local count = 0
+        for _, visitedResult in ipairs(visited.results) do
+            if visitedResult.shape == result.shape and visitedResult.otherShape == result.otherShape then
+                count = count + 1
+            end
+        end
+
+        local pushFactor = 1.1 ^ count
+        local offsetX, offsetY = result.offset.x, result.offset.y
+        offsetX = offsetX * pushFactor
+        offsetY = offsetY * pushFactor
+
+        x = x + offsetX
+        y = y + offsetY
         
         visited:push(result)
-        self:project(item, x, y, x, y, _pushVisitFilter, cachedQuery)
+        self:project(item, x, y, x, y, nil, cachedQuery)
     end
 
-    if shapes then
-        e:setShapes(shapes)
+    self:project(item, x, y, originalX, originalY, nil, cachedQuery)
+    if #cachedQuery.results >= 1 then
+        local result = cachedQuery.results[1]
+        x, y = result.touch.x, result.touch.y
     end
 
     transform:setTransform(x, y)

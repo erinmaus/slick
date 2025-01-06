@@ -29,18 +29,11 @@ local function makePlayer(world)
         isJumping = false
     }
 
-    local x, y = (love.filesystem.read("data.txt") or ""):match("([^%s]+)%s+([^%s]+)")
-    x = tonumber(x or player.x)
-    y = tonumber(y or player.y)
-
-    world:add(player, x, y, slick.newShapeGroup(
-        --slick.newBoxShape(0, 0, player.w, player.h),
+    world:add(player, player.x, player.y, slick.newShapeGroup(
+        slick.newBoxShape(0, 0, player.w, player.h),
         slick.newCircleShape(player.w / 2, 0, player.w / 2),
         slick.newCircleShape(player.w / 2, player.h, player.w / 2)
     ))
-
-    player.x = x
-    player.y = y
 
     return player
 end
@@ -244,6 +237,7 @@ local points = {}
 function love.mousepressed(x, y, button)
     local t = getCameraTransform()
     x, y = t:inverseTransformPoint(x, y)
+
     if button == 1 then
         if love.keyboard.isDown("lctrl", "rctrl") then
             player.x, player.y = world:update(player, x, y)
@@ -350,7 +344,7 @@ function love.draw()
         love.graphics.setColor(1, 1, 0, 0.5)
         for _, contour in ipairs(contours) do
             love.graphics.line(unpack(contour))
-            love.graphics.line(contour[1], contour[2], contour[#contour - 1], contour[#contour - 2])
+            love.graphics.line(contour[1], contour[2], contour[#contour - 1], contour[#contour])
         end
     end
     
@@ -366,8 +360,4 @@ function love.draw()
     end
 
     love.graphics.pop()
-end
-
-function love.quit()
-    love.filesystem.write("data.txt", string.format("%f %f", player.x, player.y))
 end
