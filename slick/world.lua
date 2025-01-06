@@ -14,7 +14,7 @@ local slickmath = require("slick.util.slickmath")
 local slicktable = require("slick.util.slicktable")
 local circle     = require("slick.collision.circle")
 
---- @alias slick.worldFilterQueryFunc fun(item: any, other: any, shape: slick.collision.shape, otherShape: slick.collision.shape): string | false
+--- @alias slick.worldFilterQueryFunc fun(item: any, other: any, shape: slick.collision.shape, otherShape: slick.collision.shape): string | slick.worldVisitFunc | false
 local function defaultWorldFilterQueryFunc()
     return "slide"
 end
@@ -25,6 +25,7 @@ local function defaultWorldShapeFilterQueryFunc()
 end
 
 --- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc): number, number, number, number, string?
+--- @alias slick.worldVisitFunc fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number): string
 
 --- @class slick.world
 --- @field cache slick.cache
@@ -365,6 +366,8 @@ function world:queryCircle(x, y, radius, filter, query)
     return query.results, #query.results, query
 end
 
+local _cachedRemappedHandlers = {}
+
 --- @param item any
 --- @param goalX number
 --- @param goalY number
@@ -377,6 +380,8 @@ function world:check(item, goalX, goalY, filter, query)
     else
         query = worldQuery.new(self)
     end
+
+    slicktable.clear(_cachedRemappedHandlers)
 
     local cachedQuery = self.cachedQuery
     filter = filter or defaultWorldFilterQueryFunc
@@ -391,21 +396,41 @@ function world:check(item, goalX, goalY, filter, query)
     
     local actualX, actualY
     local bounces = 0
-    local nextResponseName
     while bounces < self.options.maxBounces and #cachedQuery.results > 0 do
         bounces = bounces + 1
 
         local result = cachedQuery.results[1]
 
+        local shape = result.shape
+        local otherShape = result.otherShape
+
         query:push(result)
 
-        local responseName = nextResponseName or (result.response == true and "slide" or result.response)
+        --- @type string
+        local responseName = "slide"
+        if not responseName then
+            if type(result.response) == "function" or type(result.response) == "table" then
+                responseName = result.response(item, world, query, result, x, y, goalX, goalY)
+            elseif type(result.response) == "string" then
+                --- @diagnostic disable-next-line: cast-local-type
+                responseName = result.response
+            end
+        end
+
+        assert(type(responseName) == "string", "expect name of response handler as string")
 
         --- @cast responseName string
         local response = self:getResponse(responseName)
-        x, y, goalX, goalY, nextResponseName = response(self, cachedQuery, result, x, y, goalX, goalY, filter)
 
-        if #cachedQuery.results == 0 then
+        local remappedResponseName
+        x, y, goalX, goalY, remappedResponseName = response(self, cachedQuery, result, x, y, goalX, goalY, filter)
+        
+        _cachedRemappedHandlers[responseName] = remappedResponseName
+
+        local isStationary = x == goalX and y == goalY
+        local isSameCollision = #cachedQuery.results >= 1 and cachedQuery.results[1].shape == shape and cachedQuery.results[1].otherShape == otherShape
+        local hasNoCollisions = #cachedQuery.results == 0
+        if hasNoCollisions or (isSameCollision and isStationary) then
             actualX = goalX
             actualY = goalY
             break
@@ -413,8 +438,6 @@ function world:check(item, goalX, goalY, filter, query)
             actualX = x
             actualY = y
         end
-
-        break
     end
 
     return actualX, actualY, query.results, #query.results, query

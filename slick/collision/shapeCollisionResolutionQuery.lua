@@ -194,6 +194,8 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
     local minT = math.huge
     local minTIndex
 
+    local maxT = -math.huge
+
     local minS = math.huge
     local minSIndex
 
@@ -232,7 +234,7 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
         local distanceBSquared = _cachedCirclePolygonSegment.b:distanceSquared(_cachedCircleCenter)
 
         if distanceASquared <= circleRadiusSquared or distanceBSquared <= circleRadiusSquared then
-            polygonInsideCircle = true
+            polygonInsideCircle = true--math.sqrt(distanceASquared) - circleShape.radius > self.epsilon
         end
     
         local intersection, u, v = slickmath.lineCircleIntersection(_cachedCirclePolygonSegment, _cachedCircleCenter, circleShape.radius, self.epsilon)
@@ -277,12 +279,20 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
                         minTIndex = i
                     end
                 end
+
+                if u > maxT then
+                    maxT = u
+                end
                 
                 if slickmath.withinRange(v, 0, 1, self.epsilon) then
                     if v < minT then
                         minT = v
                         minTIndex = i
                     end
+                end
+
+                if v > maxT then
+                    maxT = v
                 end
             end
 
@@ -350,9 +360,11 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
             end
         end
 
-        self.time = 0
-        self.collision = true
-        return
+        if self.depth > self.epsilon then
+            self.time = 0
+            self.collision = true
+            return
+        end
     end
 
     if minT == math.huge and minS == math.huge then
@@ -361,7 +373,7 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
     end
 
     local index = minTIndex or minSIndex
-    if minS < math.huge then
+    if minT == math.huge then
         minT = 0
     end
 

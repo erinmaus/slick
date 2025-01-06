@@ -11,7 +11,6 @@ local PLAYER_ROTATION_SPEED = math.pi / 2
 local isGravityEnabled = false
 local isZoomEnabled = false
 local isQueryEnabled = false
-local query
 
 local function makePlayer(world)
     local player = {
@@ -26,14 +25,27 @@ local function makePlayer(world)
         rotation = 0,
         
         jumpVelocityY = 0,
-        isJumping = false
+        isJumping = false,
+
+        visited = {}
     }
 
-    world:add(player, player.x, player.y, slick.newShapeGroup(
+    player.luigini = slick.newShapeGroup(
         slick.newBoxShape(0, 0, player.w, player.h),
         slick.newCircleShape(player.w / 2, 0, player.w / 2),
         slick.newCircleShape(player.w / 2, player.h, player.w / 2)
-    ))
+    )
+
+    player.lonk = slick.newCircleShape(0, 0, player.w / 2)
+
+    local x, y = (love.filesystem.read("position.txt") or ""):match("([^%s]+)%s+([^%s]+)")
+    x = x and tonumber(x)
+    y = y and tonumber(y)
+
+    player.x = x or player.x
+    player.y = y or player.y
+
+    world:add(player, player.x, player.y, player.lonk)
 
     return player
 end
@@ -63,12 +75,12 @@ local function movePlayer(player, world, deltaTime)
             end
             
             local leftD = result.normal:dot(left)
-            if leftD > 0.8 then
+            if leftD > 0.9 then
                 canMoveRight = false
             end
             
             local rightD = result.normal:dot(right)
-            if rightD > 0.8 then
+            if rightD > 0.9 then
                 canMoveLeft = false
             end
         end
@@ -158,6 +170,7 @@ local function movePlayer(player, world, deltaTime)
         transform:init(player.x, player.y, player.rotation)
         world:update(player, transform)
 
+        slick.util.table.clear(player.visited)
         local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
         player.x, player.y = actualX, actualY
         player.nx = normal.x
@@ -191,7 +204,8 @@ local function makeLevel(world)
             slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
             slick.newPolygonMeshShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }, { w - w / 4, h, w - 8, h / 2, w - 8, h }),
             slick.newBoxShape(w / 2 + w / 5, h - 150, w / 5, 60),
-            slick.newCircleShape(w / 2 - 64, h - 256, 128)
+            slick.newCircleShape(w / 2 - 64, h - 256, 128),
+            slick.newPolygonMeshShape({ w / 2 + w / 4, h / 4, w / 2 + w / 4 + w / 8, h / 4 + h / 8, w / 2 + w / 4, h / 4 + h / 4, w / 2 + w / 4 + w / 16, h / 4 + h / 8 })
         )
     )
 
@@ -208,6 +222,8 @@ function love.load()
         quadTreeX = -w,
         quadTreeY = -h
     })
+
+    world:addResponse("corner", corner)
 
     makeLevel(world)
     
@@ -257,6 +273,12 @@ local contours = {}
 function love.keypressed(key, _, isRepeat)
     if key == "tab" and not isRepeat then
         isGravityEnabled = not isGravityEnabled
+
+        if isGravityEnabled then
+            player.x, player.y = world:push(player, player.x, player.y, player.luigini)
+        else
+            player.x, player.y = world:push(player, player.x, player.y, player.lonk)
+        end
     elseif key == "`" and not isRepeat then
         isZoomEnabled = not isZoomEnabled
     elseif key == "escape" and not isRepeat then
@@ -282,7 +304,6 @@ function love.update(deltaTime)
     collectgarbage("stop")
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
-    --local didMove = movePlayer(player, world, 1 / 120)
     local didMove = movePlayer(player, world, deltaTime)
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
@@ -291,7 +312,6 @@ function love.update(deltaTime)
     if didMove then
         time = (timeAfter - timeBefore) * 1000
         memory = (memoryAfter - memoryBefore)
-        --love.timer.sleep(0.2)
     end
 end
 
@@ -305,9 +325,9 @@ function love.draw()
     
     love.graphics.setFont(bigFont)
     if isGravityEnabled then
-        love.graphics.printf("2D Mario Platformer Mode", 0, 32, love.graphics.getWidth(), "center")
+        love.graphics.printf("2D Luigini Platformer Mode", 0, 32, love.graphics.getWidth(), "center")
     else
-        love.graphics.printf("2D Top-Down Zelda Mode", 0, 32, love.graphics.getWidth(), "center")
+        love.graphics.printf("2D Top-Down Lönk Mode", 0, 32, love.graphics.getWidth(), "center")
     end
     
     love.graphics.setFont(smallFont)
@@ -360,4 +380,8 @@ function love.draw()
     end
 
     love.graphics.pop()
+end
+
+function love.quit()
+    love.filesystem.write("position.txt", string.format("%e %e", player.x, player.y))
 end

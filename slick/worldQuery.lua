@@ -245,7 +245,7 @@ end
 --- @private
 --- @param shape slick.collision.shapeInterface
 --- @param otherShape slick.collision.shapeInterface?
---- @param response string | boolean
+--- @param response string | slick.worldVisitFunc | boolean
 --- @param primitive boolean
 function worldQuery:_addCollision(shape, otherShape, response, offset, primitive)
     local index = #self.results + 1

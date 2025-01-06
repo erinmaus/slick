@@ -4,7 +4,7 @@ local segment = require("slick.geometry.segment")
 
 --- @class slick.worldQueryResponse
 --- @field query slick.worldQuery
---- @field response string | true
+--- @field response string | slick.worldVisitFunc | true
 --- @field item any
 --- @field entity slick.entity
 --- @field shape slick.collision.shape
@@ -63,7 +63,7 @@ local _cachedInitItemPosition = point.new()
 
 --- @param shape slick.collision.shapeInterface
 --- @param otherShape slick.collision.shapeInterface?
---- @param response string | boolean
+--- @param response string | slick.worldVisitFunc | true
 --- @param position slick.geometry.point
 --- @param query slick.collision.shapeCollisionResolutionQuery
 function worldQueryResponse:init(shape, otherShape, response, position, query)
