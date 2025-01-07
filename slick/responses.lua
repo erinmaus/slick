@@ -35,7 +35,7 @@ local function slide(world, query, response, x, y, goalX, goalY, filter)
     local newGoalY = _cachedSlideNewGoalPosition.y
 
     world:project(response.item, response.touch.x, response.touch.y, newGoalX, newGoalY, filter, query)
-    return response.touch.x, response.touch.y, newGoalX, newGoalY, "slide"
+    return response.touch.x, response.touch.y, newGoalX, newGoalY, "touch"
 end
 
 --- @param world slick.world

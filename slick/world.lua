@@ -415,11 +415,14 @@ function world:check(item, goalX, goalY, filter, query)
                 --- @diagnostic disable-next-line: cast-local-type
                 responseName = result.response
             end
+
         end
+
+        --- @cast responseName string
+        responseName = _cachedRemappedHandlers[responseName] or responseName
 
         assert(type(responseName) == "string", "expect name of response handler as string")
 
-        --- @cast responseName string
         local response = self:getResponse(responseName)
 
         local remappedResponseName
