@@ -452,6 +452,7 @@ To transform a point:
     * `interior: boolean = true`: materialize interior edges. The even-odd fill rule is used by the triangulator. Interior edges are those defined by odd winding numbers.
     * `exterior: boolean = false`: materialize exterior edges. Like for `interior`, the even-odd fill rule is used by the triangulator. Exterior edges are those with even winding numbers.
     * `polygonization: boolean = true`: generates an optimistic (but not necessarily ideal) polygonization of the triangles. Each polygon produced is guaranteed to be convex.
+    * `maxPolygonVertexCount: number = math.huge`: the max number of vertices (inclusive) for a polygonization; by default, there is no limit. If set to, e.g., 8, then any polygon will have no more than 8 vertices.
   * `result`: the resulting array of triangles. If an existing array of triangles is used, existing triangles will be re-used. If more triangles are necessary, then they will be added to the end of the array. The actual number of triangles generated is returned by this method.
   * `polygons`: the resulting array of polygons. See `result` for behavior.
 

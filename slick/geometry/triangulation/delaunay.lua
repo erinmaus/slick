@@ -16,11 +16,14 @@ local slicktable = require("slick.util.slicktable")
 --- @field public refine boolean?
 --- @field public interior boolean?
 --- @field public exterior boolean?
+--- @field public polygonization boolean?
+--- @field public maxPolygonVertexCount number?
 local defaultTriangulationOptions = {
     refine = true,
     interior = true,
     exterior = false,
-    polygonization = true
+    polygonization = true,
+    maxPolygonVertexCount = math.huge
 }
 
 --- @alias slick.geometry.triangulation.intersectFunction fun(intersection: slick.geometry.triangulation.intersection)
@@ -700,6 +703,7 @@ function delaunay:triangulate(points, edges, options, result, polygons)
     local interior = options.interior == nil and defaultTriangulationOptions.interior or options.interior
     local exterior = options.exterior == nil and defaultTriangulationOptions.exterior or options.exterior
     local polygonization = options.polygonization == nil and defaultTriangulationOptions.polygonization or options.polygonization
+    local maxPolygonVertexCount = options.maxPolygonVertexCount or defaultTriangulationOptions.maxPolygonVertexCount
 
     self:reset()
 
@@ -762,7 +766,9 @@ function delaunay:triangulate(points, edges, options, result, polygons)
     local polygonCount
     if polygonization then
         polygons = polygons or {}
-        polygons, polygonCount = self:_polygonize(polygons)
+
+        --- @cast maxPolygonVertexCount number
+        polygons, polygonCount = self:_polygonize(maxPolygonVertexCount, polygons)
     end
 
     return result, #triangles, polygons, polygonCount
@@ -1372,9 +1378,10 @@ function delaunay:_canMergePolygons(destinationPolygon, sourcePolygon)
 end
 
 --- @private
+--- @param maxVertexCount number
 --- @param result number[][]
 --- @return number[][], integer
-function delaunay:_polygonize(result)
+function delaunay:_polygonize(maxVertexCount, result)
     self:_buildPolygons()
 
     local pendingEdges = self.polygonization.pending
@@ -1394,7 +1401,7 @@ function delaunay:_polygonize(result)
         for i = 1, #polygons do
             for j = i + 1, #polygons do
                 local canMerge, magnitude, s, t = self:_canMergePolygons(polygons[i], polygons[j])
-                 if canMerge then
+                if canMerge then
                     if magnitude > (bestMagnitude or -math.huge) then
                         bestMagnitude = magnitude
                         destinationPolygonIndex = i
@@ -1409,8 +1416,18 @@ function delaunay:_polygonize(result)
         if bestMagnitude then
             local destinationPolygon = polygons[destinationPolygonIndex]
             local sourcePolygon = polygons[sourcePolygonIndex]
-            
-            self:_mergePolygons(destinationPolygon, sourcePolygon, destinationPolygonVertexIndex, sourcePolygonVertexIndex)
+
+            -- 2 vertices are shared between the polygons.
+            -- So when merging them, there's actually two less than their combined sum.
+            -- E.g., a triangle would have one edge shared with another triangle - so:
+            --   - 1 vertex from the destination triangle
+            --   - 1 vertex from the source triangle
+            --   - 2 shared forming the shared edge from destination and source (so 4 vertex indices total),
+            -- If we just counted the sum of the vertex arrays, we'd get 6, which is incorrect.
+            -- The new polygon would have 4 vertices!
+            if #destinationPolygon.vertices + #sourcePolygon.vertices - 2 <= maxVertexCount then
+                self:_mergePolygons(destinationPolygon, sourcePolygon, destinationPolygonVertexIndex, sourcePolygonVertexIndex)
+            end
         end
     end
 
