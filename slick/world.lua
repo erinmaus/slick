@@ -179,9 +179,9 @@ function world:update(item, a, b, c)
     return transform.x, transform.y
 end
 
---- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): number, number
---- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): number, number
-function world:push(item, a, b, c)
+--- @overload fun(self: slick.world, item: any, filter: slick.worldFilterQueryFunc?, x: number, y: number, shape: slick.collision.shapeDefinition): number, number
+--- @overload fun(self: slick.world, item: any, filter: slick.worldFilterQueryFunc?, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): number, number
+function world:push(item, filter, a, b, c)
     local e = self:get(item)
     local transform, shapes = _getTransformShapes(e, a, b, c)
     self:update(item, transform, shapes)
@@ -224,10 +224,10 @@ function world:push(item, a, b, c)
         y = y + offsetY
         
         visited:push(result)
-        self:project(item, x, y, x, y, nil, cachedQuery)
+        self:project(item, x, y, x, y, filter, cachedQuery)
     end
 
-    self:project(item, x, y, originalX, originalY, nil, cachedQuery)
+    self:project(item, x, y, originalX, originalY, filter, cachedQuery)
     if #cachedQuery.results >= 1 then
         local result = cachedQuery.results[1]
         x, y = result.touch.x, result.touch.y
@@ -237,6 +237,40 @@ function world:push(item, a, b, c)
     e:setTransform(transform)
 
     return x, y
+end
+
+local _cachedRotateBounds = rectangle.new()
+local _cachedRotateItems = {}
+
+--- @param item any
+--- @param angle number
+--- @param rotateFilter slick.worldFilterQueryFunc
+--- @param pushFilter slick.worldFilterQueryFunc
+function world:rotate(item, angle, rotateFilter, pushFilter, query)
+    query = query or worldQuery.new(self)
+
+    local e = self:get(item)
+    
+    e.transform:copy(_cachedTransform)
+    _cachedTransform:setTransform(nil, nil, angle)
+    
+    _cachedRotateBounds:init(e.bounds:left(), e.bounds:top(), e.bounds:right(), e.bounds:bottom())
+    e:setTransform(_cachedTransform)
+    _cachedRotateBounds:expand(e.bounds.topLeft.x, e.bounds.topLeft.y)
+    _cachedRotateBounds:expand(e.bounds.bottomRight.x, e.bounds.bottomRight.y)
+    
+    slicktable.clear(_cachedRotateItems)
+    _cachedRotateItems[item] = true
+
+    local responses, numResponses = self:queryRectangle(_cachedRotateBounds:left(), _cachedRotateBounds:top(), _cachedRotateBounds:width(), _cachedRotateBounds:height(), rotateFilter, query)
+    for _, response in ipairs(responses) do
+        if not _cachedRotateItems[response.item] then
+            _cachedRotateItems[response.item] = true
+            self:push(response.item, pushFilter, response.entity.transform.x, response.entity.transform.y)
+        end
+    end
+
+    return responses, numResponses, query
 end
 
 world.wiggle = world.push

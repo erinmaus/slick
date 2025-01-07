@@ -1,5 +1,4 @@
 local point = require "slick.geometry.point"
-local slickmath = require "slick.util.slickmath"
 
 local _cachedSlideCurrentPosition = point.new()
 local _cachedSlideTouchPosition = point.new()

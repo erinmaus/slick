@@ -11,6 +11,7 @@ local PLAYER_ROTATION_SPEED = math.pi / 2
 local isGravityEnabled = false
 local isZoomEnabled = false
 local isQueryEnabled = false
+local showHelp = false
 
 local function makePlayer(world)
     local player = {
@@ -59,7 +60,10 @@ local up = slick.geometry.point.new(0, 1)
 local left = slick.geometry.point.new(-1, 0)
 local right = slick.geometry.point.new(1, 0)
 local transform = slick.newTransform()
-local function movePlayer(player, world, deltaTime)
+local function movePlayer(player, world, query, deltaTime)
+    local entity = world:get(player)
+    player.x, player.y = entity.transform.x, entity.transform.y
+
     --- @cast world slick.world
 
     local isInAir = true
@@ -204,17 +208,72 @@ local function makeLevel(world)
             slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
             slick.newPolygonMeshShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }, { w - w / 4, h, w - 8, h / 2, w - 8, h }),
             slick.newBoxShape(w / 2 + w / 5, h - 150, w / 5, 60),
-            slick.newCircleShape(w / 2 - 64, h - 256, 128),
             slick.newPolygonMeshShape({ w / 2 + w / 4, h / 4, w / 2 + w / 4 + w / 8, h / 4 + h / 8, w / 2 + w / 4, h / 4 + h / 4, w / 2 + w / 4 + w / 16, h / 4 + h / 8 })
         )
     )
 
-    world:add({ type = level }, slick.newTransform(w / 3, h / 3, -math.pi / 4), slick.newBoxShape(-w / 8, -30, w / 4, 60))
+    world:add({ type = "level" }, slick.newTransform(w / 3, h / 3, -math.pi / 4), slick.newBoxShape(-w / 8, -30, w / 4, 60))
 
     return level
 end
 
-local world, player
+local function thingPushFilter()
+    return true
+end
+
+local function notLevelRotateFilter(item)
+    return not (item.type == "level" or item.type == "gear")
+end
+
+local GEAR_SPEED = math.pi / 8
+local function moveGear(world, gear, query, deltaTime)
+    local entity = world:get(gear)
+    local angle = entity.transform.rotation + deltaTime * GEAR_SPEED
+    world:rotate(gear, angle, notLevelRotateFilter, thingPushFilter, query)
+end
+
+local function makeGear(world)
+    -- Borrowed from here: https://stackoverflow.com/a/23532468
+
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    local innerRadius = 128
+    local outerRadius = 96
+    local innerTaper = 0.5
+    local outerTaper = 0.3
+    local notches = 5
+
+    local angle = math.pi * 2 / (notches * 2)
+    local innerT = angle * (innerTaper / 2)
+    local outerT = angle * (outerTaper / 2)
+    local toggle = false
+
+    local points = {}
+    for a = angle, math.pi * 2, angle do
+        if toggle then
+            table.insert(points, innerRadius * math.cos(a - innerT))
+            table.insert(points, innerRadius * math.sin(a - innerT))
+
+            table.insert(points, outerRadius * math.cos(a + outerT))
+            table.insert(points, outerRadius * math.sin(a + outerT))
+        else
+            table.insert(points, outerRadius * math.cos(a - outerT))
+            table.insert(points, outerRadius * math.sin(a - outerT))
+
+            table.insert(points, innerRadius * math.cos(a + innerT))
+            table.insert(points, innerRadius * math.sin(a + innerT))
+        end
+
+        toggle = not toggle
+    end
+
+    local gear = { type = "gear" }
+    world:add(gear, w / 2 - 64, h - 256, slick.newPolygonMeshShape(points))
+
+    return gear
+end
+
+local world, query
+local player, gear
 function love.load()
     local w, h = love.graphics.getWidth(), love.graphics.getHeight()
     world = slick.newWorld(w * 2, h * 2, {
@@ -223,9 +282,8 @@ function love.load()
         quadTreeY = -h
     })
 
-    world:addResponse("corner", corner)
-
     makeLevel(world)
+    gear = makeGear(world)
     
     player = makePlayer(world)
     query = slick.newWorldQuery(world)
@@ -251,6 +309,10 @@ end
 
 local points = {}
 function love.mousepressed(x, y, button)
+    if showHelp then
+        return
+    end
+
     local t = getCameraTransform()
     x, y = t:inverseTransformPoint(x, y)
 
@@ -261,7 +323,7 @@ function love.mousepressed(x, y, button)
             player.x, player.y = world:move(player, x, y, touchFilter, query)
         else
             player.x, player.y = x - 16, y - 16
-            player.x, player.y = world:push(player, player.x, player.y)
+            player.x, player.y = world:push(player, thingPushFilter, player.x, player.y)
         end
     elseif button == 2 then
         table.insert(points, x)
@@ -275,9 +337,9 @@ function love.keypressed(key, _, isRepeat)
         isGravityEnabled = not isGravityEnabled
 
         if isGravityEnabled then
-            player.x, player.y = world:push(player, player.x, player.y, player.luigini)
+            player.x, player.y = world:push(player, thingPushFilter, player.x, player.y, player.luigini)
         else
-            player.x, player.y = world:push(player, player.x, player.y, player.lonk)
+            player.x, player.y = world:push(player, thingPushFilter, player.x, player.y, player.lonk)
         end
     elseif key == "`" and not isRepeat then
         isZoomEnabled = not isZoomEnabled
@@ -291,20 +353,27 @@ function love.keypressed(key, _, isRepeat)
 
         if not love.keyboard.isDown("lshift", "rshift") then
             if #contours > 0 then
-                world:add({ type = "level" }, 0, 0, slick.newPolygonMeshShape(unpack(contours)))
+                world:add({ type = "thing" }, 0, 0, slick.newPolygonMeshShape(unpack(contours)))
                 
                 contours = {}
             end
         end
+    elseif key == "f1" and not isRepeat then
+        showHelp = not showHelp
     end
 end
 
 local time, memory = 0, 0
 function love.update(deltaTime)
+    if showHelp then
+        return
+    end
+
     collectgarbage("stop")
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
-    local didMove = movePlayer(player, world, deltaTime)
+    local didMove = movePlayer(player, world, query, deltaTime)
+    moveGear(world, gear, query, deltaTime)
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
@@ -319,15 +388,41 @@ local smallFont = love.graphics.getFont()
 local bigFont = love.graphics.newFont(32)
 
 function love.draw()
+    if showHelp then
+        love.graphics.print([[
+            slick demo
+
+            press f1 to close this
+
+            player controls:
+             - wasd to move around (w is jump in luigini mode)
+             - qezc to move diagonally (relative to wasd) in lönk mode
+             - tab to change between lönk mode and luigini mode
+             - left click to teleport the character around with push enabled
+             - shift + left click to instant dash from the current position
+
+            drawing controls:
+             - right click to place a point
+             - shift + enter to start drawing a hole
+             - enter to complete your drawing
+
+            other controls
+             - ` (tilde) to toggle zoom
+             - esc (escape) to enable query mode (show contacts, normals, etc)
+        ]], 8, 8)
+
+        return
+    end
+
     love.graphics.push("all")
     love.graphics.setFont(smallFont)
-    love.graphics.printf(string.format("Logic: %2.2f ms (%.2f kb)", time, memory), 0, 0, love.graphics.getWidth(), "center")
+    love.graphics.printf(string.format("logic: %2.2f ms (%.2f kb); press f1 for help", time, memory), 0, 0, love.graphics.getWidth(), "center")
     
     love.graphics.setFont(bigFont)
     if isGravityEnabled then
-        love.graphics.printf("2D Luigini Platformer Mode", 0, 32, love.graphics.getWidth(), "center")
+        love.graphics.printf("2d luigini platformer mode", 0, 32, love.graphics.getWidth(), "center")
     else
-        love.graphics.printf("2D Top-Down Lönk Mode", 0, 32, love.graphics.getWidth(), "center")
+        love.graphics.printf("2d lönk top-down mode", 0, 32, love.graphics.getWidth(), "center")
     end
     
     love.graphics.setFont(smallFont)
