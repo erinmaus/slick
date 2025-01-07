@@ -526,12 +526,16 @@ function delaunay:_splitEdgesAgainstEdges(intersect, userdata)
                     self.intersection:init(#points)
 
                     self.intersection:setLeftEdge(
-                        a1, b1, u,
+                        a1, b1,
+                        selfEdge.edge.a, selfEdge.edge.b,
+                        u,
                         userdata and userdata[selfEdge.edge.a],
                         userdata and userdata[selfEdge.edge.b])
-
+                        
                     self.intersection:setRightEdge(
-                        a2, b2, v,
+                        a2, b2,
+                        otherEdge.edge.a, otherEdge.edge.b,
+                        v,
                         userdata and userdata[otherEdge.edge.a],
                         userdata and userdata[otherEdge.edge.b])
 
@@ -618,8 +622,10 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
             local p1 = edges[i]
             local p2 = edges[i + 1]
 
-            self:_addEdge(p1, p2)
-            self:_addSortedEdge(p1, p2)
+            if p1 ~= p2 then
+                self:_addEdge(p1, p2)
+                self:_addSortedEdge(p1, p2)
+            end
         end
     end
 
@@ -683,7 +689,7 @@ end
 
 --- @param points number[]
 --- @param edges number[]
---- @param options slick.geometry.triangulation.delaunayTriangulationOptions
+--- @param options slick.geometry.triangulation.delaunayTriangulationOptions?
 --- @param result number[][]?
 --- @param polygons number[][]?
 --- @return number[][], number, number[][]?, number?
