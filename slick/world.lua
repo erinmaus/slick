@@ -283,12 +283,10 @@ end
 --- @param item any
 function world:remove(item)
     local entityIndex = self.itemToEntity[item]
-    local entity = self.entities[entityIndex]
+    local e = self.entities[entityIndex]
 
-    entity:detach()
+    e:detach()
     table.insert(self.freeList, entityIndex)
-
-    return entity
 end
 
 --- @param item any
