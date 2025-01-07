@@ -14,7 +14,7 @@ local slickmath = require("slick.util.slickmath")
 local slicktable = require("slick.util.slicktable")
 local circle     = require("slick.collision.circle")
 
---- @alias slick.worldFilterQueryFunc fun(item: any, other: any, shape: slick.collision.shape, otherShape: slick.collision.shape): string | false
+--- @alias slick.worldFilterQueryFunc fun(item: any, other: any, shape: slick.collision.shape, otherShape: slick.collision.shape): string | slick.worldVisitFunc | false
 local function defaultWorldFilterQueryFunc()
     return "slide"
 end
@@ -25,6 +25,7 @@ local function defaultWorldShapeFilterQueryFunc()
 end
 
 --- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc): number, number, number, number, string?
+--- @alias slick.worldVisitFunc fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number): string
 
 --- @class slick.world
 --- @field cache slick.cache
@@ -36,6 +37,7 @@ end
 --- @field private itemToEntity table<any, number>
 --- @field private freeList number[]
 --- @field private cachedQuery slick.worldQuery
+--- @field private cachedPushQuery slick.worldQuery
 local world = {}
 local metatable = { __index = world }
 
@@ -78,6 +80,7 @@ function world.new(width, height, options)
     }, metatable)
 
     self.cachedQuery = worldQuery.new(self)
+    self.cachedPushQuery = worldQuery.new(self)
     
     self:addResponse("slide", responses.slide)
     self:addResponse("touch", responses.touch)
@@ -162,8 +165,8 @@ function world:has(item)
     return self:get(item) ~= nil
 end
 
---- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): slick.entity
---- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): slick.entity
+--- @overload fun(self: slick.world, item: any, x: number, y: number, shape: slick.collision.shapeDefinition): number, number
+--- @overload fun(self: slick.world, item: any, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): number, number
 function world:update(item, a, b, c)
     local e = self:get(item)
 
@@ -172,7 +175,105 @@ function world:update(item, a, b, c)
         e:setShapes(shapes)
     end
     e:setTransform(transform)
+
+    return transform.x, transform.y
 end
+
+--- @overload fun(self: slick.world, item: any, filter: slick.worldFilterQueryFunc?, x: number, y: number, shape: slick.collision.shapeDefinition): number, number
+--- @overload fun(self: slick.world, item: any, filter: slick.worldFilterQueryFunc?, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): number, number
+function world:push(item, filter, a, b, c)
+    local e = self:get(item)
+    local transform, shapes = _getTransformShapes(e, a, b, c)
+    self:update(item, transform, shapes)
+
+    local cachedQuery = self.cachedQuery
+    local x, y = transform.x, transform.y
+    local originalX, originalY = x, y
+    
+    local visited = self.cachedPushQuery
+    visited:reset()
+
+    self:project(item, x, y, x, y, nil, cachedQuery)
+    while #cachedQuery.results > 0 do
+        --- @type slick.worldQueryResponse
+        local result
+        for _, r in ipairs(cachedQuery.results) do
+            if r.offset:lengthSquared() > 0 then
+                result = r
+                break
+            end
+        end
+
+        if not result then
+            break
+        end
+
+        local count = 0
+        for _, visitedResult in ipairs(visited.results) do
+            if visitedResult.shape == result.shape and visitedResult.otherShape == result.otherShape then
+                count = count + 1
+            end
+        end
+
+        local pushFactor = 1.1 ^ count
+        local offsetX, offsetY = result.offset.x, result.offset.y
+        offsetX = offsetX * pushFactor
+        offsetY = offsetY * pushFactor
+
+        x = x + offsetX
+        y = y + offsetY
+        
+        visited:push(result)
+        self:project(item, x, y, x, y, filter, cachedQuery)
+    end
+
+    self:project(item, x, y, originalX, originalY, filter, cachedQuery)
+    if #cachedQuery.results >= 1 then
+        local result = cachedQuery.results[1]
+        x, y = result.touch.x, result.touch.y
+    end
+
+    transform:setTransform(x, y)
+    e:setTransform(transform)
+
+    return x, y
+end
+
+local _cachedRotateBounds = rectangle.new()
+local _cachedRotateItems = {}
+
+--- @param item any
+--- @param angle number
+--- @param rotateFilter slick.worldFilterQueryFunc
+--- @param pushFilter slick.worldFilterQueryFunc
+function world:rotate(item, angle, rotateFilter, pushFilter, query)
+    query = query or worldQuery.new(self)
+
+    local e = self:get(item)
+    
+    e.transform:copy(_cachedTransform)
+    _cachedTransform:setTransform(nil, nil, angle)
+    
+    _cachedRotateBounds:init(e.bounds:left(), e.bounds:top(), e.bounds:right(), e.bounds:bottom())
+    e:setTransform(_cachedTransform)
+    _cachedRotateBounds:expand(e.bounds.topLeft.x, e.bounds.topLeft.y)
+    _cachedRotateBounds:expand(e.bounds.bottomRight.x, e.bounds.bottomRight.y)
+    
+    slicktable.clear(_cachedRotateItems)
+    _cachedRotateItems[item] = true
+
+    local responses, numResponses = self:queryRectangle(_cachedRotateBounds:left(), _cachedRotateBounds:top(), _cachedRotateBounds:width(), _cachedRotateBounds:height(), rotateFilter, query)
+    for _, response in ipairs(responses) do
+        if not _cachedRotateItems[response.item] then
+            _cachedRotateItems[response.item] = true
+            self:push(response.item, pushFilter, response.entity.transform.x, response.entity.transform.y)
+        end
+    end
+
+    return responses, numResponses, query
+end
+
+world.wiggle = world.push
 
 --- @param deltaTime number
 function world:frame(deltaTime)
@@ -299,7 +400,7 @@ function world:queryCircle(x, y, radius, filter, query)
     return query.results, #query.results, query
 end
 
-local _cachedCheckVisits = {}
+local _cachedRemappedHandlers = {}
 
 --- @param item any
 --- @param goalX number
@@ -314,6 +415,8 @@ function world:check(item, goalX, goalY, filter, query)
         query = worldQuery.new(self)
     end
 
+    slicktable.clear(_cachedRemappedHandlers)
+
     local cachedQuery = self.cachedQuery
     filter = filter or defaultWorldFilterQueryFunc
 
@@ -327,21 +430,44 @@ function world:check(item, goalX, goalY, filter, query)
     
     local actualX, actualY
     local bounces = 0
-    local nextResponseName
     while bounces < self.options.maxBounces and #cachedQuery.results > 0 do
         bounces = bounces + 1
 
         local result = cachedQuery.results[1]
 
+        local shape = result.shape
+        local otherShape = result.otherShape
+
         query:push(result)
 
-        local responseName = nextResponseName or (result.response == true and "slide" or result.response)
+        --- @type string
+        local responseName = "slide"
+        if not responseName then
+            if type(result.response) == "function" or type(result.response) == "table" then
+                responseName = result.response(item, world, query, result, x, y, goalX, goalY)
+            elseif type(result.response) == "string" then
+                --- @diagnostic disable-next-line: cast-local-type
+                responseName = result.response
+            end
+
+        end
 
         --- @cast responseName string
-        local response = self:getResponse(responseName)
-        x, y, goalX, goalY, nextResponseName = response(self, cachedQuery, result, x, y, goalX, goalY, filter)
+        responseName = _cachedRemappedHandlers[responseName] or responseName
 
-        if #cachedQuery.results == 0 then
+        assert(type(responseName) == "string", "expect name of response handler as string")
+
+        local response = self:getResponse(responseName)
+
+        local remappedResponseName
+        x, y, goalX, goalY, remappedResponseName = response(self, cachedQuery, result, x, y, goalX, goalY, filter)
+        
+        _cachedRemappedHandlers[responseName] = remappedResponseName
+
+        local isStationary = x == goalX and y == goalY
+        local isSameCollision = #cachedQuery.results >= 1 and cachedQuery.results[1].shape == shape and cachedQuery.results[1].otherShape == otherShape
+        local hasNoCollisions = #cachedQuery.results == 0
+        if hasNoCollisions or (isSameCollision and isStationary) then
             actualX = goalX
             actualY = goalY
             break
@@ -349,11 +475,8 @@ function world:check(item, goalX, goalY, filter, query)
             actualX = x
             actualY = y
         end
-
-        break
     end
 
-    slicktable.clear(_cachedCheckVisits)
     return actualX, actualY, query.results, #query.results, query
 end
 

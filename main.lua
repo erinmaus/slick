@@ -11,7 +11,7 @@ local PLAYER_ROTATION_SPEED = math.pi / 2
 local isGravityEnabled = false
 local isZoomEnabled = false
 local isQueryEnabled = false
-local query
+local showHelp = false
 
 local function makePlayer(world)
     local player = {
@@ -26,21 +26,27 @@ local function makePlayer(world)
         rotation = 0,
         
         jumpVelocityY = 0,
-        isJumping = false
+        isJumping = false,
+
+        visited = {}
     }
 
-    local x, y = (love.filesystem.read("data.txt") or ""):match("([^%s]+)%s+([^%s]+)")
-    x = tonumber(x or player.x)
-    y = tonumber(y or player.y)
-
-    world:add(player, x, y, slick.newShapeGroup(
+    player.luigini = slick.newShapeGroup(
         slick.newBoxShape(0, 0, player.w, player.h),
         slick.newCircleShape(player.w / 2, 0, player.w / 2),
         slick.newCircleShape(player.w / 2, player.h, player.w / 2)
-    ))
+    )
 
-    player.x = x
-    player.y = y
+    player.lonk = slick.newCircleShape(0, 0, player.w / 2)
+
+    local x, y = (love.filesystem.read("position.txt") or ""):match("([^%s]+)%s+([^%s]+)")
+    x = x and tonumber(x)
+    y = y and tonumber(y)
+
+    player.x = x or player.x
+    player.y = y or player.y
+
+    world:add(player, player.x, player.y, player.lonk)
 
     return player
 end
@@ -54,7 +60,10 @@ local up = slick.geometry.point.new(0, 1)
 local left = slick.geometry.point.new(-1, 0)
 local right = slick.geometry.point.new(1, 0)
 local transform = slick.newTransform()
-local function movePlayer(player, world, deltaTime)
+local function movePlayer(player, world, query, deltaTime)
+    local entity = world:get(player)
+    player.x, player.y = entity.transform.x, entity.transform.y
+
     --- @cast world slick.world
 
     local isInAir = true
@@ -70,12 +79,12 @@ local function movePlayer(player, world, deltaTime)
             end
             
             local leftD = result.normal:dot(left)
-            if leftD > 0.8 then
+            if leftD > 0.9 then
                 canMoveRight = false
             end
             
             local rightD = result.normal:dot(right)
-            if rightD > 0.8 then
+            if rightD > 0.9 then
                 canMoveLeft = false
             end
         end
@@ -165,6 +174,7 @@ local function movePlayer(player, world, deltaTime)
         transform:init(player.x, player.y, player.rotation)
         world:update(player, transform)
 
+        slick.util.table.clear(player.visited)
         local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
         player.x, player.y = actualX, actualY
         player.nx = normal.x
@@ -198,16 +208,72 @@ local function makeLevel(world)
             slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
             slick.newPolygonMeshShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }, { w - w / 4, h, w - 8, h / 2, w - 8, h }),
             slick.newBoxShape(w / 2 + w / 5, h - 150, w / 5, 60),
-            slick.newCircleShape(w / 2 - 64, h - 256, 128)
+            slick.newPolygonMeshShape({ w / 2 + w / 4, h / 4, w / 2 + w / 4 + w / 8, h / 4 + h / 8, w / 2 + w / 4, h / 4 + h / 4, w / 2 + w / 4 + w / 16, h / 4 + h / 8 })
         )
     )
 
-    world:add({ type = level }, slick.newTransform(w / 3, h / 3, -math.pi / 4), slick.newBoxShape(-w / 8, -30, w / 4, 60))
+    world:add({ type = "level" }, slick.newTransform(w / 3.25, h / 3.25, -math.pi / 4), slick.newBoxShape(-w / 8, -30, w / 4, 60))
 
     return level
 end
 
-local world, player
+local function thingPushFilter()
+    return true
+end
+
+local function notLevelRotateFilter(item)
+    return not (item.type == "level" or item.type == "gear")
+end
+
+local GEAR_SPEED = math.pi / 8
+local function moveGear(world, gear, query, deltaTime)
+    local entity = world:get(gear)
+    local angle = entity.transform.rotation + deltaTime * GEAR_SPEED
+    world:rotate(gear, angle, notLevelRotateFilter, thingPushFilter, query)
+end
+
+local function makeGear(world)
+    -- Borrowed from here: https://stackoverflow.com/a/23532468
+
+    local w, h = love.graphics.getWidth(), love.graphics.getHeight()
+    local innerRadius = 128
+    local outerRadius = 96
+    local innerTaper = 0.5
+    local outerTaper = 0.3
+    local notches = 5
+
+    local angle = math.pi * 2 / (notches * 2)
+    local innerT = angle * (innerTaper / 2)
+    local outerT = angle * (outerTaper / 2)
+    local toggle = false
+
+    local points = {}
+    for a = angle, math.pi * 2, angle do
+        if toggle then
+            table.insert(points, innerRadius * math.cos(a - innerT))
+            table.insert(points, innerRadius * math.sin(a - innerT))
+
+            table.insert(points, outerRadius * math.cos(a + outerT))
+            table.insert(points, outerRadius * math.sin(a + outerT))
+        else
+            table.insert(points, outerRadius * math.cos(a - outerT))
+            table.insert(points, outerRadius * math.sin(a - outerT))
+
+            table.insert(points, innerRadius * math.cos(a + innerT))
+            table.insert(points, innerRadius * math.sin(a + innerT))
+        end
+
+        toggle = not toggle
+    end
+
+    local gear = { type = "gear" }
+    world:add(gear, w / 2 - 64, h - 256, slick.newPolygonMeshShape(points))
+
+    return gear
+end
+
+local world, query
+local player, gear
 function love.load()
     local w, h = love.graphics.getWidth(), love.graphics.getHeight()
     world = slick.newWorld(w * 2, h * 2, {
@@ -217,6 +283,7 @@ function love.load()
     })
 
     makeLevel(world)
+    gear = makeGear(world)
     
     player = makePlayer(world)
     query = slick.newWorldQuery(world)
@@ -242,14 +309,21 @@ end
 
 local points = {}
 function love.mousepressed(x, y, button)
+    if showHelp then
+        return
+    end
+
     local t = getCameraTransform()
     x, y = t:inverseTransformPoint(x, y)
+
     if button == 1 then
-        if love.keyboard.isDown("lshift", "rshift") then
+        if love.keyboard.isDown("lctrl", "rctrl") then
+            player.x, player.y = world:update(player, x, y)
+        elseif love.keyboard.isDown("lshift", "rshift") then
             player.x, player.y = world:move(player, x, y, touchFilter, query)
         else
             player.x, player.y = x - 16, y - 16
-            world:update(player, player.x, player.y)
+            player.x, player.y = world:push(player, thingPushFilter, player.x, player.y)
         end
     elseif button == 2 then
         table.insert(points, x)
@@ -261,6 +335,12 @@ local contours = {}
 function love.keypressed(key, _, isRepeat)
     if key == "tab" and not isRepeat then
         isGravityEnabled = not isGravityEnabled
+
+        if isGravityEnabled then
+            player.x, player.y = world:push(player, thingPushFilter, player.x, player.y, player.luigini)
+        else
+            player.x, player.y = world:push(player, thingPushFilter, player.x, player.y, player.lonk)
+        end
     elseif key == "`" and not isRepeat then
         isZoomEnabled = not isZoomEnabled
     elseif key == "escape" and not isRepeat then
@@ -273,20 +353,27 @@ function love.keypressed(key, _, isRepeat)
 
         if not love.keyboard.isDown("lshift", "rshift") then
             if #contours > 0 then
-                world:add({ type = "level" }, 0, 0, slick.newPolygonMeshShape(unpack(contours)))
+                world:add({ type = "thing" }, 0, 0, slick.newPolygonMeshShape(unpack(contours)))
                 
                 contours = {}
             end
         end
+    elseif key == "f1" and not isRepeat then
+        showHelp = not showHelp
     end
 end
 
 local time, memory = 0, 0
 function love.update(deltaTime)
+    if showHelp then
+        return
+    end
+
     collectgarbage("stop")
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
-    local didMove = movePlayer(player, world, deltaTime)
+    local didMove = movePlayer(player, world, query, deltaTime)
+    moveGear(world, gear, query, deltaTime)
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
@@ -301,15 +388,41 @@ local smallFont = love.graphics.getFont()
 local bigFont = love.graphics.newFont(32)
 
 function love.draw()
+    if showHelp then
+        love.graphics.print([[
+            slick demo
+
+            press f1 to close this
+
+            player controls:
+             - wasd to move around (w is jump in luigini mode)
+             - qezc to move diagonally (relative to wasd) in lönk mode
+             - tab to change between lönk mode and luigini mode
+             - left click to teleport the character around with push enabled
+             - shift + left click to instant dash from the current position
+
+            drawing controls:
+             - right click to place a point
+             - shift + enter to start drawing a hole
+             - enter to complete your drawing
+
+            other controls
+             - ` (tilde) to toggle zoom
+             - esc (escape) to enable query mode (show contacts, normals, etc)
+        ]], 8, 8)
+
+        return
+    end
+
     love.graphics.push("all")
     love.graphics.setFont(smallFont)
-    love.graphics.printf(string.format("Logic: %2.2f ms (%.2f kb)", time, memory), 0, 0, love.graphics.getWidth(), "center")
+    love.graphics.printf(string.format("logic: %2.2f ms (%.2f kb); press f1 for help", time, memory), 0, 0, love.graphics.getWidth(), "center")
     
     love.graphics.setFont(bigFont)
     if isGravityEnabled then
-        love.graphics.printf("2D Mario Platformer Mode", 0, 32, love.graphics.getWidth(), "center")
+        love.graphics.printf("2d luigini platformer mode", 0, 32, love.graphics.getWidth(), "center")
     else
-        love.graphics.printf("2D Top-Down Zelda Mode", 0, 32, love.graphics.getWidth(), "center")
+        love.graphics.printf("2d lönk top-down mode", 0, 32, love.graphics.getWidth(), "center")
     end
     
     love.graphics.setFont(smallFont)
@@ -346,7 +459,7 @@ function love.draw()
         love.graphics.setColor(1, 1, 0, 0.5)
         for _, contour in ipairs(contours) do
             love.graphics.line(unpack(contour))
-            love.graphics.line(contour[1], contour[2], contour[#contour - 1], contour[#contour - 2])
+            love.graphics.line(contour[1], contour[2], contour[#contour - 1], contour[#contour])
         end
     end
     
@@ -365,5 +478,5 @@ function love.draw()
 end
 
 function love.quit()
-    love.filesystem.write("data.txt", string.format("%f %f", player.x, player.y))
+    love.filesystem.write("position.txt", string.format("%e %e", player.x, player.y))
 end
