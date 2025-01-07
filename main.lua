@@ -212,7 +212,7 @@ local function makeLevel(world)
         )
     )
 
-    world:add({ type = "level" }, slick.newTransform(w / 3, h / 3, -math.pi / 4), slick.newBoxShape(-w / 8, -30, w / 4, 60))
+    world:add({ type = "level" }, slick.newTransform(w / 3.25, h / 3.25, -math.pi / 4), slick.newBoxShape(-w / 8, -30, w / 4, 60))
 
     return level
 end

@@ -319,7 +319,7 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
             _cachedCirclePolygonNormal:init(n.x, n.y)
             _cachedCirclePolygonNormal:multiplyScalar(depth, circleBumpOffset)
 
-            if circleShape == selfShape then
+            if circleShape == selfShape or not polygonInsideCircle then
                 self.depth = depth
                 self.normal:init(_cachedCirclePolygonNormal.x, _cachedCirclePolygonNormal.y)
             end
