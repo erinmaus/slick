@@ -1271,8 +1271,7 @@ function delaunay:_replacePolygon(polygon, otherPolygon)
         if polygonsWithEdge then
             local hasOtherPolygon = false
             for j = #polygonsWithEdge, 1, -1 do
-                if polygonsWithEdge[j] == polygon then
-                elseif polygonsWithEdge[j] == otherPolygon then
+                if polygonsWithEdge[j] == otherPolygon then
                     hasOtherPolygon = true
                 end
             end
@@ -1333,6 +1332,10 @@ end
 --- @return integer
 --- @return integer
 function delaunay:_canMergePolygons(destinationPolygon, sourcePolygon)
+    if destinationPolygon.merged or sourcePolygon.merged then
+        return false, 0, 1, 1
+    end
+
     local destinationVertices = destinationPolygon.vertices
     local sourceVertices = sourcePolygon.vertices
     for j = 1, #destinationVertices do
