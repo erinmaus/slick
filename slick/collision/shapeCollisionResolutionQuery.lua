@@ -308,7 +308,7 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
         end
     end
 
-    if (minT == math.huge and minS > self.epsilon and circleInsidePolygon) or (polygonInsideCircle and minD + self.epsilon < circleRadiusSquared) then
+    if (minT == math.huge and minS > self.epsilon and circleInsidePolygon) or (polygonInsideCircle and minD < circleRadiusSquared + self.epsilon) then
         local maxDistanceFromEdge = math.sqrt(maxD)
         local minDistanceFromEdge = math.sqrt(minD)
 
@@ -364,6 +364,14 @@ function shapeCollisionResolutionQuery:_performCirclePolygonProjection(circleSha
             self.time = 0
             self.collision = true
             return
+        elseif polygonShape == selfShape and polygonInsideCircle then
+            _cachedCirclePolygonRelativeVelocity:normalize(_cachedCirclePolygonRelativeVelocityDirection)
+            local velocityDotNormal = _cachedCirclePolygonRelativeVelocityDirection:dot(self.normal)
+            if not (velocityDotNormal >= -self.epsilon and _cachedCirclePolygonRelativeVelocityDirection:lengthSquared() > 0) then
+                self.time = 0
+                self.collision = true
+                return
+            end
         end
     end
 
