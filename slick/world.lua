@@ -459,7 +459,6 @@ function world:check(item, goalX, goalY, filter, query)
                 --- @diagnostic disable-next-line: cast-local-type
                 responseName = result.response
             end
-
         end
 
         --- @cast responseName string

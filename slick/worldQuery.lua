@@ -208,6 +208,10 @@ function worldQuery:performProjection(entity, x, y, goalX, goalY, filter)
     self:_endQuery()
 end
 
+function worldQuery:sort()
+    table.sort(self.results, worldQueryResponse.less)
+end
+
 function worldQuery:reset()
     slicktable.clear(self.results)
 end
@@ -239,7 +243,7 @@ end
 
 --- @private
 function worldQuery:_endQuery()
-    table.sort(self.results, worldQueryResponse.less)
+    self:sort()
 end
 
 --- @private
