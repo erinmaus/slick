@@ -29,9 +29,9 @@ git push origin tag "$tag"
 
 set +e
 
-love_file=$(git describe --tags).love
-zip_file=$(git describe --tags).zip
-tar_file=$(git describe --tags).tar.gz
+love_file="$(git describe --tags).love"
+zip_file="$(git describe --tags).zip"
+tar_file="$(git describe --tags).tar.gz"
 
 zip -r "./$love_file" ./slick ./README.md ./LICENSE main.lua conf.lua
 zip -r "./$zip_file" ./slick ./README.md ./LICENSE
