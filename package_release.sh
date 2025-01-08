@@ -37,4 +37,4 @@ zip -r "./$love_file" ./slick ./README.md ./LICENSE main.lua conf.lua
 zip -r "./$zip_file" ./slick ./README.md ./LICENSE
 tar -czvf "./$tar_file" ./slick ./README.md ./LICENSE
 
-gh release create --draft --verify-tag -t "slick v${version}" "./$love_file" "./$zip_file"  "./$tar_file"
+gh release create --draft --verify-tag -t "slick v${version}" "$tag" "./$love_file" "./$zip_file"  "./$tar_file"
