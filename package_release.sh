@@ -25,7 +25,7 @@ git fetch
 git checkout main
 git pull
 git tag "$tag"
-git push "$tag"
+git push origin tag "$tag"
 
 set +e
 
