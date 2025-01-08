@@ -129,6 +129,15 @@ function quadTreeNode:ascend(func)
     end
 end
 
+local _cachedQuadTreeNodeData = {}
+
+--- @param node slick.collision.quadTreeNode
+local function _gatherData(node)
+    for _, data in ipairs(node.data) do
+        _cachedQuadTreeNodeData[data] = true
+    end
+end
+
 --- Expands this node to fit 'bounds'.
 --- @param bounds slick.geometry.rectangle
 --- @return slick.collision.quadTreeNode
@@ -137,6 +146,9 @@ function quadTreeNode:expand(bounds)
     assert(not bounds:overlaps(self.bounds), "bounds is within quad tree")
     assert(bounds:left() > -math.huge and bounds:right() < math.huge, "x axis infinite")
     assert(bounds:top() > -math.huge and bounds:bottom() < math.huge, "y axis infinite")
+    
+    slicktable.clear(_cachedQuadTreeNodeData)
+    self:visit(_gatherData)
 
     local halfWidth = self:width() / 2
     local halfHeight = self:height() / 2
@@ -189,6 +201,16 @@ function quadTreeNode:expand(bounds)
     table.insert(parent.children, topRight)
     table.insert(parent.children, bottomLeft)
     table.insert(parent.children, bottomRight)
+
+    for _, child in ipairs(parent.children) do
+        if child ~= self then
+            for data in pairs(_cachedQuadTreeNodeData) do
+                --- @diagnostic disable-next-line: invisible
+                local r = self.tree.data[data]
+                child:insert(data, r)
+            end
+        end
+    end
 
     self:visit(quadTreeNode._incrementLevel)
 
