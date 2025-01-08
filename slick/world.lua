@@ -299,6 +299,8 @@ function world:remove(item)
 
     e:detach()
     table.insert(self.freeList, entityIndex)
+
+    self.itemToEntity[item] = nil
 end
 
 --- @param item any
