@@ -13,6 +13,158 @@ local isZoomEnabled = false
 local isQueryEnabled = false
 local showHelp = false
 
+--- @param world slick.world
+--- @param parentItem any
+--- @param childrenItems any[]
+--- @param goalX number
+--- @param goalY number
+--- @param filter slick.worldFilterQueryFunc
+local function checkMany(world, parentItem, childrenItems, goalX, goalY, filter, query)
+    query = query or slick.newWorldQuery(world)
+
+    local combinedQuery = slick.newWorldQuery(world)
+    local cachedQuery = slick.newWorldQuery(world)
+    local responseQuery = slick.newWorldQuery(world)
+    local remappedHandlers = {}
+
+    --- @type slick.entity[]
+    local entities =  { world:get(parentItem) }
+    for _, childItem in ipairs(childrenItems) do
+        local childE = world:get(childItem)
+        table.insert(entities, childE)
+    end
+
+    local actualX, actualY = entities[1].transform.x, entities[1].transform.y
+    local previousShape, previousOtherShape
+    local previousEntity
+
+    local bounces = 0
+    repeat
+        bounces = bounces + 1
+
+        for _, e in ipairs(entities) do
+            if e ~= previousEntity then
+                local offsetX = e.transform.x - entities[1].transform.x
+                local offsetY = e.transform.y - entities[1].transform.y
+
+                world:project(e.item, actualX + offsetX, actualY + offsetY, goalX + offsetX, goalY + offsetY, filter, cachedQuery)
+
+                local result = cachedQuery.results[1]
+                if result then
+                    combinedQuery:push(result)
+                end
+            end
+        end
+        combinedQuery:sort()
+
+        local hasNoCollisions = #combinedQuery.results == 0
+        local isStationary = actualX == goalX and actualY == goalY
+        local isSameCollision = false
+        for _, result in ipairs(combinedQuery.results) do
+            if result.time > 0 then
+                break
+            end
+
+            if result.shape == previousShape and result.otherShape == previousOtherShape then
+                isSameCollision = true
+                break
+            end
+        end
+
+        if hasNoCollisions or (isSameCollision and isStationary) then
+            actualX = goalX
+            actualY = goalY
+            break
+        end
+
+        local result = combinedQuery.results[1]
+        query:push(result)
+
+        --- @type string
+        local responseName = "slide"
+        if not responseName then
+            if type(result.response) == "function" or type(result.response) == "table" then
+                responseName = result.response(result.item, world, combinedQuery, result, x, y, goalX, goalY)
+            elseif type(result.response) == "string" then
+                --- @diagnostic disable-next-line: cast-local-type
+                responseName = result.response
+            end
+        end
+
+        --- @cast responseName string
+        responseName = remappedHandlers[responseName] or responseName
+
+        local response = world:getResponse(responseName)
+
+        local offsetX = result.entity.transform.x - entities[1].transform.x
+        local offsetY = result.entity.transform.y - entities[1].transform.y
+
+        local newX, newY, newGoalX, newGoalY, remappedResponseName = response(
+            world,
+            responseQuery,
+            result,
+            actualX + offsetX,
+            actualY + offsetY,
+            goalX + offsetX,
+            goalY + offsetY,
+            filter)
+
+        actualX = newX - offsetX
+        actualY = newY - offsetY
+
+        goalX = newGoalX - offsetX
+        goalY = newGoalY - offsetY
+        
+        combinedQuery:reset()
+        if #responseQuery.results >= 1 then
+            combinedQuery:push(responseQuery.results[1])
+        end
+
+        remappedHandlers[responseName] = remappedResponseName
+        previousEntity = result.entity
+        previousShape = result.shape
+        previousOtherShape = result.otherShape
+    until bounces >= world.options.maxBounces
+
+    return actualX, actualY, query.results, #query.results, query
+end
+
+local function makeFairy(world, player)
+    local fairy = {
+        type = "player",
+
+        x = player.x,
+        y = player.y,
+
+        player = player,
+
+        radius = 64,
+
+        time = 0
+    }
+
+    player.fairy = fairy
+
+    world:add(fairy, fairy.x, fairy.y, slick.newCircleShape(0, 0, 8))
+
+    return fairy
+end
+
+local function moveFairy(fairy, world, query, deltaTime)
+    fairy.time = fairy.time + deltaTime
+
+    local centerX, centerY = fairy.player.x, fairy.player.y
+
+    local t = fairy.time * math.pi / 8
+    local scale = 2 / (3 - math.cos(2 * t))
+    local x = fairy.radius * scale * math.cos(t)
+    local y = fairy.radius * scale * math.sin(2 * t) / 2
+
+    fairy.x, fairy.y = world:move(fairy, centerX + x, centerY + y, function(_, other)
+        return other.type == "level" or other.type == "gear"
+    end, query)
+end
+
 local function makePlayer(world)
     local player = {
         type = "player",
@@ -51,8 +203,12 @@ local function makePlayer(world)
     return player
 end
 
-local function notPlayerFilter(item)
+local function notPlayerQuery(item)
     return item.type ~= "player"
+end
+
+local function notPlayerFilter(_, other)
+    return other.type ~= "player"
 end
 
 local normal = slick.geometry.point.new()
@@ -70,7 +226,7 @@ local function movePlayer(player, world, query, deltaTime)
     local canMoveLeft = true
     local canMoveRight = true
     if isGravityEnabled then
-        world:queryCircle(player.x + player.w / 2, player.y + player.h + 1, player.w / 2 + 1, notPlayerFilter, query)
+        world:queryCircle(player.x + player.w / 2, player.y + player.h + 1, player.w / 2 + 1, notPlayerQuery, query)
 
         for _, result in ipairs(query.results) do
             local upD = result.normal:dot(up)
@@ -175,14 +331,24 @@ local function movePlayer(player, world, query, deltaTime)
         world:update(player, transform)
 
         slick.util.table.clear(player.visited)
-        local actualX, actualY, hits = world:move(player, goalX, goalY, nil, query)
+
+        local actualX, actualY, hits
+        if player.fairy then
+            actualX, actualY, hits = checkMany(world, player, { player.fairy }, goalX, goalY, notPlayerFilter, query)
+
+            world:update(player, actualX, actualY)
+            world:update(player.fairy, actualX - player.x + player.fairy.x, actualY - player.y + player.fairy.y)
+        else
+            actualX, actualY, hits = world:move(player, goalX, goalY, notPlayerFilter, query)
+        end
+
         player.x, player.y = actualX, actualY
         player.nx = normal.x
         player.ny = normal.y + offsetY
 
         if isGravityEnabled then
             for _, hit in ipairs(hits) do
-                if player.isJumping then
+                if hit.item == player and player.isJumping then
                     local dot = hit.normal:dot(up)
                     if dot >= 0 then
                         player.jumpVelocityY = 0
@@ -274,6 +440,8 @@ end
 
 local world, query
 local player, gear
+local fairy
+
 function love.load()
     local w, h = love.graphics.getWidth(), love.graphics.getHeight()
     world = slick.newWorld(w * 2, h * 2, {
@@ -346,6 +514,15 @@ function love.keypressed(key, _, isRepeat)
         else
             player.x, player.y = world:push(player, thingPushFilter, player.x, player.y, player.lonk)
         end
+    elseif key == "f" then
+        if fairy then
+            world:remove(fairy)
+
+            player.fairy = nil
+            fairy = nil
+        else
+            fairy = makeFairy(world, player)
+        end
     elseif key == "`" then
         isZoomEnabled = not isZoomEnabled
     elseif key == "escape" then
@@ -379,8 +556,14 @@ function love.update(deltaTime)
     collectgarbage("stop")
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
+
     local didMove = movePlayer(player, world, query, deltaTime)
+    if fairy then
+        moveFairy(fairy, world, query, deltaTime)
+    end
+
     moveGear(world, gear, query, deltaTime)
+
     local timeAfter = love.timer.getTime()
     local memoryAfter = collectgarbage("count")
     collectgarbage("restart")
@@ -407,6 +590,7 @@ function love.draw()
              - tab to change between lönk mode and luigini mode
              - left click to teleport the character around with push enabled
              - shift + left click to instant dash from the current position
+             - f to spawn a fairy
 
             drawing controls:
              - right click to place a point
