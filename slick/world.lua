@@ -529,6 +529,11 @@ function world:optimize(width, height, options)
     width = width * (1 + margin / 2)
     height = height * (1 + margin / 2)
 
+    self.quadTreeOptions.x = x
+    self.quadTreeOptions.y = y
+    self.quadTreeOptions.width = width
+    self.quadTreeOptions.height = height
+
     _getQuadTreeOptions(self.quadTreeOptions, width, height, options)
     self.quadTree:rebuild(self.quadTreeOptions)
 end
