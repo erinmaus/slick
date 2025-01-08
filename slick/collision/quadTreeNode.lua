@@ -310,7 +310,7 @@ function quadTreeNode._collect(node)
     end
 end
 
---- @private
+--- @package
 --- Deallocates all children nodes.
 function quadTreeNode:_snip()
     for _, child in ipairs(self.children) do

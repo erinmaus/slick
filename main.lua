@@ -279,7 +279,8 @@ function love.load()
     world = slick.newWorld(w * 2, h * 2, {
         quadTreeMaxData = 8,
         quadTreeX = -w,
-        quadTreeY = -h
+        quadTreeY = -h,
+        quadTreeOptimizationMargin = 0
     })
 
     makeLevel(world)
@@ -333,7 +334,11 @@ end
 
 local contours = {}
 function love.keypressed(key, _, isRepeat)
-    if key == "tab" and not isRepeat then
+    if isRepeat then
+        return
+    end
+
+    if key == "tab" then
         isGravityEnabled = not isGravityEnabled
 
         if isGravityEnabled then
@@ -341,11 +346,11 @@ function love.keypressed(key, _, isRepeat)
         else
             player.x, player.y = world:push(player, thingPushFilter, player.x, player.y, player.lonk)
         end
-    elseif key == "`" and not isRepeat then
+    elseif key == "`" then
         isZoomEnabled = not isZoomEnabled
-    elseif key == "escape" and not isRepeat then
+    elseif key == "escape" then
         isQueryEnabled = not isQueryEnabled
-    elseif key == "return" and not isRepeat then
+    elseif key == "return" then
         if #points >= 6  then
             table.insert(contours, points)
             points = {}
@@ -358,7 +363,9 @@ function love.keypressed(key, _, isRepeat)
                 contours = {}
             end
         end
-    elseif key == "f1" and not isRepeat then
+    elseif key == "o" then
+        world:optimize()
+    elseif key == "f1" then
         showHelp = not showHelp
     end
 end
@@ -409,6 +416,7 @@ function love.draw()
             other controls
              - ` (tilde) to toggle zoom
              - esc (escape) to enable query mode (show contacts, normals, etc)
+             - o to rebuild the quad tree
         ]], 8, 8)
 
         return

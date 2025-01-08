@@ -9,6 +9,7 @@ local slickmath = require "slick.util.slickmath"
 --- @field quadTreeMaxLevels number?
 --- @field quadTreeMaxData number?
 --- @field quadTreeExpand boolean?
+--- @field quadTreeOptimizationMargin number?
 --- @field sharedCache slick.cache?
 local defaultOptions = {
     debug = false,
@@ -17,7 +18,8 @@ local defaultOptions = {
 
     quadTreeMaxLevels = 8,
     quadTreeMaxData = 8,
-    quadTreeExpand = true
+    quadTreeExpand = true,
+    quadTreeOptimizationMargin = 0.25
 }
 
 --- @type slick.options

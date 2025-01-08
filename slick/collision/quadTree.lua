@@ -8,7 +8,6 @@ local pool = require("slick.util.pool")
 --- @field root slick.collision.quadTreeNode
 --- @field expand boolean
 --- @field private depth number? **internal**
---- @field private needsExpansion boolean **internal**
 --- @field private nodesPool slick.util.pool **internal**
 --- @field private rectanglesPool slick.util.pool **internal**
 --- @field private data table<any, slick.geometry.rectangle> **internal**
@@ -48,7 +47,6 @@ function quadTree.new(options)
         maxLevels = options.maxLevels or defaultOptions.maxLevels,
         maxData = options.maxData or defaultOptions.maxData,
         expand = options.expand == nil and defaultOptions.expand or not not options.expand,
-        needsExpansion = false,
         depth = 1,
         bounds = rectangle.new(
             (options.x or defaultOptions.x),
@@ -64,6 +62,38 @@ function quadTree.new(options)
     result.root = result:_newNode(nil, result:left(), result:top(), result:right(), result:bottom())
 
     return result
+end
+
+--- Rebuilds the quad tree with the new options, preserving all existing data.
+--- All options will be set to the new options, if set.
+--- @param options slick.collision.quadTreeOptions
+function quadTree:rebuild(options)
+    --- @diagnostic disable-next-line: invisible
+    self.root:_snip() -- this method is internal, not private
+    self.nodesPool:deallocate(self.root)
+
+    assert(options.width == nil or options.width > 0, "width must be greater than 0")
+    assert(options.height == nil or options.height > 0, "height must be greater than 0")
+
+    local x = options.x or self.bounds:left()
+    local y = options.y or self.bounds:top()
+    local width = options.width or self.bounds:width()
+    local height = options.height or self.bounds:height()
+
+    self.maxLevels = options.maxLevels or self.maxLevels
+    self.maxData = options.maxData or self.maxData
+
+    if options.expand ~= nil then
+        self.expand = options.expand
+    end
+
+    self.bounds:init(x, y, x + width, y + height)
+    self.root = self:_newNode(nil, self.bounds:left(), self.bounds:top(), self.bounds:right(), self.bounds:bottom())
+
+    for data, r in pairs(self.data) do
+        self:_tryExpand(r)
+        self.root:insert(data, r)
+    end
 end
 
 --- Returns the exact bounds of all data in the quad tree.
