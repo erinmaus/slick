@@ -333,6 +333,26 @@ Below is an API reference for **slick**.
     * `contactPoint.x, contactPoint.y`: The contact point closest to the center of the entity. For all contact points, use the `contactPoints` array.
     * `segment.a, segment.b`: The points of the segment that was collided with.
 
+### `slick.entity`
+
+A `slick.entity` is created internally by the `slick.world` - you should not be creating one yourself. `slick.world.add` and `slick.world.get` return the `slick.entity` represented by the `item`.
+
+There's some **read-only** properties of an entity:
+
+* `transform: slick.geometry.transform`: current transform of the entity. Use `slick.world.update` (or similar) or `slick.entity.setTransform` to update; changing this field directly **will not not update the entity's transform properly**.
+* `shapes: slick.geometry.shapeGroup`: current **shapes** (not shape definitions!) of the entity. Changing this will not affect the world and will cause the entity and world to go out of sync. Use `slick.world.update` (or similar) or `slick.entity.setShapes`.
+
+There are methods to mutate the entity, but tread carefully:
+
+* `slick.entity:setShapes(...shapes: slick.collision.shapeDefinition)`
+
+  Removes all existing shapes and replaces them with the provided shapes. Behind the scenes this will create a `slick.collision.shapeGroup` and add all the shapes to this implicit group.
+
+* `slick.entity:setTransform(transform: slick.geometry.transform)`
+
+  Copies the transform from `transform` to `self.transform` and updates the entity in the world
+
+**Note:** Remember, tread carefully! Prefer to use the one-stop `slick.world.update`, etc instead of directly mutating the `slick.entity`. Currently, any mutation operations on the entity are considered **unstable**: this API will probably change in the near future with the inclusion of a `slick.world.frame` method that updates **the entire world at once** given a `deltaTime`. See this issue on GitHub: https://github.com/erinmaus/slick/issues/14
 
 ### `slick.collision.shapelike` and shape definitions
 
@@ -400,6 +420,8 @@ To transform a point:
   Transforms a normal by **only** the rotation and scaling portions of the transform.
 
 ### Advanced Usage
+
+The entire **slick** namespace contains a bunch of utility, math, collision, and algorithmic functions. For example, **slick** uses a lot of `slick.geometry.point` objects all over the place to perform operations on vectors; caches a `shapeCollisionResolutionQuery` in a `slick.worldQuery` to handle collisions between shapes; uses `slick.collision.quadTree` to divide the world; etc. Most of these are generally intended for internal use, may change (dramatically) between versions, are not a part of the API contract. However, anything documented in this section is OK to use, with the caveat it might not be as simple to use as everything in the root of the `slick` namespace.
 
 #### `slick.geometry.triangulation.delaunay`
 
@@ -476,6 +498,73 @@ To transform a point:
   * `polygons`: the resulting array of polygons. See `result` for behavior.
 
   Returns, in order, the array of triangles; the number of triangles generated; the array of polygons (if the `polygonization` option is true); and the number of polygons generated.
+
+#### slick.util.search
+
+This namespace exposes binary search methods. These operate on a **sorted** array of objects that can be compared using a `compare` method which returns -1 (or a negative value less than zero in the general case) for less than, 0 for equal, and 1 (or a positive value greater than zero, like for the less than case) for greater than.
+
+* `fun(a: T, b: O): slick.util.search.compareResult`
+
+Compares `a` against `b`. `a` and `b` do not have to be the same type. The result will return -1 if `a` is less than `b`; 0 if they are equal; and 1 if `a` is greater than `b`. All the binary search methods take a `compare` func to compare the search value against values in the array.
+
+Each binary search method has this signature:
+
+* `search<T, O>(array: T[], value: O, compare: function, start: number?, stop: number?): number`
+
+`array` must be an array of values (generally all of the same type that is comparable to one another with the same semantics as `value`, even if they are of different types). `compare` will be evaluated against a value from `array` and the search value `value`, using a divide-and-conquer approach to quickly converge on the correct value in `O(n log n)` time. `start` is optional and defaults to 1; similarly, `stop` defaults to `#array`.
+
+The search methods to find equal values are:
+
+* `slick.util.search.first`
+
+  Returns the index of the **first element** that is **qual to** `value`. If no equal value was found in `array`, returns nil.
+
+* `slick.util.search.last`
+  Returns the index of the **last value** that is exactly **equal to** `value`. If no equal value was found in `array`, returns nil.
+
+Any values in between `first` and `last` must also be equal. Correct results are not guaranteed if this is not true.
+
+For comparisons:
+
+* `slick.util.search.lessThan`
+
+  Returns the index of the first element that is less than `value`. If no value is less than `value`, returns `start` (or 1 if `start` was not provided).
+
+* `slick.util.search.lessThanEqual`
+
+  Returns the first index in the array less than or equal to `value`. If no value is equal, returns the `start` (or 1 if `start` was not provided).
+
+* `slick.util.search.greaterThan`
+  
+  Returns the index of the first value greater than `value`. If no value is greater than `value`, returns `stop` + 1 (or `#array + 1` if `stop` was not provided.)
+
+* `slick.util.search.greaterThan`
+  
+  Returns the index of the first value greater than or equal to `value`. If no value is greater than or equal to `value`, returns `stop` + 1 (or `#array + 1` if `stop` was not provided.)
+
+You can use these to not have to sort an array. For example, given this array:
+
+```lua
+local array = { 1, 1, 2, 3, 5.5, 7 }
+```
+
+You can keep it sorted while inserting elements like so:
+
+```lua
+local function compare(a, b)
+  return a - b
+end
+
+local value = 4
+table.insert(array, slick.util.search.lessThan(array, value, compare), value)
+```
+
+You can also use previous values of the search functions as starting points for other searches if you're looking for a range of values:
+
+```lua
+local start = slick.util.search.lessThanEqual(array, 4, compare)
+local stop = slick.util.search.greaterThanEqual(array, 4, compare, start)
+```
 
 ##### Example
 
