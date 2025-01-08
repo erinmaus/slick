@@ -1,4 +1,5 @@
 local cache = require("slick.cache")
+local circle = require("slick.collision.circle")
 local quadTree = require("slick.collision.quadTree")
 local entity = require("slick.entity")
 local point = require("slick.geometry.point")
@@ -12,7 +13,6 @@ local worldQuery = require("slick.worldQuery")
 local util = require("slick.util")
 local slickmath = require("slick.util.slickmath")
 local slicktable = require("slick.util.slicktable")
-local circle     = require("slick.collision.circle")
 
 --- @alias slick.worldFilterQueryFunc fun(item: any, other: any, shape: slick.collision.shape, otherShape: slick.collision.shape): string | slick.worldVisitFunc | false
 local function defaultWorldFilterQueryFunc()
@@ -41,6 +41,26 @@ end
 local world = {}
 local metatable = { __index = world }
 
+--- @param t slick.collision.quadTreeOptions?
+--- @param width number?
+--- @param height number?
+--- @param options slick.options?
+--- @return slick.collision.quadTreeOptions
+local function _getQuadTreeOptions(t, width, height, options)
+    t = t or {}
+    options = options or defaultOptions
+
+    t.width = width or t.width
+    t.height = height or t.height
+    t.x = options.quadTreeX or t.x or defaultOptions.quadTreeX
+    t.y = options.quadTreeY or t.y or defaultOptions.quadTreeY
+    t.maxLevels = options.quadTreeMaxLevels or t.maxLevels or defaultOptions.quadTreeMaxLevels
+    t.maxData = options.quadTreeMaxData or t.maxData or defaultOptions.quadTreeMaxData
+    t.expand = options.quadTreeExpand == nil and (t.expand == nil and defaultOptions.quadTreeExpand or t.expand) or options.quadTreeExpand
+
+    return t
+end
+
 --- @param width number
 --- @param height number
 --- @param options slick.options?
@@ -50,21 +70,13 @@ function world.new(width, height, options)
 
     options = options or defaultOptions
 
-    local quadTreeOptions = {
-        width = width,
-        height = height,
-        x = options.quadTreeX or defaultOptions.quadTreeX,
-        y = options.quadTreeY or defaultOptions.quadTreeY,
-        maxLevels = options.quadTreeMaxLevels or defaultOptions.quadTreeMaxLevels,
-        maxData = options.quadTreeMaxData or defaultOptions.quadTreeMaxData,
-        expand = options.quadTreeExpand == nil and defaultOptions.quadTreeExpand or options.quadTreeExpand,
-    }
+    local quadTreeOptions = _getQuadTreeOptions({}, width, height, options)
 
     local selfOptions = {
         debug = options.debug == nil and defaultOptions.debug or options.debug,
         epsilon = options.epsilon or defaultOptions.epsilon or slickmath.EPSILON,
         maxBounces = options.maxBounces or defaultOptions.maxBounces,
-        minSlideDistance = options.minSlideDistance or defaultOptions.minSlideDistance
+        quadTreeOptimizationMargin = options.quadTreeOptimizationMargin or defaultOptions.quadTreeOptimizationMargin
     }
 
     local self = setmetatable({
@@ -493,6 +505,33 @@ function world:move(item, goalX, goalY, filter, query)
     self:update(item, actualX, actualY)
 
     return actualX, actualY, query.results, #query.results, query
+end
+
+--- @param width number?
+--- @param height number?
+--- @param options slick.options?
+function world:optimize(width, height, options)
+    local x1, y1, x2, y2 = self.quadTree:computeExactBounds()
+
+    local realWidth = x2 - x1
+    local realHeight = y2 - y1
+
+    width = width or realWidth
+    height = height or realHeight
+    
+    local x = options and options.quadTreeX or x1
+    local y = options and options.quadTreeY or y1
+
+    local margin = options and options.quadTreeOptimizationMargin or self.options.quadTreeOptimizationMargin
+    self.options.quadTreeOptimizationMargin = margin
+
+    x = x - realWidth * (margin / 2)
+    y = y - realHeight * (margin / 2)
+    width = width * (1 + margin / 2)
+    height = height * (1 + margin / 2)
+
+    _getQuadTreeOptions(self.quadTreeOptions, width, height, options)
+    self.quadTree:rebuild(self.quadTreeOptions)
 end
 
 --- @package

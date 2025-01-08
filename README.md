@@ -172,12 +172,16 @@ Below is an API reference for **slick**.
     * `quadTreeX`, `quadTreeY`: The upper-left corner of the quad tree. Defaults to (0, 0).
     * `quadTreeMaxLevels`: The maximum depth of the quad tree. Note: this value will automatically go up if the quad tree expands.
     * `quadTreeMaxData`: The maximum amount of leaf nodes.
-    * `quadTreeExpand`: Expand the quad tree as objects exceed the current boundaries. This defaults to true. If false and an object is outside the quad tree, an error will be raised.
-    * `epsilon`: the "precision" of certain calculations. The default precision is good for games with pixels as units. This defaults to `slick.util.math.EPSILON`.
-    * `sharedCache`: This is an optional `slick.cache` to use for this world. This is a very advanced feature and is only useful if you have multiple `slick.world` objects and need to share things like the triangulator between them. To create a cache
-    * `debug`: slows down certain things but ensures robustness of simulation. This is `false` by default. **Only should be enabled if trying to submit a detailed bug report or doing development on slick.**
+    * `quadTreeExpand`: Expand the quad tree as objects exceed the current boundaries. This defaults to true. If false and an object is outside the quad tree, an error will be raised. You can also call `slick.world.optimize` at any point to rebuild the quad tree and recalculate the dimensions.
+    * `quadTreeOptimizationMargin`: Additional margin (as a percent of `width` and `height`) to use around the world when using `slick.world.optimize`.
+    * `epsilon`: the "precision" of certain calculations. The default precision is good for games with pixels as units. This defaults to `slick.util.math.EPSILON` (check the code first, but as of writing it is `1e5`). If you use larger units, e.g. meters or even centimeters, you might want to make this value **smaller**. If you're using even smaller units than pixels, the simulation might become unreliable, but you can try (and also make this value **bigger**... maybe). You will know the value is good or bad if objects overlap, penetrate, and/or stay apart during collisions (bad) or "just touch" without overlap, intersection, or penetration (good).
+
+    **These are so super advanced features documented here only for posterity or development purposes:**
+
+    * `sharedCache`: This is an optional `slick.cache` to use for this world. This is a very advanced feature and is only useful if you have multiple `slick.world` objects and need to share things like the triangulator between them. To create a cache, use `slick.newCache` and pass in an `slick.options` object. You can then pass around the cache to different worlds via the `sharedCache` field in `slick.options`. **This is probably only needed in 1% of use cases where you would create multiple worlds! Don't prematurely optimize!**
+    * `debug`: slows down certain things dramatically but ensures robustness of simulation with lots of error checking and `assert(...)`s. This is `false` by default. **Only should be enabled if trying to submit a detailed bug report or doing development on slick. Do not expect even remotely realtime performance with this enabled.**
   
-  There is no one-size-fits-all for the quad tree options. You will have to tweak the values on a per-game, and perhaps even per-level, basis, for maximum performance.
+  There is no one-size-fits-all for the quad tree options. You will have to tweak the values on a per-game, and perhaps even per-level, basis, for maximum performance. In an open-world game, for example, you might have to adjust these values over time. See `slick.world.optimize` for specifics.
 
 * `slick.world:add(item, x: number, y: number, shape: slick.collision.shapelike): slick.entity` **or** `slick.world:add(item, transform: slick.geometry.transform, shape: slick.collision.shapelike): slick.entity`
 
@@ -250,6 +254,21 @@ Below is an API reference for **slick**.
 * `slick.world:queryCircle(x: number, y: number, radius: number, filter: slick.defaultWorldShapeFilterQueryFunc?, query: slick.worldQuery): slick.worldQueryResponse[], number, slick.worldQuery`
   
   Finds all entities that the circle intersects.
+
+* `slick.world:optimize(width: number?, height: number?, options: slick.options?)`
+
+  Rebuilds the quad tree. `width`, `height`, `options.quadTreeX`, and `options.quadTreeY` (if not provided) default to the real bounds of the world multiplied by `options.quadTreeOptimizationMargin`. Also changes (if set) the other properties of the quad tree, such as max depth and max levels. This method might only be necessary if you do not know the size of your game world in advance or it changes. Optimizing the quad tree has a performance penalty that must be weighed against querying a non-optimal quad tree.
+
+  The exact calculation for the new world size is something like:
+
+  ```
+  topLeftX = realX - realWidth * (quadTreeOptimizationMargin / 2)
+  topRightY = realY - realWidth * (quadTreeOptimizationMargin / 2)
+  bottomRightX = topLeftX + realWidth * (1 + quadTreeOptimizationMargin)
+  bottomRightY = topRightY + realHeight * (1 + quadTreeOptimizationMargin)
+  ```
+
+  So a `quadTreeOptimizationMargin` value of 0.25 would increase the size of the world (from its real dimensions) by 25% - 12.5% further away from the center in the corners, thus 25% larger in total. Similarly, a value of 0 would use the real size without any adjustments. (Obviously if you know your world isn't going to grow after optimization, then that's fine!)
 
 * `slick.worldFilterQueryFunc`
 
