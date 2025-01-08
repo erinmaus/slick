@@ -499,6 +499,69 @@ The entire **slick** namespace contains a bunch of utility, math, collision, and
 
   Returns, in order, the array of triangles; the number of triangles generated; the array of polygons (if the `polygonization` option is true); and the number of polygons generated.
 
+##### Triangulation example
+
+Given this data:
+
+```lua
+local inputPoints = {
+    -- Exterior points
+    0, 0,
+    200, 0,
+    200, 200,
+    0, 200,
+
+    -- Interior points
+    50, 50,
+    150, 50,
+    150, 150,
+    50, 150,
+
+    -- Duplicate point
+    0, 0
+}
+
+local inputEdges = {
+    -- Exterior edge
+    1, 2,
+    2, 3,
+    3, 4,
+    4, 1,
+
+    -- Interior edge
+    5, 6,
+    6, 7,
+    7, 8,
+    8, 5,
+
+    -- Duplicate edge
+    1, 2,
+
+    -- Invalid edge
+    5, 5
+}
+```
+
+You can clean it up and triangulate it like so:
+
+```lua
+local slick = require("slick")
+local triangulator = slick.geometry.triangulation.delaunay.new()
+local cleanPoints, cleanEdges = triangulator:clean(inputPoints, inputEdges)
+local triangles, triangleCount = triangulator:triangulate(cleanPoints, cleanEdges)
+
+for i = 1, triangleCount do
+  local triangle = triangles[i]
+
+  -- Convert the triangle index into a point index
+  local a = (triangle[1] - 1) * 2 + 1
+  local b = (triangle[2] - 1) * 2 + 1
+  local c = (triangle[3] - 1) * 2 + 1
+
+  love.graphics.polygon("line", cleanPoints[a], cleanPoints[a + 1], cleanPoints[b], cleanPoints[b + 1], cleanPoints[c], cleanPoints[c + 1])
+end
+```
+
 #### slick.util.search
 
 This namespace exposes binary search methods. These operate on a **sorted** array of objects that can be compared using a `compare` method which returns -1 (or a negative value less than zero in the general case) for less than, 0 for equal, and 1 (or a positive value greater than zero, like for the less than case) for greater than.
@@ -564,69 +627,6 @@ You can also use previous values of the search functions as starting points for 
 ```lua
 local start = slick.util.search.lessThanEqual(array, 4, compare)
 local stop = slick.util.search.greaterThanEqual(array, 4, compare, start)
-```
-
-##### Example
-
-Given this data:
-
-```lua
-local inputPoints = {
-    -- Exterior points
-    0, 0,
-    200, 0,
-    200, 200,
-    0, 200,
-
-    -- Interior points
-    50, 50,
-    150, 50,
-    150, 150,
-    50, 150,
-
-    -- Duplicate point
-    0, 0
-}
-
-local inputEdges = {
-    -- Exterior edge
-    1, 2,
-    2, 3,
-    3, 4,
-    4, 1,
-
-    -- Interior edge
-    5, 6,
-    6, 7,
-    7, 8,
-    8, 5,
-
-    -- Duplicate edge
-    1, 2,
-
-    -- Invalid edge
-    5, 5
-}
-```
-
-You can clean it up and triangulate it like so:
-
-```lua
-local slick = require("slick")
-local triangulator = slick.geometry.triangulation.delaunay.new()
-local cleanPoints, cleanEdges = triangulator:clean(inputPoints, inputEdges)
-local triangles, triangleCount = triangulator:triangulate(cleanPoints, cleanEdges)
-
-for i = 1, triangleCount do
-  local triangle = triangles[i]
-
-  -- Convert the triangle index into a point index
-  local a = (triangle[1] - 1) * 2 + 1
-  local b = (triangle[2] - 1) * 2 + 1
-  local c = (triangle[3] - 1) * 2 + 1
-
-  love.graphics.polygon("line", cleanPoints[a], cleanPoints[a + 1], cleanPoints[b], cleanPoints[b + 1], cleanPoints[c], cleanPoints[c + 1])
-end
 ```
 
 ## License
