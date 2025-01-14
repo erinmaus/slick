@@ -59,7 +59,7 @@ function quadTreeQuery:_performPointQuery(node, p)
         self:_beginQuery()
     end
 
-    if p.x >= node:left() and p.y <= node:right() and p.y >= node:top() and p.y <= node:bottom() then
+    if p.x >= node:left() and p.x <= node:right() and p.y >= node:top() and p.y <= node:bottom() then
         if #node.children > 0 then
             for _, c in ipairs(node.children) do
                 self:_performPointQuery(c, p)
@@ -68,8 +68,8 @@ function quadTreeQuery:_performPointQuery(node, p)
             for _, d in ipairs(node.data) do
                 --- @diagnostic disable-next-line: invisible
                 local r = self.tree.data[d]
-                if not self.data[d] and p.x >= r:left() and p.y <= node:right() and p.y >= node:top() and p.y <= node:bottom() then
-                    table.insert(self.results)
+                if not self.data[d] and p.x >= r:left() and p.x <= node:right() and p.y >= node:top() and p.y <= node:bottom() then
+                    table.insert(self.results, d)
                     self.data[d] = true
                     self:_expand(r)
                 end

@@ -434,7 +434,7 @@ The entire **slick** namespace contains a bunch of utility, math, collision, and
   * `epsilon: number`: an epsilon precision value used for comparisons. The default value works for games using pixels as units. The default value is `slick.util.math.EPSILON`.
   * `debug: boolean`: run expensive debugging logic. The default is false. Only need this for development or error reports.
 
-* `slick.geometry.triangulation.delaunay:cleanup(points: number[], edges: number[], userdata: any[], options: slick.geometry.triangulation.delaunayCleanupOptions?, outPoints: number[]?, outEdges: number[]?, outUserdata: any[]): number[], number[], outUserdata: any[]`
+* `slick.geometry.triangulation.delaunay:clean(points: number[], edges: number[], userdata: any[], options: slick.geometry.triangulation.delaunayCleanupOptions?, outPoints: number[]?, outEdges: number[]?, outUserdata: any[]): number[], number[], outUserdata: any[]`
 
   Cleans up input point/edge data. This dissolves duplicate points/edges and also splits intersecting edges/dissolves collinear edges.
 
@@ -561,6 +561,99 @@ for i = 1, triangleCount do
   love.graphics.polygon("line", cleanPoints[a], cleanPoints[a + 1], cleanPoints[b], cleanPoints[b + 1], cleanPoints[c], cleanPoints[c + 1])
 end
 ```
+
+#### `slick.geometry.clipper`
+
+**slick** comes with a general purpose polygon clipper. The polygon clipper depends on `slick.geometry.triangulation.delaunay`. You can subtract one shape (known as "other shape") from another (known as "subject shape"); add one shape to another (order doesn't matter); and intersect two shapes (order doesn't matter for this one either). This works with polygons with holes and self-intersecting polygons.
+
+* `slick.geometry.clipper.new(triangulator: slick.geometry.triangulation.delaunay?)`
+
+  Creates a new clipper with the provided Delaunay triangulator. If one is not provided, will create an internal Delaunay triangulator.
+
+* `slick.geometry.clipper:clip(operation: slick.geometry.clipper.clipOperation, subjectPoints: number[], subjectEdges: number[], otherPoints: number[], otherEdges: number[], options: slick.geometry.clipper.clipOptions?, subjectUserdata: any[]?, otherUserdata: any[]?, resultPoints: number[]?, resultEdges: number[]?, resultUserdata: number[]?)`
+  
+  Performs the provided `operation` against the subject shape (composed from `subjectPoints` and `subjectEdges`) and other shape (similarly composed from `otherPoints` and `otherEdges`).
+
+  The operations available are:
+
+  * `slick.geometry.clipper.difference`: Subtracts "other" from "subject". The order matters for this one, just like subtraction of numbers!
+
+  * `slick.geometry.clipper.union`: Adds (combines) "subject" and "other". This operation is commutative; the order of "subject" and "other" do not matter.
+
+  * `slick.geometry.clipper.intersection`: Intersects "subject" and "other". One segments/vertices in both "subject" and "other" will be in the output shape; this one is less useful... Like `union`, the order does not matter; this operation is commutative.
+
+  Currently there is no "exclusive or" operation.
+
+  The two shapes passed in will automatically be cleaned up using the triangulator belonging to this `slick.geometry.clipper`, so no need to clean the inputs first!
+
+  Similarly, the output points and edges will be valid input into a triangulator without any clean up. So no need to clean the output data - that will be pointless!
+
+  You can pass in a `slick.geometry.clipper.clipOptions` which is otherwise identical to `slick.geometry.triangulation.delaunayCleanupOptions`, with (optional) `intersect` and `dissolve` methods that will be called when generating new vertices or dissolving old ones. See `slick.geometry.triangulation.delaunay.cleanup` for specifics of how these functions work and what inputs they take.
+  
+  Like with `clean`, you can pass in userdata.
+
+  Lastly, you can pass in the resulting points, edges, and (if using userdata) userdata arrays. **The existing data in these arrays will be lost.**
+
+  This method returns the points, edges, and userdata (if generated) of the clipping operation. (These will be the arrays passed in, otherwise they will be newly allocated tables). If the clipping operation resulted in no output (i.e., intersection of two non-overlapping shapes), then the arrays will be empty.
+
+##### Clipping example
+
+Given these two shapes (the subject shape is a square and the other shape is a smaller square in the middle of the subject shape):
+
+```lua
+local subjectPoints = {
+    0, 0,
+    200, 0,
+    200, 200,
+    0, 200
+}
+
+local subjectEdges = {
+    1, 2,
+    2, 3,
+    3, 4,
+    4, 1
+}
+
+local otherPoints = {
+    50, 50,
+    150, 50,
+    150, 150,
+    50, 150
+}
+
+local otherEdges = {
+    1, 2,
+    2, 3,
+    3, 4,
+    4, 1
+}
+```
+
+You can perform a `difference` like so to generate a square with a hole in the middle, then triangulate it and draw it:
+
+```lua
+local slick = require("slick")
+local triangulator = slick.geometry.triangulation.delaunay.new()
+local clipper = slick.geometry.clipper.new(triangulator)
+local outputPoints, outputEdges = clipper:clip(slick.geometry.clipper.difference, subjectPoints, subjectEdges, otherPoints, otherEdges)
+local triangles, triangleCount = triangulator:triangulate(outputPoints, outputEdges)
+
+for i = 1, triangleCount do
+  local triangle = triangles[i]
+
+  -- Convert the triangle index into a point index
+  local a = (triangle[1] - 1) * 2 + 1
+  local b = (triangle[2] - 1) * 2 + 1
+  local c = (triangle[3] - 1) * 2 + 1
+
+  love.graphics.polygon("line", cleanPoints[a], cleanPoints[a + 1], cleanPoints[b], cleanPoints[b + 1], cleanPoints[c], cleanPoints[c + 1])
+end
+```
+
+This will draw a triangle mesh of a square with a hole in the middle.
+
+Remember, you do not have to clean the output data from the clipper; it is guaranteed to be valid input as-is into the triangulator.
 
 #### slick.util.search
 

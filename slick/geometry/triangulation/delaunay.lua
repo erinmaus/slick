@@ -40,8 +40,8 @@ local defaultCleanupOptions = {
 --- @alias slick.geometry.triangulation.delaunayWorkingPolygon { vertices: number[], merged: boolean? }
 
 --- @class slick.geometry.triangulation.delaunay
---- @field private epsilon number
---- @field private debug boolean
+--- @field epsilon number (read-only)
+--- @field debug boolean (read-only)
 --- @field private pointsPool slick.util.pool
 --- @field private points slick.geometry.point[]
 --- @field private pointsToEdges table<number, slick.geometry.triangulation.edge[]>
@@ -547,10 +547,6 @@ function delaunay:_splitEdgesAgainstEdges(intersect, userdata)
                     intersect(self.intersection)
                     point:init(self.intersection.result.x, self.intersection.result.y)
 
-                    if userdata then
-                        table.insert(userdata, self.intersection.resultIndex, self.intersection.resultUserdata)
-                    end
-
                     table.insert(pendingEdges, search.first(edges, selfEdge.edge, edge.compare))
                     table.insert(pendingEdges, search.first(edges, otherEdge.edge, edge.compare))
 
@@ -706,6 +702,10 @@ function delaunay:triangulate(points, edges, options, result, polygons)
     local maxPolygonVertexCount = options.maxPolygonVertexCount or defaultTriangulationOptions.maxPolygonVertexCount
 
     self:reset()
+
+    if #points == 0 then
+        return result or {}, 0, polygons or (polygonization and {}) or nil, 0
+    end
 
     if self.debug then
         assert(points and #points >= 6 and #points % 2 == 0,
@@ -1116,7 +1116,7 @@ function delaunay:_performFilter()
                             table.insert(next, neighbor)
                         else
                             table.insert(current, neighbor)
-                            flags[triangle] = side
+                            flags[neighbor] = side
                         end
                     end
                 end
@@ -1741,7 +1741,7 @@ function delaunay:_addPointToHull(points, point, index, swap, compare)
         local point1 = self.points[index1]
         local point2 = self.points[index2]
 
-        if compare(slickmath.direction(point1, point2, point)) then
+        if compare(slickmath.direction(point1, point2, point, self.epsilon)) then
             if swap then
                 index1, index2 = index2, index1
             end

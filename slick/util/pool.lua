@@ -24,13 +24,17 @@ end
 function pool:allocate(...)
     local result
     if #self.free == 0 then
-        result = self.type.new()
-        result:init(...)
+        result = self.type and self.type.new() or {}
+        if self.type then
+            result:init(...)
+        end
         
         self.used[result] = true
     else
         result = table.remove(self.free, #self.free)
-        result:init(...)
+        if self.type then
+            result:init(...)
+        end
 
         self.used[result] = true
     end
