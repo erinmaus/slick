@@ -3,6 +3,7 @@ local point = require("slick.geometry.point")
 local rectangle = require("slick.geometry.rectangle")
 local util = require("slick.util")
 local pool = require("slick.util.pool")
+local slicktable = require("slick.util.slicktable")
 
 --- @class slick.collision.quadTree
 --- @field root slick.collision.quadTreeNode
@@ -94,6 +95,15 @@ function quadTree:rebuild(options)
         self:_tryExpand(r)
         self.root:insert(data, r)
     end
+end
+
+function quadTree:clear()
+    for data, r in pairs(self.data) do
+        self.root:remove(data, r)
+        self.rectanglesPool:deallocate(r)
+    end
+
+    slicktable.clear(self.data)
 end
 
 --- Returns the exact bounds of all data in the quad tree.
