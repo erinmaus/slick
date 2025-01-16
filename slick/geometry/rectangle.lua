@@ -92,9 +92,11 @@ function rectangle:overlaps(other)
 end
 
 --- @param p slick.geometry.point
+--- @param E number?
 --- @return boolean
-function rectangle:inside(p)
-    return p.x >= self:left() and p.x <= self:right() and p.y >= self:top() and p.y <= self:bottom()
+function rectangle:inside(p, E)
+    E = E or 0
+    return slickmath.withinRange(p.x, self:left(), self:right(), E) and slickmath.withinRange(p.y, self:top(), self:bottom(), E)
 end
 
 return rectangle

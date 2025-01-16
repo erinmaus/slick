@@ -352,6 +352,7 @@ function clipper:_prepare()
 end
 
 function clipper:_segmentInsidePolygon(s, polygon, vertices)
+    local isABIntersection, isABCollinear = false, false
     for i = 1, #vertices do
         local j = slickmath.wrap(i, 1, #vertices)
 
@@ -366,27 +367,36 @@ function clipper:_segmentInsidePolygon(s, polygon, vertices)
         self.cachedSegment.a:init(ax, ay)
         self.cachedSegment.b:init(bx, by)
 
-        local isACollinear = slickmath.collinear(self.cachedSegment.a, self.cachedSegment.b, s.a, s.a, self.triangulator.epsilon)
-        local isBCollinear = slickmath.collinear(self.cachedSegment.a, self.cachedSegment.b, s.b, s.b, self.triangulator.epsilon)
-        local isABInteresction = slickmath.intersection(self.cachedSegment.a, self.cachedSegment.b, s.a, s.b, self.triangulator.epsilon)
+        isABCollinear = isABCollinear or slickmath.collinear(self.cachedSegment.a, self.cachedSegment.b, s.a, s.b, self.triangulator.epsilon)
 
-        if (isACollinear and isBCollinear) or (isABInteresction and not (isACollinear or isBCollinear)) then
-            return true
+        local intersection, _, _, u, v = slickmath.intersection(self.cachedSegment.a, self.cachedSegment.b, s.a, s.b, self.triangulator.epsilon)
+        if intersection and u and v and (u > self.triangulator.epsilon and u + self.triangulator.epsilon < 1) and (v > self.triangulator.epsilon and v + self.triangulator.epsilon < 1) then
+            isABIntersection = true
         end
     end
 
-    return self:_pointInsidePolygon(s.a, polygon, vertices) and self:_pointInsidePolygon(s.b, polygon, vertices)
+    local isAInside, isACollinear = self:_pointInsidePolygon(s.a, polygon, vertices)
+    local isBInside, isBCollinear = self:_pointInsidePolygon(s.b, polygon, vertices)
+
+    local isABInside = (isAInside or isACollinear) and (isBInside or isBCollinear)
+    
+    return isABIntersection or isABInside, isABCollinear, isAInside, isBInside
 end
 
+--- @private
 --- @param p slick.geometry.point
 --- @param polygon slick.geometry.clipper.polygon
 --- @param vertices number[]
---- @return boolean
+--- @return boolean, boolean
 function clipper:_pointInsidePolygon(p, polygon, vertices)
+    local isCollinear = false
+
     local px = p.x
     local py = p.y
 
-    local inside = false
+    local minDistance = math.huge
+
+    local isInside = false
     for i = 1, #vertices do
         local j = slickmath.wrap(i, 1, #vertices)
 
@@ -401,17 +411,16 @@ function clipper:_pointInsidePolygon(p, polygon, vertices)
         self.cachedSegment.a:init(ax, ay)
         self.cachedSegment.b:init(bx, by)
 
-        if slickmath.collinear(self.cachedSegment.a, self.cachedSegment.b, p, p, self.triangulator.epsilon) then
-            return true
-        end
+        isCollinear = isCollinear or slickmath.collinear(self.cachedSegment.a, self.cachedSegment.b, p, p, self.triangulator.epsilon)
+        minDistance = math.min(self.cachedSegment:distance(p), minDistance)
 
         local z = (bx - ax) * (py - ay) / (by - ay) + ax
-        if (ay > py) ~= (by > py) and px < z then
-            inside = not inside
+        if ((ay > py) ~= (by > py) and px < z) then
+            isInside = not isInside
         end
     end
 
-    return inside
+    return isInside and minDistance > self.triangulator.epsilon, isCollinear or minDistance < self.triangulator.epsilon
 end
 
 
@@ -423,16 +432,18 @@ local _cachedInsidePoint = point.new()
 --- @param polygon slick.geometry.clipper.polygon
 function clipper:_pointInside(x, y, polygon)
     _cachedInsidePoint:init(x, y)
-    polygon.quadTreeQuery:perform(_cachedInsidePoint)
+    polygon.quadTreeQuery:perform(_cachedInsidePoint, self.triangulator.epsilon)
 
+    local isInside, isCollinear
     for _, result in ipairs(polygon.quadTreeQuery.results) do
         --- @cast result number[]
-        if self:_pointInsidePolygon(_cachedInsidePoint, polygon, result) then
-            return true
-        end
+        local i, c = self:_pointInsidePolygon(_cachedInsidePoint, polygon, result)
+
+        isInside = isInside or i
+        isCollinear = isCollinear or c
     end
 
-    return false
+    return isInside, isCollinear
 end
 
 local _cachedInsideSegment = segment.new()
@@ -446,16 +457,19 @@ local _cachedInsideSegment = segment.new()
 function clipper:_segmentInside(ax, ay, bx, by, polygon)
     _cachedInsideSegment.a:init(ax, ay)
     _cachedInsideSegment.b:init(bx, by)
-    polygon.quadTreeQuery:perform(_cachedInsideSegment)
+    polygon.quadTreeQuery:perform(_cachedInsideSegment, self.triangulator.epsilon)
 
+    local intersection, collinear, aInside, bInside = false, false, false, false
     for _, result in ipairs(polygon.quadTreeQuery.results) do
         --- @cast result number[]
-        if self:_segmentInsidePolygon(_cachedInsideSegment, polygon, result) then
-            return true
-        end
+        local i, c, a, b = self:_segmentInsidePolygon(_cachedInsideSegment, polygon, result)
+        intersection = intersection or i
+        collinear = collinear or c
+        aInside = aInside or a
+        bInside = bInside or b
     end
 
-    return false
+    return intersection or (aInside and bInside), collinear
 end
 
 --- @private
@@ -573,13 +587,24 @@ function clipper:intersection(a, b)
     local aIndex = (a - 1) * 2 + 1
     local bIndex = (b - 1) * 2 + 1
 
+    --- @type slick.geometry.clipper.polygonUserdata
+    local aUserdata = self.resultPolygon.userdata[a]
+    --- @type slick.geometry.clipper.polygonUserdata
+    local bUserdata = self.resultPolygon.userdata[b]
+
+    local aOtherPolygons = aUserdata.polygons[self.otherPolygon]
+    local bOtherPolygons = bUserdata.polygons[self.otherPolygon]
+
     local ax, ay = self.resultPolygon.points[aIndex], self.resultPolygon.points[aIndex + 1]
     local bx, by = self.resultPolygon.points[bIndex], self.resultPolygon.points[bIndex + 1]
 
     local abInsideSubject = self:_segmentInside(ax, ay, bx, by, self.subjectPolygon)
-    local abInsideOther = self:_segmentInside(ax, ay, bx, by, self.otherPolygon)
+    local abInsideOther, abCollinearOther = self:_segmentInside(ax, ay, bx, by, self.otherPolygon)
 
-    if abInsideOther and abInsideSubject then
+    local hasAnyCollinearOtherPoints = self:_hasAnyOnSide(ax, ay, bx, by, 0, self.otherPolygon, aOtherPolygons, bOtherPolygons)
+    local hasAnyCollinearSubjectPoints = self:_hasAnyOnSide(ax, ay, bx, by, 0, self.otherPolygon, aOtherPolygons, bOtherPolygons)
+    
+    if (abInsideOther and abInsideSubject) or (not abCollinearOther and ((abInsideOther and hasAnyCollinearSubjectPoints) or (abInsideSubject and hasAnyCollinearOtherPoints))) then
         self:_addResultEdge(a, b)
     end
 end
@@ -593,22 +618,13 @@ function clipper:union(a, b)
     local ax, ay = self.resultPolygon.points[aIndex], self.resultPolygon.points[aIndex + 1]
     local bx, by = self.resultPolygon.points[bIndex], self.resultPolygon.points[bIndex + 1]
 
-    --- @type slick.geometry.clipper.polygonUserdata
-    local aUserdata = self.resultPolygon.userdata[a]
-    --- @type slick.geometry.clipper.polygonUserdata
-    local bUserdata = self.resultPolygon.userdata[b]
+    local abInsideSubject, abCollinearSubject = self:_segmentInside(ax, ay, bx, by, self.subjectPolygon)
+    local abInsideOther, abCollinearOther = self:_segmentInside(ax, ay, bx, by, self.otherPolygon)
+    
+    abInsideSubject = abInsideSubject or abCollinearSubject
+    abInsideOther = abInsideOther or abCollinearOther
 
-    local aOtherPolygons = aUserdata.polygons[self.otherPolygon]
-    local bOtherPolygons = bUserdata.polygons[self.otherPolygon]
-    local hasAnyCollinearOtherPoints = self:_hasAnyOnSide(ax, ay, bx, by, 0, self.otherPolygon, aOtherPolygons, bOtherPolygons)
-
-    local abInsideSubject = self:_segmentInside(ax, ay, bx, by, self.subjectPolygon)
-    local abInsideOther = self:_segmentInside(ax, ay, bx, by, self.otherPolygon)
-
-    local aOutsideSubject = not self:_pointInside(ax, ay, self.subjectPolygon)
-    local bOutsideSubject = not self:_pointInside(bx, by, self.subjectPolygon)
-
-    if (abInsideOther or abInsideSubject) and (not (abInsideOther and abInsideSubject) or ((aOutsideSubject or bOutsideSubject) and hasAnyCollinearOtherPoints)) then
+    if (abInsideOther or abInsideSubject) and not (abInsideOther and abInsideSubject) then
         self:_addResultEdge(a, b)
     end
 end
@@ -631,9 +647,10 @@ function clipper:difference(a, b)
     local bOtherPolygons = bUserdata.polygons[self.otherPolygon]
 
     local hasAnyCollinearOtherPoints = self:_hasAnyOnSide(ax, ay, bx, by, 0, self.otherPolygon, aOtherPolygons, bOtherPolygons)
-    
+
     local abInsideSubject = self:_segmentInside(ax, ay, bx, by, self.subjectPolygon)
     local abInsideOther = self:_segmentInside(ax, ay, bx, by, self.otherPolygon)
+    
     if abInsideSubject and (not abInsideOther or hasAnyCollinearOtherPoints) then
         self:_addResultEdge(a, b)
     end
