@@ -82,14 +82,14 @@ function slickmath.inside(a, b, c, d)
     return slickmath.sign(result)
 end
 
-local function _collinear(a, b, c, d)
+local function _collinear(a, b, c, d, E)
     local abl = math.min(a, b)
     local abh = math.max(a, b)
 
     local cdl = math.min(c, d)
     local cdh = math.max(c, d)
 
-    if cdh < abl or abh < cdl then
+    if cdh + E < abl or abh + E < cdl then
         return false
     end
 
@@ -110,7 +110,7 @@ function slickmath.collinear(a, b, c, d, E)
     local dabSign = slickmath.direction(d, a, b, E)
 
     if acdSign == 0 and bcdSign == 0 and cabSign == 0 and dabSign == 0 then
-        return _collinear(a.x, b.x, c.x, d.x) and _collinear(a.y, b.y, c.y, d.y)
+        return _collinear(a.x, b.x, c.x, d.x, E) and _collinear(a.y, b.y, c.y, d.y, E)
     end
 
     return false
@@ -138,7 +138,7 @@ function slickmath.intersection(a, b, c, d, E)
     end
 
     if acdSign == 0 and bcdSign == 0 and cabSign == 0 and dabSign == 0 then
-        return slickmath.collinear(a, b, c, d)
+        return slickmath.collinear(a, b, c, d, E)
     end
 
     local bax = b.x - a.x

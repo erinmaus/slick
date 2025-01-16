@@ -53,22 +53,23 @@ end
 --- @private
 --- @param node slick.collision.quadTreeNode?
 --- @param p slick.geometry.point
-function quadTreeQuery:_performPointQuery(node, p)
+--- @param E number
+function quadTreeQuery:_performPointQuery(node, p, E)
     if not node then
         node = self.tree.root
         self:_beginQuery()
     end
 
-    if p.x >= node:left() and p.x <= node:right() and p.y >= node:top() and p.y <= node:bottom() then
+    if slickmath.withinRange(p.x, node:left(), node:right(), E) and slickmath.withinRange(p.y, node:top(), node:bottom(), E) then
         if #node.children > 0 then
             for _, c in ipairs(node.children) do
-                self:_performPointQuery(c, p)
+                self:_performPointQuery(c, p, E)
             end
         else
             for _, d in ipairs(node.data) do
                 --- @diagnostic disable-next-line: invisible
                 local r = self.tree.data[d]
-                if not self.data[d] and p.x >= r:left() and p.x <= node:right() and p.y >= node:top() and p.y <= node:bottom() then
+                if not self.data[d] and slickmath.withinRange(p.x, r:left(), r:right(), E) and slickmath.withinRange(p.y, r:top(), r:bottom(), E) then
                     table.insert(self.results, d)
                     self.data[d] = true
                     self:_expand(r)
@@ -113,18 +114,19 @@ local _cachedQuerySegment = segment.new()
 --- @private
 --- @param node slick.collision.quadTreeNode?
 --- @param s slick.geometry.segment
-function quadTreeQuery:_performSegmentQuery(node, s)
+--- @param E number
+function quadTreeQuery:_performSegmentQuery(node, s, E)
     if not node then
         node = self.tree.root
         self:_beginQuery()
     end
 
-    local overlaps = (s:left() <= node:right() and s:right() >= node:left()) and
-                     (s:top() <= node:bottom() and s:bottom() >= node:top())
+    local overlaps = (s:left() <= node:right() + E and s:right() + E >= node:left()) and
+                     (s:top() <= node:bottom() + E and s:bottom() + E >= node:top())
     if overlaps then
         if #node.children > 0 then
             for _, c in ipairs(node.children) do
-                self:_performSegmentQuery(c, s)
+                self:_performSegmentQuery(c, s, E)
             end
         else
             for _, d in ipairs(node.data) do
@@ -136,30 +138,30 @@ function quadTreeQuery:_performSegmentQuery(node, s)
                 -- Top
                 _cachedQuerySegment.a:init(r:left(), r:top())
                 _cachedQuerySegment.b:init(r:right(), r:top())
-                intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b)
-                
+                intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b, E)
+
                 if not intersection then
                     -- Right
                     _cachedQuerySegment.a:init(r:right(), r:top())
                     _cachedQuerySegment.b:init(r:right(), r:bottom())
-                    intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b)
+                    intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b, E)
                 end
 
                 if not intersection then
                     -- Bottom
                     _cachedQuerySegment.a:init(r:right(), r:bottom())
-                    _cachedQuerySegment.a:init(r:left(), r:bottom())
-                    intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b)
+                    _cachedQuerySegment.b:init(r:left(), r:bottom())
+                    intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b, E)
                 end
 
                 if not intersection then
                     -- Left
                     _cachedQuerySegment.a:init(r:left(), r:bottom())
-                    _cachedQuerySegment.a:init(r:left(), r:top())
-                    intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b)
+                    _cachedQuerySegment.b:init(r:left(), r:top())
+                    intersection = slickmath.intersection(s.a, s.b, _cachedQuerySegment.a, _cachedQuerySegment.b, E)
                 end
 
-                if intersection or (r:inside(s.a) and r:inside(s.b)) then
+                if intersection or (r:inside(s.a) or r:inside(s.b)) then
                     table.insert(self.results, d)
                     self.data[d] = true
 
@@ -202,16 +204,19 @@ end
 
 --- Performs a query against the quad tree with the provided shape.
 --- @param shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray
-function quadTreeQuery:perform(shape)
+--- @param E number?
+function quadTreeQuery:perform(shape, E)
+    E = E or 0
+
     if util.is(shape, point) then
         --- @cast shape slick.geometry.point
-        self:_performPointQuery(nil, shape)
+        self:_performPointQuery(nil, shape, E)
     elseif util.is(shape, rectangle) then
         --- @cast shape slick.geometry.rectangle
         self:_performRectangleQuery(nil, shape)
     elseif util.is(shape, segment) then
         --- @cast shape slick.geometry.segment
-        self:_performSegmentQuery(nil, shape)
+        self:_performSegmentQuery(nil, shape, E)
     elseif util.is(shape, ray) then
         --- @cast shape slick.geometry.ray
         self:_performRayQuery(nil, shape)
