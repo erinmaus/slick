@@ -125,6 +125,7 @@ end
 
 --- @param subject number[][] | slick.simple.clipOperation
 --- @param other number[][] | slick.simple.clipOperation
+--- @return slick.simple.clipOperation
 function simple.newUnionClipOperation(subject, other)
     return setmetatable({
         operation = clipper.union,
@@ -135,6 +136,7 @@ end
 
 --- @param subject number[][] | slick.simple.clipOperation
 --- @param other number[][] | slick.simple.clipOperation
+--- @return slick.simple.clipOperation
 function simple.newDifferenceClipOperation(subject, other)
     return setmetatable({
         operation = clipper.difference,
@@ -145,6 +147,7 @@ end
 
 --- @param subject number[][] | slick.simple.clipOperation
 --- @param other number[][] | slick.simple.clipOperation
+--- @return slick.simple.clipOperation
 function simple.newIntersectionClipOperation(subject, other)
     return setmetatable({
         operation = clipper.intersection,
@@ -158,8 +161,7 @@ end
 --- @param maxVertexCount number?
 --- @return number[][]
 function simple.clip(operation, maxVertexCount)
-    maxVertexCount = maxVertexCount or 3
-    assert(maxVertexCount >= 3, "max vertex count must be at least 3 (for triangles) or more (for polygons) and at most infinity (unlimited number of vertices per polygon)")
+    maxVertexCount = math.max(maxVertexCount or 3, 3)
 
     assert(util.is(operation, clipOperation))
 

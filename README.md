@@ -419,6 +419,94 @@ To transform a point:
   
   Transforms a normal by **only** the rotation and scaling portions of the transform.
 
+### Simple triangulation, polygonization, and clipping API
+
+**slick** comes with an advanced triangulation, polygonization, and clipping API. But if you need something simpler and have less strict requirements around things like memory usage and garbage creation, **slick** also comes a simple, easy-to-use API to triangulate, polygonize, and clip contours.
+
+All these functions take an array of contours. A contour is specifically a closed looped of `x, y` pairs in the form `{ x1, y1, x2, y2, x3, y3, ..., xn, yn }`. Generally, you can imagine the first contour as the boundary of the shape and the other contours as holes, but this is not strictly enforced. A contour must have at least three points or it will be discarded.
+
+Similarly, all these functions (unless otherwise noted) return return an array of polygons in the form `{ { x1, y1, x2, y2, x3, y3, ..., xn, yn }, { x1, y1, x2, y2, x3, y3, ..., xn, yn }, ... }`. Returns an empty array if no triangulation of the input data is possible.
+
+**Something cool!** All these methods automatically clean the input contours. No need to dissolve duplicate points, split self-intersections, dissolve collinear edges, or any other gotchas that would make a triangulation fail normally.
+
+* `slick.triangulate(contours: number[][]): number[][]`
+  
+  Triangulates a list of contours. Returns an array of triangles.
+
+* `slick.polygonize(contours: number[][]): number[][]` **or** `slick.polygonize(maxPolygonVertexCount: number, contours: number[][]): number[][]`
+
+  Polygonizes a list of contours. Unlike triangulation, a greedy algorithm will attempt to generate maximal polygons instead of just triangles. The greedy algorithm is fast, but not perfect! `maxPolygonVertexCount` can be used to limit the max number of vertices in a polygon (the default is no limit). This value will be clamped to a minimum of 3 (resulting in a triangulation, rather than a polygonization, of the contours). Returns an array of polygons with at most `maxPolygonVertexCount` vertices.
+
+* `slick.clip(operation: slick.simple.clipOperation, maxVertexCount: number?): number[][]`
+
+  Evaluates a clip operation. Returns a triangulation or polygonization of the result of the clip operation. `maxVertexCount` can be set to a number between 4 and `math.huge` to create a polygonization (see `slick.polygonize`). This value defaults to 3, thus returning a triangulation (not polygonization) of the clip operation.
+  
+  `slick.simple.clipOperation` can be created by these handy functions:
+
+  * `slick.newUnionClipOperation(subject: number[][] | slick.simple.clipOperation, other: number[][] | slick.simple.clipOperation): slick.simple.clipOperation`:
+
+    Performs a union of the `subject` contours and `other` contours (i.e., adds `subject` and `other` together). This is commutative (order does not matter): the output will be the same if you swap `subject` and `other`.
+
+  * `slick.newDifferenceClipOperation(subject: number[][] | slick.simple.clipOperation, other: number[][] | slick.simple.clipOperation): slick.simple.clipOperation`:
+
+    Performs a difference of the `subject` contours and `other` contours (i.e., subtracts `other` form `subject`). This is **not** commutative (order **does** matter).
+
+  * `slick.newIntersectionClipOperation(subject: number[][] | slick.simple.clipOperation, other: number[][] | slick.simple.clipOperation): slick.simple.clipOperation`:
+
+    Performs an intersection of the `subject` contours against `other` contours (i.e., only the edges from `subject` that are also contained within `other` will form the output shape). This is essentially a logically flipped `difference` and thus is **not** commutative and order **does** matter.
+  
+  Each `slick.simple.clipOperation` constructor takes `subject` contours and and `other` contours. Some of these operations are commutative, some are not.
+  
+  Instead of a contour for `subject` and/or `other`, you can also pass in another `slick.simple.clipOperation` in case you want to perform multiple clip operations in a specific order. For example, to perform a complex clip operation like `intersection(union(a, b), difference(c, d))`, you can chain them like so:
+
+  ```lua
+  local triangles = slick.clip(
+    slick.newIntersectionClipOperation(
+      slick.newUnionClipOperation(a, b),
+      slick.newDifferenceClipOperation(c, d)
+    )
+  )
+  ```
+
+#### Example
+
+Given these shapes:
+
+```lua
+local square = {
+  -100, -100,
+  100, -100,
+  100, 100,
+  -100, 100,
+}
+
+local triangle = {
+  0, 0,
+  50, 50,
+  -50, 50
+}
+```
+
+You can form a simple triangulation of `square` to form two triangles or a single polygon (rectangle) like so:
+
+```lua
+local triangles = slick.triangulate({ square }) -- two triangles
+local polygon = slick.polygonize({ square }) -- one polygon (rectangle)
+```
+
+If you combine the `square` and `triangle` contours, you will get a square with a triangle hole in the middle:
+
+```lua
+local triangles = slick.triangulate({ square, triangle }) -- more than two triangles
+local polygon = slick.triangulate({ square, triangle }) -- several polygons
+```
+
+You can perform clipping operations too:
+
+```lua
+local triangles = slick.clip(slick.newIntersectionClipOperation({ square }, { triangle }))
+```
+
 ### Advanced Usage
 
 The entire **slick** namespace contains a bunch of utility, math, collision, and algorithmic functions. For example, **slick** uses a lot of `slick.geometry.point` objects all over the place to perform operations on vectors; caches a `shapeCollisionResolutionQuery` in a `slick.worldQuery` to handle collisions between shapes; uses `slick.collision.quadTree` to divide the world; etc. Most of these are generally intended for internal use, may change (dramatically) between versions, are not a part of the API contract. However, anything documented in this section is OK to use, with the caveat it might not be as simple to use as everything in the root of the `slick` namespace.
