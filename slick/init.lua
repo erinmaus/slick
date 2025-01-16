@@ -118,5 +118,13 @@ return {
     newPolygonMeshShape = shape.newPolygonMesh,
     newShapeGroup = shape.newShapeGroup,
 
+    triangulate = geometry.simple.triangulate,
+    polygonize = geometry.simple.polygonize,
+    clip = geometry.simple.clip,
+
+    newUnionClipOperation = geometry.simple.newUnionClipOperation,
+    newIntersectionClipOperation = geometry.simple.newIntersectionClipOperation,
+    newDifferenceClipOperation = geometry.simple.newDifferenceClipOperation,
+
     drawWorld = draw
 }

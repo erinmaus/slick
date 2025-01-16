@@ -7,6 +7,7 @@ local geometry = {
     ray = require("slick.geometry.ray"),
     rectangle = require("slick.geometry.rectangle"),
     segment = require("slick.geometry.segment"),
+    simple = require("slick.geometry.simple"),
     transform = require("slick.geometry.transform"),
 }
 
