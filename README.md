@@ -133,6 +133,7 @@ There are currently three built-in collision responses:
 * `"slide"`: "slides" along other entities
 * `"touch"`: stops moving as soon as a collision between entities occurs
 * `"cross"`: goes through another entity as if it the moving entity is a ghost
+* `"bounce"`: "bounces" against the entity; this adds a (`extra.bounceNormal.x`, `extra.bounceNormal.y`) representing the reflection vector to the `slick.worldQueryResponse` (see below). The bounce normal can be used to change the direction the entity is moving in.
 
 `collisions` is a list of `slick.worldQueryResponse` of all the collisions that were handled during the movement and `count` is equal to `#collisions`. Some fields of note are:
 
@@ -472,7 +473,7 @@ A `slick.collision.shapelike` can be a polygon, circle, box, or shape group. An 
 
 When adding or updating an `item` to the world, you can provide a `slick.collision.shapeDefinition`. The complete list of of shape definitions are:
 
-* `slick.newBoxShape(x: number, y: number, w: number, h: number)`
+* `slick.newRectangleShape(x: number, y: number, w: number, h: number)`
 
   A rectangle with its top-left corner relative to the entity at (`x`, `y`). The rectangle will have a width of `w` and a height of `h`.
 

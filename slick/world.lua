@@ -97,6 +97,7 @@ function world.new(width, height, options)
     self:addResponse("slide", responses.slide)
     self:addResponse("touch", responses.touch)
     self:addResponse("cross", responses.cross)
+    self:addResponse("bounce", responses.bounce)
 
     return self
 end
