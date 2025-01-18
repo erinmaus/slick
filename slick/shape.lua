@@ -10,7 +10,7 @@ local shapeGroup = require("slick.collision.shapeGroup")
 --- @param w number
 --- @param h number
 --- @return slick.collision.shapeDefinition
-local function newBox(x, y, w, h)
+local function newRectangle(x, y, w, h)
     return {
         type = box,
         n = 4,
@@ -101,7 +101,7 @@ local function newShapeGroup(...)
 end
 
 return {
-    newBox = newBox,
+    newRectangle = newRectangle,
     newCircle = newCircle,
     newLineSegment = newLineSegment,
     newPolygon = newPolygon,

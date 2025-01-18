@@ -473,7 +473,7 @@ A `slick.collision.shapelike` can be a polygon, circle, box, or shape group. An 
 
 When adding or updating an `item` to the world, you can provide a `slick.collision.shapeDefinition`. The complete list of of shape definitions are:
 
-* `slick.newBoxShape(x: number, y: number, w: number, h: number)`
+* `slick.newRectangleShape(x: number, y: number, w: number, h: number)`
 
   A rectangle with its top-left corner relative to the entity at (`x`, `y`). The rectangle will have a width of `w` and a height of `h`.
 

@@ -110,7 +110,7 @@ return {
     newWorldQuery = worldQuery.new,
     newTransform = geometry.transform.new,
 
-    newBoxShape = shape.newBox,
+    newRectangleShape = shape.newRectangle,
     newCircleShape = shape.newCircle,
     newLineSegmentShape = shape.newLineSegment,
     newPolygonShape = shape.newPolygon,
