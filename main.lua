@@ -78,52 +78,58 @@ local function checkMany(world, parentItem, childrenItems, goalX, goalY, filter,
         end
 
         local result = combinedQuery.results[1]
-        query:push(result)
-
-        --- @type string
-        local responseName = "slide"
-        if not responseName then
-            if type(result.response) == "function" or type(result.response) == "table" then
-                responseName = result.response(result.item, world, combinedQuery, result, x, y, goalX, goalY)
-            elseif type(result.response) == "string" then
-                --- @diagnostic disable-next-line: cast-local-type
-                responseName = result.response
-            end
-        end
-
-        --- @cast responseName string
-        responseName = remappedHandlers[responseName] or responseName
-
-        local response = world:getResponse(responseName)
-
         local offsetX = result.entity.transform.x - entities[1].transform.x
         local offsetY = result.entity.transform.y - entities[1].transform.y
 
-        local newX, newY, newGoalX, newGoalY, remappedResponseName = response(
-            world,
-            responseQuery,
-            result,
-            actualX + offsetX,
-            actualY + offsetY,
-            goalX + offsetX,
-            goalY + offsetY,
-            filter)
+        repeat
+            query:push(result)
 
-        actualX = newX - offsetX
-        actualY = newY - offsetY
+            --- @type string
+            local responseName
+            if type(result.response) == "function" or type(result.response) == "table" then
+                responseName = result.response(result.item, world, combinedQuery, result, actualX + offsetX, actualY + offsetY, goalX, goalY)
+            elseif type(result.response) == "string" then
+                --- @diagnostic disable-next-line: cast-local-type
+                responseName = result.response
+            else
+                responseName = "slide"
+            end
 
-        goalX = newGoalX - offsetX
-        goalY = newGoalY - offsetY
-        
-        combinedQuery:reset()
-        if #responseQuery.results >= 1 then
-            combinedQuery:push(responseQuery.results[1])
-        end
+            --- @cast responseName string
+            responseName = remappedHandlers[responseName] or responseName
 
-        remappedHandlers[responseName] = remappedResponseName
-        previousEntity = result.entity
-        previousShape = result.shape
-        previousOtherShape = result.otherShape
+            local response = world:getResponse(responseName)
+
+            local newX, newY, newGoalX, newGoalY, remappedResponseName, remappedResult = response(
+                world,
+                responseQuery,
+                result,
+                actualX + offsetX,
+                actualY + offsetY,
+                goalX + offsetX,
+                goalY + offsetY,
+                filter,
+                query)
+
+            actualX = newX - offsetX
+            actualY = newY - offsetY
+
+            goalX = newGoalX - offsetX
+            goalY = newGoalY - offsetY
+
+            combinedQuery:reset()
+            if #responseQuery.results >= 1 then
+                combinedQuery:push(responseQuery.results[1])
+            end
+
+            remappedHandlers[responseName] = remappedResponseName
+
+            previousEntity = result.entity
+            previousShape = result.shape
+            previousOtherShape = result.otherShape
+
+            result = remappedResult
+        until not result
     until bounces >= world.options.maxBounces
 
     return actualX, actualY, query.results, #query.results, query
