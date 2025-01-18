@@ -1,6 +1,8 @@
 local point = require("slick.geometry.point")
-local slicktable = require("slick.util.slicktable")
 local segment = require("slick.geometry.segment")
+local util = require("slick.util")
+local pool = require("slick.util.pool")
+local slicktable = require("slick.util.slicktable")
 
 --- @class slick.worldQueryResponse
 --- @field query slick.worldQuery
@@ -22,7 +24,6 @@ local segment = require("slick.geometry.segment")
 --- @field segment slick.geometry.segment
 --- @field distance number
 --- @field extra table
---- @field private contactPointsCache slick.geometry.point[]
 local worldQueryResponse = {}
 local metatable = { __index = worldQueryResponse }
 
@@ -40,8 +41,7 @@ function worldQueryResponse.new(query)
         contactPoint = point.new(),
         contactPoints = {},
         segment = segment.new(),
-        extra = {},
-        contactPointsCache = { point.new() },
+        extra = {}
     }, metatable)
 end
 
@@ -94,13 +94,7 @@ function worldQueryResponse:init(shape, otherShape, response, position, query)
     slicktable.clear(self.contactPoints)
     for i = 1, query.contactPointsCount do
         local inputContactPoint = query.contactPoints[i]
-        local outputContactPoint = self.contactPointsCache[i]
-        if not outputContactPoint then
-            outputContactPoint = point.new()
-            self.contactPointsCache[i] = outputContactPoint
-        end
-
-        outputContactPoint:init(inputContactPoint.x, inputContactPoint.y)
+        local outputContactPoint = self.query:allocate(point, inputContactPoint.x, inputContactPoint.y)
         table.insert(self.contactPoints, outputContactPoint)
 
         local distanceSquared = outputContactPoint:distance(_cachedInitItemPosition)
@@ -159,16 +153,26 @@ function worldQueryResponse:move(other)
     
     slicktable.clear(other.contactPoints)
     for i, inputContactPoint in ipairs(self.contactPoints) do
-        local outputContactPoint = other.contactPointsCache[i]
-        if not outputContactPoint then
-            outputContactPoint = point.new()
-            other.contactPointsCache[i] = outputContactPoint
-        end
-        
-        outputContactPoint:init(inputContactPoint.x, inputContactPoint.y)
+        local outputContactPoint = self.query:allocate(point, inputContactPoint.x, inputContactPoint.y)
+        table.insert(other.contactPoints, outputContactPoint)
     end
+    slicktable.clear(self.contactPoints)
     
     other.extra, self.extra = self.extra, other.extra
+    slicktable.clear(self.extra)
+
+    for key, value in pairs(other.extra) do
+        local keyType = util.type(key)
+        local valueType = util.type(key)
+
+        if keyType then
+            pool.swap(self.query:getPool(keyType), other.query:getPool(keyType), key)
+        end
+
+        if valueType then
+            pool.swap(self.query:getPool(valueType), other.query:getPool(valueType), value)
+        end
+    end
 end
 
 return worldQueryResponse

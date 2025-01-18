@@ -11,9 +11,11 @@
 
 There are no dependencies (other than the demo and debug drawing code using LÖVE). It can be used from any Lua 5.1-compatible environment. There are certain optimizations available when using LuaJIT, but fallbacks are used in vanilla Lua environments.
 
-**slick** is good for platformers, top-down, and any other sort of game where you need rotated objects and circles/polygons for collision. If you're making a Mario game or Zelda game where everything is an axis-aligned rectangle, then `bump` is probably better.
+**slick** is good for platformers, top-down, and any other sort of game where you need rotated objects and circles/polygons for collision. If you're making a Mario game or Zelda game where everything is an axis-aligned rectangle, then `bump.lua` is probably better.
 
 **slick** is **not** good for games that need realistic physics responses. The library has no concepts of physical properties like acceleration, mass, or angular velocity. If you need more realistic physics, then try Box2D or something.
+
+Suggestions, bug reports, and improvements are welcome. Make sure there's not already an open issue with your bug or suggestion; feel free to jump in and continue the discussion or offer your perspective in an existing issue.
 
 ## Example
 
@@ -136,15 +138,16 @@ There are currently three built-in collision responses:
 
 * `item`, `entity`, `shape`: The item, entity, and shape of the moving entity.
 * `other`, `otherEntity`, `otherShape`: The item, entity, and shape of the entity we collided with.
+* `response`: The name of the collision response handler that resolved this collision.
 * `normal.x. normal.y`: The surface normal of the collision.
 * `depth`: The penetration depth. Usually this is 0 since collisions are swept, but other methods that return `slick.worldQueryResponse` for overlapping objects might have a `depth` value greater than zero.
 * `offset.x, offset.y`: The offset from the current position to the new position.
 * `touch.x, touch.y`: This is the sum of the current position before impact and `offset.x, offset.y`
 * `contactPoint.x, contactPoint.y`: The contact point closest to the center of the entity. For all contact points, use the `contactPoints` array.
 
-See `slick.worldQueryResponse` documentation for more
+See `slick.worldQueryResponse` documentation for more information.
 
-**Note:** unlike `bump.lua`, since an entity can be composed of multiple shapes, there might be multiple pairs of (`item`, `other`) during a movement where the `shape`/`otherShape` is different.
+**Note:** unlike `bump.lua`, since an entity can be composed of multiple shapes, there might be multiple pairs of (`item`, `other`) during a movement where the `shape`/`otherShape` is different. Similarly, since **slick** iteratively resolves collisions, the same (`item`, `other` `shape`, `otherShape`) tuple might occur more than once in `collisions`.
 
 For an example player movement method, try this:
 
@@ -308,7 +311,7 @@ Below is an API reference for **slick**.
   
   `fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number): string`
 
-  The return value is expected to be a collision response handler; if nothing is returned, this defaults to `slide`.
+  The return value is expected to be the name of a collision response handler; if nothing is returned, this defaults to `slide`.
 
   Be aware that, e.g., during a `move`, the same `shape` and `otherShape` might be visited more than once to resolve a collision.
 
@@ -316,22 +319,131 @@ Below is an API reference for **slick**.
   
   This represents a query against the world. It has a single field, `results`, which is an array of `slick.worldQueryResponse`. `results` will be sorted by first time of collision to last time of collision.
 
-  When re-using a `slick.worldQuery`, **all data from the previous usage will be considered invalid**. This is because `slick.worldQuery` re-uses the previous `slick.worldQueryResponse` objects.
+  * `slick.worldQueryResponse`:
+    
+    This represents a single collision of two shapes from two different entities belonging to a specific `slick.worldQuery`.
 
-* `slick.worldQueryResponse`:
+    This object has the following fields:
+
+      * `item`, `entity`, `shape`: The item, entity, and shape of the moving entity.
+      * `other`, `otherEntity`, `otherShape`: The item, entity, and shape of the entity we collided with.
+      * `response`: Either a `string`, `slick.worldVisitFunc`, or `boolean`. See `slick.worldFilterQueryFunc` for valid values.
+      * `normal.x. normal.y`: The surface normal of the collision.
+      * `depth`: The penetration depth. Usually this is 0 since collisions are swept, but other methods that return `slick.worldQueryResponse` for overlapping objects might have a `depth` value greater than zero.
+      * `offset.x, offset.y`: The offset from the current position to the new position.
+      * `touch.x, touch.y`: This is the sum of the current position before impact and `offset.x, offset.y`
+      * `contactPoint.x, contactPoint.y`: The contact point closest to the center of the entity. For all contact points, use the `contactPoints` array.
+      * `segment.a, segment.b`: The points of the segment that was collided with.
+
+  When re-using a `slick.worldQuery`, **all data from the previous usage will be considered invalid**. This is because `slick.worldQuery` re-uses the previous `slick.worldQueryResponse` objects. See advanced usage below. This only applies if you explicitly create a `slick.worldQuery` and pass it into methods like `slick.world.move` and `slick.world.project`.
+
+  `slick.worldQuery` has a few methods useful for custom collision response handlers:
+
+  * `slick.worldQuery:move(response: slick.worldQueryResponse)`
+
+     Moves `response` from its current `slick.worldQuery` to this `slick.worldQuery`. For example, `slick.world.check` uses a temporary query to find potential collisions, then `move`s all handled collisions to the result `query` parameter.
   
-  This represents a single collision of two shapes from two different entities.
+  * `slick.worldQuery:allocate(type: any, ...: any): any`
+  
+    Takes a poolable **slick** type (like `slick.geometry.point`) to allocate and return. The returned instance of `type` is valid until the query is re-used (e.g., passed to another `slick.world` method that accepts a `query`) or reset (see `slick.worldQuery.reset`).
 
-  This object has the following fields:
+    Creating pools of `type` will be handled transparently. If a pool of `type` already exists (i.e., from a previous `slick.worldQuery.allocate` call with the same `type`), then it will be used instead. The underlying pool will persist for the lifetime of the `slick.worldQuery`.
 
-    * `item`, `entity`, `shape`: The item, entity, and shape of the moving entity.
-    * `other`, `otherEntity`, `otherShape`: The item, entity, and shape of the entity we collided with.
-    * `normal.x. normal.y`: The surface normal of the collision.
-    * `depth`: The penetration depth. Usually this is 0 since collisions are swept, but other methods that return `slick.worldQueryResponse` for overlapping objects might have a `depth` value greater than zero.
-    * `offset.x, offset.y`: The offset from the current position to the new position.
-    * `touch.x, touch.y`: This is the sum of the current position before impact and `offset.x, offset.y`
-    * `contactPoint.x, contactPoint.y`: The contact point closest to the center of the entity. For all contact points, use the `contactPoints` array.
-    * `segment.a, segment.b`: The points of the segment that was collided with.
+  * `slick.worldQuery:reset()`
+
+    Resets this world query. All instances allocated by `slick.worldQuery.allocate` will no longer be valid. All `slick.worldQueryResponse` in `slick.worldQuery.results` will no longer be valid. This is automatically called by methods like `slick.world.project` when passing in a `slick.worldQuery`. See advanced usage below for caveats of re-using a `slick.worldQuery`.
+  
+  #### Saving on garbage: re-using a `slick.worldQuery` or a `slick.worldQueryResponse` (advanced usage)
+
+  Re-using a `slick.worldQuery` or `slick.worldQueryResponse` can reduce garbage generation during movement and projection. This is an opt-in behavior because there are some caveats.
+  
+  If you do not re-use `slick.worldQuery` responses, then none of this applies to you. However, if you create a `slick.worldQuery` (i.e., via `slick.newWorldQuery`) and proceed to re-use it between calls to methods that take a `slick.worldQuery` like `slick.world.project` and `slick.world.move` (among others), then this section applies to you.
+  
+  **Do not keep references to any fields (like `touch` or `offset`) belonging to the `slick.worldQueryResponse` between usages of the parent `slick.worldQuery`.** For example, the `x` and `y` components of `touch` **might** change if the `slick.worldQuery` is re-used. Similarly, do not keep a reference to a specific `slick.worldQueryResponse` between usages of the same `slick.worldQuery`.
+
+  **Do not do this:**
+
+  ```lua
+  local query = slick.newWorldQuery(world)
+  world:project(entity, x, y, goalX, goalY, filter, query)
+
+  local touch = query.results[1].touch
+  world:project(entity, newX, newY, newGoalX, newGoalY, filter, query)
+
+  --- `touch` is an instance of `slick.geometry.point` belong to a `slick.worldQueryResponse` and might have mutated due to the `slick.world.project`!
+  ```
+
+  **Instead, do this:**
+
+  ```lua
+  local query = slick.newWorldQuery(world)
+  world:project(entity, x, y, goalX, goalY, filter, query)
+
+  local touchX, touchY = query.results[1].touch.x, query.results[1].touch.y
+  world:project(entity, newX, newY, newGoalX, newGoalY, filter, query)
+
+  --- ... use `touchX`, `touchY` for whatever ...
+  ```
+
+  This goes for any instance fields belonging to the `slick.worldQueryResponse`, such as (but not limited to):
+
+  * `normal`
+  * `offset`
+  * `touch`
+  * `contactPoint` **and** all `contactPoints`
+
+  Remember, fields like `item`, `entity`, `shape` (and their `other` counterparts) **do not belong** to the `slick.worldQueryResponse`.
+
+  Remember, the same holds for storing a reference to a `slick.worldQueryResponse` belonging to a `slick.worldQuery`. The specific `slick.worldQueryResponse` instance might be re-used and thus all fields will refer to a different collision.
+
+* `slick.worldResponseFunc`
+
+  A `slick.worldResponseFunc` is a stateless function that receives the state of a collision in the world and is expected to safely resolve the collision. **slick** comes with a few built-in collision response handlers that cover a majority of use cases, but if there's a need for a very specific behavior, then see the documentation below.
+
+  **Be warned, below is for advanced use cases when the built-in responses are not enough.** Review an existing response handler to see how they work before adding your own. Review `slick.worldQuery`, `slick.worldQueryResponse`, `slick.world.check`, and `slick.world.project`. Make sure you understand the advanced usage of these types and methods. You might have to dig into the source code if there's an gaps. Feel free to open a PR with improvements to the documentation or raise an issue if something doesn't work as described
+  
+  The `world` the collision is is occurring in, the `query` and the `response` belonging to `query` that caused this resolution, the current and goal (`x`, `y`) coordinates of the working collision resolution (such as in `slick.world.check`), and the `filter` passed to `slick.world.check` and resolves a collision.
+  
+  This function is in the following form:
+  
+  ```
+  fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc, result: slick.worldQuery): number, number, number, number, string?, slick.worldQueryResponse
+  ```
+
+  A response function is expected to return a few things:
+
+  1. Returns a current (safe) position (`x`, `y`) tuple after collision resolution. This position must **not** result in the entity penetrating another entity.
+  2. Return the **next** goal position. This goal **can** potentially be a penetrating position; `slick.world.check` will attempt to reach this goal position without causing penetration in the next iteration.
+  3. Optionally returns a remapping all future responses of this type. For example, `slide` will remap to `touch` in order to ensure stability after the first `slide` collision. Any future `slide` responses will be treated as `touch`.
+  4. Optionally returns the next response to handle. For example, `cross` will return the first non-`cross` response from `query` (if one exists). The iteration will immediately pivot to the new response. (This **does not** cause a bounce, so ensure it's not possible to ping-pong between a loop of two or more responses).
+
+  The response function should also move `response` (if handled) to `result`. Similarly, if any additional `response`s from `query` are handled, then they should also moved to `result`. For example, `cross` will move every `cross` response up until the first non-`cross` response to `result`. See `slick.worldQuery` documentation above.
+
+  After resolving the collision, the response handler should also perform the next `slick.world.project` with the relevant current and goal positions using the provided `query`. The specific values for current and goal positions will change based on the behavior and requirements of the response handler. For example, `touch` will use `response.touch.x` and `response.touch.y` for both current and goal positions. On the other hand, `slide` uses `response.touch.x` and `response.touch.y` for the current position and the projection of the goal position parameter on the normal of the collision to create an entirely new goal position.
+
+  If a response handler needs to create extra data about the collision, then this data can be stored in the `extra` table of the `slick.worldQueryResponse` **before** moving the response to `result`.
+  
+  If storing, for example, a reflection normal, you might need to allocate a **slick** value (such as a `slick.geometry.point`). In order to not create garbage, see `slick.worldQuery.allocate` on how to safely allocate an instance. Only **slick** types can be safely pooled, but any value or instance can be stored in `extra`. Obviously, primitives like numbers do not need to be pooled and do not create garbage. Furthermore, all of this is of course optional if the memory performance requirements are more lax.
+
+  To add, remove, or retrieve a custom or built-in response handler to a `slick.world`, you can:
+
+  * `slick.world:addResponse(name: string, response: slick.worldResponseFunc)`
+
+     Adds `response` as a collision response handler with `name`. For example, maybe you have a custom collision handler that allows one-way movement. You can give it a name, like `pass`, and add it to the world. As soon as this response handler is added, any filter that returns `pass` will use the newly registered handler.
+
+     Adding a `response` with a name that already exists is an error. You can only have one `slide`, one `pass`, etc. Either remove the existing response handler with the name or use a different name.
+
+  * `slick.world:removeResponse(name: string)`
+
+    Removes the response handler with the given `name`. There must be a valid collision handler with `name`; otherwise, an error will be raised.
+
+  * `slick.world:getResponse(name: string): slick.worldResponseFunc`
+
+    Returns the response handler with the given `name`. There must be a valid collision handler with `name`; otherwise, an error will be raised.
+
+  * `slick.world:hasResponse(name: string): boolean`
+
+    Returns true if there's a response handler with the given `name`, false otherwise. If you're not sure if a response handler exists before calling `slick.world.addResponse`, `slick.world.removeResponse`, or `slick.world.getResponse`, then you should use this method first to figure out what to do next.
 
 ### `slick.entity`
 
