@@ -1,4 +1,5 @@
 local slicktable = require("slick.util.slicktable")
+local util = require("slick.util.common")
 
 --- @class slick.util.pool
 --- @field type { new: function }
@@ -16,6 +17,45 @@ function pool.new(poolType)
         used = {},
         free = {}
     }, metatable)
+end
+
+--- Removes `value` from this pool's scope. `value` will not be re-used.
+--- Only removing allocated (**not free!**) values is permitted. If `value` is in the free list,
+--- this will fail and return false.
+--- @param value any
+--- @return boolean result true if `value` was removed from this pool, false otherwise
+function pool:remove(value)
+    if self.used[value] then
+        self.used[value] = nil
+        return true
+    end
+
+    return false
+end
+
+--- Adds `value` to this pool's scope. Behavior is undefined if `value` belongs to another pool.
+--- If `value` is not exactly of the type this pool manages then it will not be added to this pool.
+--- @param value any
+--- @return boolean result true if `value` was added to this pool, false otherwise
+function pool:add(value)
+    if util.is(value, self.type) then
+        self.used[value] = true
+        return true
+    end
+
+    return false
+end
+
+--- Moves `value` from the source pool to the target pool.
+--- This effective removes `value` from `source` and adds `value` to `target`
+--- @param source slick.util.pool
+--- @param target slick.util.pool
+--- @param value any
+--- @return boolean result true if `value` was moved successfully, `false` otherwise
+--- @see slick.util.pool.add
+--- @see slick.util.pool.remove
+function pool.swap(source, target, value)
+    return source:remove(value) and target:add(value)
 end
 
 --- Allocates a new type, initializing the new instance with the provided arguments.

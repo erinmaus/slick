@@ -24,7 +24,7 @@ local function defaultWorldShapeFilterQueryFunc()
     return true
 end
 
---- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc): number, number, number, number, string?
+--- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc, result: slick.worldQuery): number, number, number, number, string?, slick.worldQueryResponse
 --- @alias slick.worldVisitFunc fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number): string
 
 --- @class slick.world
@@ -447,33 +447,40 @@ function world:check(item, goalX, goalY, filter, query)
 
         local result = cachedQuery.results[1]
 
-        local shape = result.shape
-        local otherShape = result.otherShape
+        --- @type slick.collision.shape
+        local shape, otherShape
+        repeat
+            shape = result.shape
+            otherShape = result.otherShape
 
-        query:push(result)
-
-        --- @type string
-        local responseName = "slide"
-        if not responseName then
-            if type(result.response) == "function" or type(result.response) == "table" then
-                responseName = result.response(item, world, query, result, x, y, goalX, goalY)
-            elseif type(result.response) == "string" then
-                --- @diagnostic disable-next-line: cast-local-type
-                responseName = result.response
+            --- @type string
+            local responseName
+            if not responseName then
+                if type(result.response) == "function" or type(result.response) == "table" then
+                    responseName = result.response(item, world, query, result, x, y, goalX, goalY)
+                elseif type(result.response) == "string" then
+                    --- @diagnostic disable-next-line: cast-local-type
+                    responseName = result.response
+                else
+                    responseName = "slide"
+                end
             end
-        end
+            result.response = responseName
 
-        --- @cast responseName string
-        responseName = _cachedRemappedHandlers[responseName] or responseName
+            --- @cast responseName string
+            responseName = _cachedRemappedHandlers[responseName] or responseName
 
-        assert(type(responseName) == "string", "expect name of response handler as string")
+            assert(type(responseName) == "string", "expect name of response handler as string")
 
-        local response = self:getResponse(responseName)
+            local response = self:getResponse(responseName)
 
-        local remappedResponseName
-        x, y, goalX, goalY, remappedResponseName = response(self, cachedQuery, result, x, y, goalX, goalY, filter)
-        
-        _cachedRemappedHandlers[responseName] = remappedResponseName
+            local remappedResponseName, nextResult
+            x, y, goalX, goalY, remappedResponseName, nextResult = response(self, cachedQuery, result, x, y, goalX, goalY, filter, query)
+
+            _cachedRemappedHandlers[responseName] = remappedResponseName
+
+            result = nextResult
+        until not result
 
         local isStationary = x == goalX and y == goalY
         local isSameCollision = #cachedQuery.results >= 1 and cachedQuery.results[1].shape == shape and cachedQuery.results[1].otherShape == otherShape
@@ -577,6 +584,12 @@ function world:getResponse(name)
     end
 
     return self.responses[name]
+end
+
+--- @param name string
+--- @return boolean
+function world:hasResponse(name)
+    return self.responses[name] ~= nil
 end
 
 return world

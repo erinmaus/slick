@@ -1,16 +1,17 @@
 local worldQueryResponse = require("slick.worldQueryResponse")
 local box = require("slick.collision.box")
+local circle = require("slick.collision.circle")
 local lineSegment = require("slick.collision.lineSegment")
 local quadTreeQuery = require("slick.collision.quadTreeQuery")
 local ray = require("slick.geometry.ray")
 local shapeCollisionResolutionQuery = require("slick.collision.shapeCollisionResolutionQuery")
 local point = require("slick.geometry.point")
 local rectangle = require("slick.geometry.rectangle")
+local segment = require("slick.geometry.segment")
 local transform = require("slick.geometry.transform")
 local slicktable = require("slick.util.slicktable")
 local util = require("slick.util")
-local segment = require("slick.geometry.segment")
-local circle  = require("slick.collision.circle")
+local pool = require ("slick.util.pool")
 
 --- @class slick.worldQuery
 --- @field world slick.world
@@ -18,6 +19,7 @@ local circle  = require("slick.collision.circle")
 --- @field results slick.worldQueryResponse[]
 --- @field private cachedResults slick.worldQueryResponse[]
 --- @field private collisionQuery slick.collision.shapeCollisionResolutionQuery
+--- @field pools table<any, slick.util.pool> **internal**
 local worldQuery = {}
 local metatable = { __index = worldQuery }
 
@@ -29,8 +31,29 @@ function worldQuery.new(world)
         quadTreeQuery = quadTreeQuery.new(world.quadTree),
         results = {},
         cachedResults = {},
-        collisionQuery = shapeCollisionResolutionQuery.new(world.options.epsilon)
+        collisionQuery = shapeCollisionResolutionQuery.new(world.options.epsilon),
+        pools = {}
     }, metatable)
+end
+
+--- @param type any
+--- @param ... unknown
+--- @return any
+function worldQuery:allocate(type, ...)
+    local p = self:getPool(type)
+    return p:allocate(...)
+end
+
+--- @param type any
+--- @return slick.util.pool
+function worldQuery:getPool(type)
+    local p = self.pools[type]
+    if not p then
+        p = pool.new(type)
+        self.pools[type] = p
+    end
+
+    return p
 end
 
 local _cachedQueryTransform = transform.new()
@@ -214,6 +237,10 @@ end
 
 function worldQuery:reset()
     slicktable.clear(self.results)
+
+    for _, pool in pairs(self.pools) do
+        pool:reset()
+    end
 end
 
 local _cachedBounds = rectangle.new()
