@@ -133,6 +133,7 @@ There are currently three built-in collision responses:
 * `"slide"`: "slides" along other entities
 * `"touch"`: stops moving as soon as a collision between entities occurs
 * `"cross"`: goes through another entity as if it the moving entity is a ghost
+* `"bounce"`: "bounces" against the entity; this adds a (`extra.bounceNormal.x`, `extra.bounceNormal.y`) representing the reflection vector to the `slick.worldQueryResponse` (see below). The bounce normal can be used to change the direction the entity is moving in.
 
 `collisions` is a list of `slick.worldQueryResponse` of all the collisions that were handled during the movement and `count` is equal to `#collisions`. Some fields of note are:
 

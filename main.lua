@@ -171,6 +171,43 @@ local function moveFairy(fairy, world, query, deltaTime)
     end, query)
 end
 
+local function makeBubble(world)
+    local n = slick.geometry.point.new(love.math.random() * 2 - 1, love.math.random() * 2 - 1)
+    n:normalize(n)
+
+    local bubble = {
+        type = "bubble",
+
+        x = 16,
+        y = 16,
+
+        nx = n.x,
+        ny = n.y
+    }
+
+    world:add(bubble, bubble.x, bubble.y, slick.newCircleShape(0, 0, 8))
+
+    return bubble
+end
+
+local function bubbleFilter()
+    return "bounce"
+end
+
+local function moveBubble(bubble, world, query, deltaTime)
+    local goalX, goalY = bubble.x + bubble.nx * PLAYER_SPEED * deltaTime, bubble.y + bubble.ny * PLAYER_SPEED * deltaTime
+    local x, y, hits = world:move(bubble, goalX, goalY, bubbleFilter, query)
+
+    bubble.x = x
+    bubble.y = y
+    
+    local hit = hits[1]
+    if hit then
+        bubble.nx = hit.extra.bounceNormal.x
+        bubble.ny = hit.extra.bounceNormal.y
+    end
+end
+
 local function makePlayer(world)
     local player = {
         type = "player",
@@ -214,6 +251,10 @@ local function notPlayerQuery(item)
 end
 
 local function notPlayerFilter(_, other)
+    if other.type == "thing" then
+        return "bounce"
+    end
+
     return other.type ~= "player"
 end
 
@@ -377,6 +418,7 @@ local function makeLevel(world)
             slick.newBoxShape(0, 0, 8, h),
             slick.newBoxShape(w - 8, 0, 8, h),
             slick.newBoxShape(0, h - 8, w, 8),
+            slick.newBoxShape(0, -8, w, 8),
             slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
             slick.newPolygonMeshShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }, { w - w / 4, h, w - 8, h / 2, w - 8, h }),
             slick.newBoxShape(w / 2 + w / 5, h - 150, w / 5, 60),
@@ -445,7 +487,7 @@ local function makeGear(world)
 end
 
 local world, query
-local player, gear
+local player, gear, bubble
 local fairy
 
 function love.load()
@@ -459,8 +501,9 @@ function love.load()
 
     makeLevel(world)
     gear = makeGear(world)
-    
     player = makePlayer(world)
+    bubble = makeBubble(world)
+
     query = slick.newWorldQuery(world)
 end
 
@@ -563,6 +606,7 @@ function love.update(deltaTime)
     local memoryBefore = collectgarbage("count")
     local timeBefore = love.timer.getTime()
 
+    moveBubble(bubble, world, query, deltaTime)
     local didMove = movePlayer(player, world, query, deltaTime)
     if fairy then
         moveFairy(fairy, world, query, deltaTime)

@@ -163,7 +163,7 @@ function worldQueryResponse:move(other)
 
     for key, value in pairs(other.extra) do
         local keyType = util.type(key)
-        local valueType = util.type(key)
+        local valueType = util.type(value)
 
         if keyType then
             pool.swap(self.query:getPool(keyType), other.query:getPool(keyType), key)
