@@ -227,7 +227,7 @@ local function makePlayer(world)
     }
 
     player.luigini = slick.newShapeGroup(
-        slick.newBoxShape(0, 0, player.w, player.h),
+        slick.newRectangleShape(0, 0, player.w, player.h),
         slick.newCircleShape(player.w / 2, 0, player.w / 2),
         slick.newCircleShape(player.w / 2, player.h, player.w / 2)
     )
@@ -415,18 +415,18 @@ local function makeLevel(world)
 
     world:add(level, slick.newTransform(), 
         slick.newShapeGroup(
-            slick.newBoxShape(0, 0, 8, h),
-            slick.newBoxShape(w - 8, 0, 8, h),
-            slick.newBoxShape(0, h - 8, w, 8),
-            slick.newBoxShape(0, -8, w, 8),
+            slick.newRectangleShape(0, 0, 8, h),
+            slick.newRectangleShape(w - 8, 0, 8, h),
+            slick.newRectangleShape(0, h - 8, w, 8),
+            slick.newRectangleShape(0, -8, w, 8),
             slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
             slick.newPolygonMeshShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }, { w - w / 4, h, w - 8, h / 2, w - 8, h }),
-            slick.newBoxShape(w / 2 + w / 5, h - 150, w / 5, 60),
+            slick.newRectangleShape(w / 2 + w / 5, h - 150, w / 5, 60),
             slick.newPolygonMeshShape({ w / 2 + w / 4, h / 4, w / 2 + w / 4 + w / 8, h / 4 + h / 8, w / 2 + w / 4, h / 4 + h / 4, w / 2 + w / 4 + w / 16, h / 4 + h / 8 })
         )
     )
 
-    world:add({ type = "level" }, slick.newTransform(w / 3.25, h / 3.25, -math.pi / 4), slick.newBoxShape(-w / 8, -30, w / 4, 60))
+    world:add({ type = "level" }, slick.newTransform(w / 3.25, h / 3.25, -math.pi / 4), slick.newRectangleShape(-w / 8, -30, w / 4, 60))
 
     return level
 end
