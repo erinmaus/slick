@@ -59,10 +59,10 @@ end
 do
     local basePath = PATH:gsub("%.", "/")
     if basePath == "" then
-        basePath = "."
+        basePath = "./"
     end
 
-    local pathPrefix = string.format("%s/?.lua;%s/?/init.lua", basePath, basePath)
+    local pathPrefix = string.format("%s?.lua;%s?/init.lua", basePath, basePath)
 
     local oldLuaPath = package.path
     local oldLovePath = love and love.filesystem and love.filesystem.getRequirePath()
