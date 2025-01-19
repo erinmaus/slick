@@ -207,7 +207,9 @@ function quadTreeNode:expand(bounds)
             for data in pairs(_cachedQuadTreeNodeData) do
                 --- @diagnostic disable-next-line: invisible
                 local r = self.tree.data[data]
-                child:insert(data, r)
+                if r:overlaps(child.bounds) then
+                    child:insert(data, r)
+                end
             end
         end
     end
