@@ -1001,6 +1001,11 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
         self:_performPolygonPolygonProjection(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
     end
 
+    if self.collision then
+        self.normal:round(self.epsilon)
+        self.normal:normalize(self.normal)
+    end
+
     return self.collision
 end
 
