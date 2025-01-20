@@ -2,37 +2,49 @@ local polygonMesh = require("slick.collision.polygonMesh")
 local util = require("slick.util")
 
 --- @class slick.collision.shapeGroup
+--- @field tag any
 --- @field entity slick.entity
 --- @field shapes slick.collision.shape[]
 local shapeGroup = {}
 local metatable = { __index = shapeGroup }
 
 --- @param entity slick.entity
+--- @param tag slick.tag?
 --- @param ... slick.collision.shapeDefinition
 --- @return slick.collision.shapeGroup
-function shapeGroup.new(entity, ...)
+function shapeGroup.new(entity, tag, ...)
     local result = setmetatable({
         entity = entity,
         shapes = {}
     }, metatable)
 
-    result:_addShapeDefinitions(...)
+    result:_addShapeDefinitions(tag, ...)
 
     return result
 end
 
 --- @private
+--- @param tag slick.tag?
 --- @param shapeDefinition slick.collision.shapeDefinition?
 --- @param ... slick.collision.shapeDefinition
-function shapeGroup:_addShapeDefinitions(shapeDefinition, ...)
+function shapeGroup:_addShapeDefinitions(tag, shapeDefinition, ...)
     if not shapeDefinition then
         return
     end
 
-    local shape = shapeDefinition.type.new(self.entity, unpack(shapeDefinition.arguments, 1, shapeDefinition.n))
-    self:_addShapes(shape)
+    local shape
+    if shapeDefinition.type == shapeGroup then
+        shape = shapeDefinition.type.new(self.entity, shapeDefinition.tag, unpack(shapeDefinition.arguments, 1, shapeDefinition.n))
+    else
+        shape = shapeDefinition.type.new(self.entity, unpack(shapeDefinition.arguments, 1, shapeDefinition.n))
+    end
 
-    self:_addShapeDefinitions(...)
+    local shapeTag = shapeDefinition.tag or tag
+    local tagValue = shapeTag and shapeTag.value
+    shape.tag = tagValue
+
+    self:_addShapes(shape)
+    self:_addShapeDefinitions(tag, ...)
 end
 
 --- @private

@@ -24,6 +24,9 @@ local responses
 --- @module "slick.shape"
 local shape
 
+--- @module "slick.tag"
+local tag
+
 --- @module "slick.util"
 local util
 
@@ -48,6 +51,7 @@ local function load()
     defaultOptions = require("slick.options")
     responses = require("slick.responses")
     shape = require("slick.shape")
+    tag = require("slick.tag")
     util = require("slick.util")
     world = require("slick.world")
     worldQuery = require("slick.worldQuery")
@@ -99,6 +103,7 @@ return {
     entity = entity,
     geometry = geometry,
     shape = shape,
+    tag = tag,
     util = util,
     world = world,
     worldQuery = worldQuery,
@@ -117,6 +122,7 @@ return {
     newPolylineShape = shape.newPolyline,
     newPolygonMeshShape = shape.newPolygonMesh,
     newShapeGroup = shape.newShapeGroup,
+    newTag = tag.new,
 
     triangulate = geometry.simple.triangulate,
     polygonize = geometry.simple.polygonize,

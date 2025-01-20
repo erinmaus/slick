@@ -469,27 +469,35 @@ There are methods to mutate the entity, but tread carefully:
 
 ### `slick.collision.shapelike` and shape definitions
 
-A `slick.collision.shapelike` can be a polygon, circle, box, or shape group. An entity can have multiple shapes via shape groups.
+A `slick.collision.shapelike` can be a polygon, circle, box, or shape group. An entity can have multiple shapes via shape groups. `slick.collision.shapelike` aren't instantiated directly; instead, you create a `slick.collision.shapeDefinition` constructor and pass in the physical properties of the shape. When adding a `slick.entity` to the world (or updating it), shape instances will be automatically constructed from the shape definitions.
 
-When adding or updating an `item` to the world, you can provide a `slick.collision.shapeDefinition`. The complete list of of shape definitions are:
+The only public field for a `slick.collision.shapelike` is a value called `tag`. This value is passed to a `slick.collision.shapeDefinition` constructor. `tag` can be any value. If not provided, `tag` will be `nil`.
 
-* `slick.newRectangleShape(x: number, y: number, w: number, h: number)`
+When adding or updating an `item` to the world, you can provide a `slick.collision.shapeDefinition`. The constructor for a `slick.collision.shapeDefinition` takes a list of properties that define the shape. All `slick.collision.shapeDefinition` constructors can take an optional `slick.tag` as the last value, which will be stored in the `tag` field of the `slick.collision.shapelike`. In order to to create a `slick.tag`, you can the `slick.newTag` constructor:
+
+* `slick.newTag(value: any): slick.tag`
+  
+  Instantiates an opaque `slick.tag` instance wrapping `value`. Keep in mind the `tag` field will be the `value` argument, **not** a `slick.tag` instance. All shape definition constructors optionally take a `slick.tag` as the last parameter.
+
+The complete list of of shape definitions are:
+
+* `slick.newRectangleShape(x: number, y: number, w: number, h: number, tag: slick.tag?)`
 
   A rectangle with its top-left corner relative to the entity at (`x`, `y`). The rectangle will have a width of `w` and a height of `h`.
 
   For example, if an entity is at `100, 150` and the box is created at `10, 10`, then the box will be at `110, 160` in the world.
 
-* `slick.newCircleShape(x: number, y: number, radius: number)`
+* `slick.newCircleShape(x: number, y: number, radius: number, tag: slick.tag?)`
 
   A rectangle with its center relative to the entity at (`x`, `y`). The rectangle will have a radius of `radius`.
 
-* `slick.newPolygonShape(vertices: number[])`
+* `slick.newPolygonShape(vertices: number[], tag: slick.tag?)`
 
   Creates a polygon from a list of vertices. The vertices are in the order `{ x1, y1, x2, y2, x3, y3, ..., xn, yn }`.
 
   The polygon **must** be a valid convex polygon. This means no self-intersections; all interior angles are less than 180 degrees; no holes; and no duplicate points. To create a polygon that might self-intersect, have holes, or be concave, use `slick.newPolygonMeshShape`.
 
-* `slick.newPolygonMeshShape(...contours: number[])`
+* `slick.newPolygonMeshShape(...contours: number[], tag: slick.tag?)`
 
   Creates a polygon mesh from a variable number of contours. The contours are in the form `{ x1, y1, x2, y2, x3, y3, ..., xn, yn }`.
   
@@ -497,9 +505,11 @@ When adding or updating an `item` to the world, you can provide a `slick.collisi
 
   Polygons can self-intersect; be concave; have holes; have duplicate points; have collinear edges; etc. However, the worse the quality of the input data, the longer the polygonization will take. Similarly, the more contours / points in the contour data, the longer the triangulation/polygonization will take.
 
-* `slick.newShapeGroup(...shapes: slick.collision.shapeDefinition)`
+* `slick.newShapeGroup(...shapes: slick.collision.shapeDefinition, tag: slick.tag?)`
   
   Create a group of shapes. Useful to put all level geometry in one entity, for example, or make a "capsule" shape for a player out of two circle and a box (or things of that nature).
+
+  The value stored in the `slick.tag` (if provided) will be inherited by all children shapes definition, unless the child shape definition has its own `slick.tag`.
 
 ### `slick.geometry.transform`
 
