@@ -5,6 +5,7 @@ local slickmath = require("slick.util.slickmath")
 local slicktable= require("slick.util.slicktable")
 
 --- @class slick.collision.commonShape
+--- @field tag any
 --- @field entity slick.entity?
 --- @field vertexCount number
 --- @field normalCount number

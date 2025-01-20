@@ -1,6 +1,7 @@
 local polygon = require ("slick.collision.polygon")
 
 --- @class slick.collision.polygonMesh
+--- @field tag any
 --- @field entity slick.entity
 --- @field boundaries number[][]
 --- @field polygons slick.collision.polygon[]
@@ -66,7 +67,10 @@ function polygonMesh:build(triangulator)
             table.insert(outputVertices, y)
         end
 
-        table.insert(self.polygons, polygon.new(self.entity, unpack(outputVertices)))
+        local instantiatedPolygon = polygon.new(self.entity, unpack(outputVertices))
+        instantiatedPolygon.tag = self.tag
+
+        table.insert(self.polygons, instantiatedPolygon)
     end
 end
 

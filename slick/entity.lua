@@ -70,7 +70,7 @@ function entity:setShapes(...)
         end
     end
 
-    self.shapes = shapeGroup.new(self, ...)
+    self.shapes = shapeGroup.new(self, nil, ...)
     if self.world then
         self.shapes:attach()
         self:_updateQuadTree()
