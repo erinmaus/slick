@@ -63,7 +63,7 @@ local function updatePlayer(player, deltaTime)
     local goalX = player.x + inputX * PLAYER_SPEED * deltaTime
     local goalY = player.y + inputY * PLAYER_SPEED * deltaTime
 
-    player.x, player.y = demo.world:move(player, goalX, goalY, function() return "touch" end)
+    player.x, player.y = demo.world:move(player, goalX, goalY)
 end
 
 local function makeLevel()

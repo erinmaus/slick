@@ -53,8 +53,8 @@ function common.makeGear(world, x, y, shape)
     return gear
 end
 
-local function thingPushFilter()
-    return true
+local function thingPushFilter(item)
+    return item.type == "player"
 end
 
 local function notLevelRotateFilter(item)

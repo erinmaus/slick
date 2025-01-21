@@ -600,6 +600,12 @@ The complete list of of shape definitions are:
 
   Polygons can self-intersect; be concave; have holes; have duplicate points; have collinear edges; etc. However, the worse the quality of the input data, the longer the polygonization will take. Similarly, the more contours / points in the contour data, the longer the triangulation/polygonization will take.
 
+* `slick.newMeshShape(...polygons: number[][], tag: slick.tag?)`
+
+  Creates a mesh out of triangles or convex polygons. The vertices of each polygon are in the order `{ x1, y1, x2, y2, x3, y3, ..., xn, yn }`.
+
+  This shape definition constructor is useful to easily construct shapes from [simple triangulation, polygonization, and clipping API](#simple-triangulation-polygonization-and-clipping-api). Generating convex polygons from the polygonization or clipping API will be faster than a triangle mesh.
+
 * `slick.newShapeGroup(...shapes: slick.collision.shapeDefinition, tag: slick.tag?)`
   
   Create a group of shapes. Useful to put all level geometry in one entity, for example, or make a "capsule" shape for a player out of two circle and a box (or things of that nature).

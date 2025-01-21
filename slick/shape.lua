@@ -112,6 +112,29 @@ local function newPolygonMesh(...)
     }
 end
 
+local function _newMeshHelper(polygons, i, j)
+    i = i or 1
+    j = j or #polygons
+
+    if i == j then
+        return newPolygon(polygons[i])
+    else
+        return newPolygon(polygons[i]), _newMeshHelper(polygons, i + 1, j)
+    end
+end
+
+--- @param polygons number[][] an array of segments in the form { { x1, y1, x2, y2, x3, y3, ..., xn, yn }, ... }
+--- @param tag slick.tag?
+--- @return slick.collision.shapeDefinition
+local function newMesh(polygons, tag)
+    return {
+        type = shapeGroup,
+        n = #polygons,
+        tag = tag,
+        arguments = { _newMeshHelper(polygons) }
+    }
+end
+
 --- @alias slick.collision.shapeDefinition {
 ---     type: { new: fun(entity: slick.entity, ...: any): slick.collision.shapelike },
 ---     n: number,
@@ -139,5 +162,6 @@ return {
     newPolygon = newPolygon,
     newPolyline = newPolyline,
     newPolygonMesh = newPolygonMesh,
+    newMesh = newMesh,
     newShapeGroup = newShapeGroup,
 }
