@@ -91,7 +91,6 @@ end
 local function _getTagAndCount(...)
     local n = select("#", ...)
 
-    local hasTag = false
     local maybeTag = select(select("#", ...), ...)
     if util.is(maybeTag, tag) then
         return n - 1, maybeTag
@@ -108,7 +107,7 @@ local function newPolygonMesh(...)
     return {
         type = polygonMesh,
         n = n,
-        tag = t,
+        tag = tag,
         arguments = { ... }
     }
 end
