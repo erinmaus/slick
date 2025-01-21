@@ -210,10 +210,18 @@ function point:normalize(result)
     end
 end
 
+--- @param other slick.geometry.point
 --- @param E number
-function point:round(E)
-    self.x = math.floor(self.x / E) * E
-    self.y = math.floor(self.y / E) * E
+function point:round(other, E)
+    other.x = self.x
+    if other.x > -E and other.x < E then
+        other.x = 0
+    end
+
+    other.y = self.y
+    if other.y > -E and other.y < E then
+        other.y = 0
+    end
 end
 
 --- @param result slick.geometry.point

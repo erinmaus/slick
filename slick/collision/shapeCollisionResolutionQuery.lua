@@ -812,8 +812,8 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
             selfShape.vertices[currentInterval.indices[currentInterval.minIndex].index]:add(self.currentOffset, _cachedSegmentA.a)
             selfShape.vertices[currentInterval.indices[currentInterval.minIndex + 1].index]:add(self.currentOffset, _cachedSegmentA.b)
 
-            otherShape.vertices[otherInterval.indices[otherInterval.maxIndex - 1].index]:add(self.otherOffset, _cachedSegmentB.a)
-            otherShape.vertices[otherInterval.indices[otherInterval.maxIndex].index]:add(self.otherOffset, _cachedSegmentB.b)
+            otherShape.vertices[otherInterval.indices[otherInterval.maxIndex].index]:add(self.otherOffset, _cachedSegmentB.a)
+            otherShape.vertices[otherInterval.indices[otherInterval.maxIndex - 1].index]:add(self.otherOffset, _cachedSegmentB.b)
             _cachedSegmentB.a:direction(_cachedSegmentB.b, self.normal)
         elseif side == SIDE_RIGHT then
             otherShape.vertices[otherInterval.indices[otherInterval.minIndex].index]:add(self.otherOffset, _cachedSegmentA.a)
@@ -825,7 +825,7 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         end
         
         self.normal:normalize(self.normal)
-        self.normal:right(self.normal)
+        self.normal:left(self.normal)
 
         local intersection, x, y
         if _cachedSegmentA:overlap(_cachedSegmentB) then
@@ -996,13 +996,15 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
             
             self.otherOffset:add(_cachedProjectCircleBumpOffset, self.otherOffset)
             otherVelocity:multiplyScalar(self.time, _cachedProjectScaledVelocity)
+
+            self.normal:negate(self.normal)
         end
     else
         self:_performPolygonPolygonProjection(selfShape, otherShape, selfOffset, otherOffset, selfVelocity, otherVelocity)
     end
 
     if self.collision then
-        self.normal:round(self.epsilon)
+        self.normal:round(self.normal, self.epsilon)
         self.normal:normalize(self.normal)
     end
 
