@@ -121,6 +121,7 @@ return {
     newPolygonShape = shape.newPolygon,
     newPolylineShape = shape.newPolyline,
     newPolygonMeshShape = shape.newPolygonMesh,
+    newMeshShape = shape.newMesh,
     newShapeGroup = shape.newShapeGroup,
     newTag = tag.new,
 
