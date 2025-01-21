@@ -2,12 +2,15 @@
 
 **slick** is a simple two-dimensional swept collision library with support for polygons inspired by the simplicity and robustness of [bump.lua](https://github.com/kikito/bump.lua).
 
+![demo of slick](./assets/demo.gif)
+
 * Supports polygon-polygon, circle-polygon, and circle-circle collisions.
 * All shapes are swept, meaning tunneling isn't possible.
 * Allows combining multiple shapes for one entity.
 * Simple "polygon mesh" shape that takes pretty much any contour data (including degenerate contour data) and produces a valid series of polygon shapes.
 * "Game-istic" collision handling and response instead of realistic, physics-based collision handling and response.
 * Rectangle, line segment, ray, circle, and point queries against the world.
+* Triangulation and polygon clipping support.
 
 There are no dependencies (other than the demo and debug drawing code using LÖVE). It can be used from any Lua 5.1-compatible environment. There are certain optimizations available when using LuaJIT, but fallbacks are used in vanilla Lua environments.
 
@@ -61,6 +64,43 @@ world:remove(player)
 world:remove(level)
 ```
 
+## Table of Contents
+
+1. [Introduction](#introduction)
+   1. [Adding & removing items](#adding--removing-items)
+2. [Documentation](#documentation)
+   1. [slick.world](#slickworld)
+       * [slick.world.newWorld](#slickworldnewworld): Create new world
+       * [slick.world.add](#slickworldadd): Add new item to world
+       * [slick.world.has](#slickworldhas): Check if an item exists in the world
+       * [slick.world.get](#slickworldget): Get an entity represented by an item in the world
+       * [slick.world.update](#slickworldupdate): Update transform and shape of an item in the world
+       * [slick.world.move](#slickworldmove): Move an item in the world performing collision response
+       * [slick.world.check](#slickworldcheck): Simulate moving an item in the world performing collision response
+       * [slick.world.project](#slickworldproject): Project an item in the world from one position to another position without collision response
+       * [slick.world.push](#slickworldpush): Attempt to push a potentially penetrating item in the world
+       * [slick.world.rotate](#slickworldrotate): Attempt to rotate an item in the world and then push potentially penetrating items out
+       * [slick.world.queryPoint](#slickworldquerypoint): Query all items under the point in the world
+       * [slick.world.queryRay](#slickworldqueryray): Query all items colliding the ray in the world
+       * [slick.world.querySegment](#slickworldquerysegment): Query all items colliding the segment in the world
+       * [slick.world.queryRectangle](#slickworldqueryrectangle): Query all items colliding the rectangle in the world
+       * [slick.world.queryCircle](#slickworldquerycircle): Query all items colliding the rectangle in the world
+       * [slick.world.optimize](#slickworldoptimize): Optimize quad tree representing world
+       * [slick.worldFilterQueryFunc](#slickworldfilterqueryfunc): Interface to filter world during collision response
+       * [slick.worldShapeFilterQueryFunc](#slickworldshapefilterqueryfunc): Interface to filter world during queries
+       * [slick.worldVisitFunc](#slickworldvisitfunc): Interface for visiting items during collision response
+       * [slick.worldQuery](#slickworldquery): Re-usable world query instance
+       * [slick.worldResponseFunc](#slickworldresponsefunc): Stateless function interface for handling responses
+   2. [slick.entity](#slickentity)
+   3. [slick.collision.shapelike and shape definitions](#slickcollisionshapelike-and-shape-definitions)
+   4. [slick.geometry.transform](#slickgeometrytransform)
+   5. [Simple triangulation, polygonization, and clipping API](#simple-triangulation-polygonization-and-clipping-api)
+   6. [Advance usage](#advanced-usage)
+      1. [slick.geometry.triangulation.delaunay](#slickgeometrytriangulationdelaunay)
+      2. [slick.geometry.clipper](#slickgeometryclipper)
+      3. [slick.util.search](#slickutilsearch)
+3. [License](#license)
+
 ## Introduction
 
 ### Adding & removing items
@@ -91,7 +131,7 @@ world:add(item, transform, shape)
 
 * `item` can be any value but ideally is a table representing the entity
 * `x` and `y` are the location of `item` in the world, **or** `transform` is a `slick.geometry.transform` object with position, rotation, scale, and offset components
-* `shape` is a `slick.collision.shapelike` object created by functions like `slick.newPolygonShape`, `slick.newBoxShape`, `slick.newCircleShape`, etc
+* `shape` is a `slick.collision.shapelike` object created by functions like `slick.newPolygonShape`, `slick.newBoxShape`, `slick.newCircleShape`, etc; see `slick.collision.shapelike` documentation below
 
 If `item` already exists in the world, you will receive an error. You can use `slick.world.has` to check if the world already contains `item`.
 
@@ -131,9 +171,18 @@ The (optional) filter function can change the behavior of the built-in collision
 There are currently three built-in collision responses:
 
 * `"slide"`: "slides" along other entities
+
+  ![demo of slick slide respone](./assets/response_slide.gif)
 * `"touch"`: stops moving as soon as a collision between entities occurs
+
+  ![demo of slick touch respone](./assets/response_touch.gif)
 * `"cross"`: goes through another entity as if it the moving entity is a ghost
+
+  ![demo of slick cross respone](./assets/response_cross.gif)
+
 * `"bounce"`: "bounces" against the entity; this adds a (`extra.bounceNormal.x`, `extra.bounceNormal.y`) representing the reflection vector to the `slick.worldQueryResponse` (see below). The bounce normal can be used to change the direction the entity is moving in.
+
+  ![demo of slick bounce respone](./assets/response_bounce.gif)
 
 `collisions` is a list of `slick.worldQueryResponse` of all the collisions that were handled during the movement and `count` is equal to `#collisions`. Some fields of note are:
 
@@ -167,6 +216,8 @@ Below is an API reference for **slick**.
 
 ### `slick.world`
 
+<a id="slickworldnewworld"></a>
+
 * `slick.newWorld(width: number, height: number, options: slick.options?): slick.world`
   
   Creates a new `slick.world`. `width` and `height` are the width and height of the world. By default, the upper left corner of the world is (0, 0) and the bottom right corner is (`width`, `height`).
@@ -187,21 +238,32 @@ Below is an API reference for **slick**.
   
   There is no one-size-fits-all for the quad tree options. You will have to tweak the values on a per-game, and perhaps even per-level, basis, for maximum performance. In an open-world game, for example, you might have to adjust these values over time. See `slick.world.optimize` for specifics.
 
+<a id="slickworldadd"></a>
+
 * `slick.world:add(item, x: number, y: number, shape: slick.collision.shapelike): slick.entity` **or** `slick.world:add(item, transform: slick.geometry.transform, shape: slick.collision.shapelike): slick.entity`
 
   Adds a new entity to the world with `item` as the handle at the provided location (either (`x`, `y`) or `transform`). If `item` already exists, this method will raise an error. For valid shapes, see `slick.collision.shapelike` below. For `transform` properties, see `slick.geometry.transform` below.
+
+<a id="slickworldhas"></a>
 
 * `slick.world:has(item): boolean`
   
   Returns true if `item` exists in the world; false otherwise. Remember: it is an error to `remove` an item that is **not** in the world and it is an error to `add` an item that already exists in the world.
 
+<a id="slickworldget"></a>
+
 * `slick.world:get(item): slick.entity`
 
   Gets the `slick.entity` represented by `item`. Will return `nil` if no entity is represented by `item` (i.e., `item` **was not** added to the world). See `slick.entity` for usage and properties.
 
+<a id="slickworldupdate"></a>
+
 * `slick.world:update(item, x: number, y: number, shape: slick.collision.shapelike?): number, number` **or** `slick.world:update(item, transform: slick.geometry.transform, shape: slick.collision.shapelike?): number, number`
 
   Instantly moves the entity represented by `item` to the provided location or transforms the entity by the provided transform. Optionally you can change the shape of the entity by passing in a `slick.collision.shapelike`. The shape does not change if no `shape` is provided.
+
+
+<a id="slickworldmove"></a>
 
 * `slick.world:move(item, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc?, query: slick.worldQuery?): number, number, slick.worldQueryResponse[], number, slick.worldQuery`
   
@@ -211,11 +273,16 @@ Below is an API reference for **slick**.
 
   `slick.world.move` is essentially a wrapper around `slick.world.check` and `slick.world.update`. First, the method attempts a movement, and then moves to the last safe position given the goal.
 
+
+<a id="slickworldcheck"></a>
+
 * `slick.world:check(item, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc?, query: slick.worldQuery?): number, number, slick.worldQueryResponse[], number, slick.worldQuery`
 
   Performs a collision movement check, but does not update the location of the entity represented by `item` in the world. This method is otherwise identical to `slick.world.move`.
 
   For advanced usage with the `query` parameter, see `slick.world.move` above.
+
+<a id="slickworldproject"></a>
 
 * `slick.world:project(item, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc?, query: slick.worldQuery?): slick.worldQueryResponse[], number, slick.worldQuery`
 
@@ -225,11 +292,15 @@ Below is an API reference for **slick**.
 
   This can be used to build custom collision response handlers and other advanced functionality.
 
+<a id="slickworldpush"></a>
+
 * `slick.world:push(item, filter: slick.worldFilterQueryFunc?, x: number, y: number, shape: slick.collision.shapelike): number, number`
 
   Attempts to "push" the entity represented by `item` out of any other entities filtered by `filter`. This can be used, for example, when placing items in the world. Normally, if an entity is **not** overlapping another entity currently, it will **never** overlap another entity. But if you're placing an item due to a mouse click, you might want to use this (or use a query and prevent placing an entity if it doesn't fit!).
 
   The entity will **never** overlap another entity filtered by `filter` **but** it might go somewhere you wouldn't expect! If you place an entity inside a wall, it will try and take the shortest route out, but this is not guaranteed bases on the location of the object and the other entities.
+
+<a id="slickworldrotate"></a>
 
 * `slick.world:rotate(item, angle: number, rotateFilter: slick.worldFilterQueryFunc, pushFilter: slick.worldFilterQueryFunc, query: slick.worldQuery?)`
 
@@ -239,25 +310,37 @@ Below is an API reference for **slick**.
 
   See the `moveGear` function in the demo for an example usage of this.
 
+<a id="slickworldquerypoint"></a>
+
 * `slick.world:queryPoint(x: number, y: number, filter: slick.defaultWorldShapeFilterQueryFunc?, query: slick.worldQuery): slick.worldQueryResponse[], number, slick.worldQuery`
 
   Finds all entities that the point (`x`, `y`) is inside.
+
+<a id="slickworldqueryray"></a>
 
 * `slick.world:queryRay(x: number, y: number, directionX: number, directionY: number, filter: slick.defaultWorldShapeFilterQueryFunc?, query: slick.worldQuery): slick.worldQueryResponse[], number, slick.worldQuery`
 
   Finds all entities that the ray intersects.
 
+<a id="slickworldquerysegment"></a>
+
 * `slick.world:querySegment(x1: number, y1: number, x2: number, y2: number, filter: slick.defaultWorldShapeFilterQueryFunc?, query: slick.worldQuery): slick.worldQueryResponse[], number, slick.worldQuery`
 
   Finds all entities that the line segment intersects.
+
+<a id="slickworldqueryrectangle"></a>
 
 * `slick.world:queryRectangle(x: number, y: number, width: number, height: number, filter: slick.defaultWorldShapeFilterQueryFunc?, query: slick.worldQuery): slick.worldQueryResponse[], number, slick.worldQuery`
 
   Finds all entities that the rectangle intersects.
 
+<a id="slickworldquerycircle"></a>
+
 * `slick.world:queryCircle(x: number, y: number, radius: number, filter: slick.defaultWorldShapeFilterQueryFunc?, query: slick.worldQuery): slick.worldQueryResponse[], number, slick.worldQuery`
   
   Finds all entities that the circle intersects.
+
+<a id="slickworldoptimize"></a>
 
 * `slick.world:optimize(width: number?, height: number?, options: slick.options?)`
 
@@ -273,6 +356,9 @@ Below is an API reference for **slick**.
   ```
 
   So a `quadTreeOptimizationMargin` value of 0.25 would increase the size of the world (from its real dimensions) by 25% - 12.5% further away from the center in the corners, thus 25% larger in total. Similarly, a value of 0 would use the real size without any adjustments. (Obviously if you know your world isn't going to grow after optimization, then that's fine!)
+
+
+<a id="slickworldfilterqueryfunc"></a>
 
 * `slick.worldFilterQueryFunc`
 
@@ -293,6 +379,8 @@ Below is an API reference for **slick**.
     * `slick.worldVisitFunc`: **Advanced usage.** A method that will be called if `item` and `other` collide. See `slick.worldVisitFunc` for usage.
     * `boolean`: false to prevent a collision between `item` and `other`; true to use the default collision response handler (`"slide"`)
 
+<a id="slickworldshapefilterqueryfunc"></a>
+
 * `slick.worldShapeFilterQueryFunc`
 
   This type represents a function (or table with a `__call` metatable method) that is used for the query methods (like `slick.world.queryPoint` and `slick.world.queryRay`) to filter entities.
@@ -303,6 +391,8 @@ Below is an API reference for **slick**.
 
   * `item`: the potentially overlapping item with the query shape.
   * `shape`: the potentially overlapping shape of the entity represented by `item`
+
+<a id="slickworldvisitfunc"></a>
 
 * `slick.worldVisitFunc`
 
@@ -315,6 +405,9 @@ Below is an API reference for **slick**.
   The return value is expected to be the name of a collision response handler; if nothing is returned, this defaults to `slide`.
 
   Be aware that, e.g., during a `move`, the same `shape` and `otherShape` might be visited more than once to resolve a collision.
+
+
+<a id="slickworldquery"></a>
 
 * `slick.worldQuery`
   
@@ -396,6 +489,8 @@ Below is an API reference for **slick**.
   Remember, fields like `item`, `entity`, `shape` (and their `other` counterparts) **do not belong** to the `slick.worldQueryResponse`.
 
   Remember, the same holds for storing a reference to a `slick.worldQueryResponse` belonging to a `slick.worldQuery`. The specific `slick.worldQueryResponse` instance might be re-used and thus all fields will refer to a different collision.
+
+<a id="slickworldresponsefunc"></a>
 
 * `slick.worldResponseFunc`
 
@@ -630,7 +725,7 @@ You can perform clipping operations too:
 local triangles = slick.clip(slick.newIntersectionClipOperation({ square }, { triangle }))
 ```
 
-### Advanced Usage
+### Advanced usage
 
 The entire **slick** namespace contains a bunch of utility, math, collision, and algorithmic functions. For example, **slick** uses a lot of `slick.geometry.point` objects all over the place to perform operations on vectors; caches a `shapeCollisionResolutionQuery` in a `slick.worldQuery` to handle collisions between shapes; uses `slick.collision.quadTree` to divide the world; etc. Most of these are generally intended for internal use, may change (dramatically) between versions, are not a part of the API contract. However, anything documented in this section is OK to use, with the caveat it might not be as simple to use as everything in the root of the `slick` namespace.
 
@@ -866,7 +961,7 @@ This will draw a triangle mesh of a square with a hole in the middle.
 
 Remember, you do not have to clean the output data from the clipper; it is guaranteed to be valid input as-is into the triangulator.
 
-#### slick.util.search
+#### `slick.util.search`
 
 This namespace exposes binary search methods. These operate on a **sorted** array of objects that can be compared using a `compare` method which returns -1 (or a negative value less than zero in the general case) for less than, 0 for equal, and 1 (or a positive value greater than zero, like for the less than case) for greater than.
 
@@ -935,4 +1030,6 @@ local stop = slick.util.search.greaterThanEqual(array, 4, compare, start)
 
 ## License
 
-**slick** is licensed under the MPL. See the `LICENSE` file. This means you can use it in your projects pretty much however you want, but any modifications to **slick** source files must be returned to the community.
+The **slick** library is licensed under the MPL. See the `LICENSE` file. This means you can use it in your projects pretty much however you want, but any modifications to **slick** source files must be returned to the community.
+
+The **slick** demo (which is comprised of `main.lua` and any files in the `demo` folder) is licensed **only** under the MIT license. Unlike the MPL license the **slick** is licensed under, essentially you can take any code from the demos, such as the player controller, and use it in your own projects (commercial or otherwise) without having to share changes. See the `demo/LICENSE` file for the exact specifics.
