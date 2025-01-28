@@ -31,13 +31,13 @@ local world = slick.newWorld(w, h)
 local player = { type = "player" }
 local level = { type = "level" }
 
-world:add(player, w / 2, h / 2, slick.newBoxShape(0, 0, 32, 32))
+world:add(player, w / 2, h / 2, slick.newRectangleShape(0, 0, 32, 32))
 world:add(level, 0, 0, slick.newShapeGroup(
     -- Boxes surrounding the map
-    slick.newBoxShape(0, 0, w, 8), -- top
-    slick.newBoxShape(0, 0, 8, h), -- left
-    slick.newBoxShape(w - 8, 0, 8, h), -- right
-    slick.newBoxShape(0, h - 8, w, 8), -- bottom
+    slick.newRectangleShape(0, 0, w, 8), -- top
+    slick.newRectangleShape(0, 0, 8, h), -- left
+    slick.newRectangleShape(w - 8, 0, 8, h), -- right
+    slick.newRectangleShape(0, h - 8, w, 8), -- bottom
     -- Triangles in corners
     slick.newPolygonShape({ 8, h - h / 8, w / 4, h - 8, 8, h - 8 }),
     slick.newPolygonShape({ w - w / 4, h, w - 8, h / 2, w - 8, h }),
@@ -131,7 +131,7 @@ world:add(item, transform, shape)
 
 * `item` can be any value but ideally is a table representing the entity
 * `x` and `y` are the location of `item` in the world, **or** `transform` is a `slick.geometry.transform` object with position, rotation, scale, and offset components
-* `shape` is a `slick.collision.shapelike` object created by functions like `slick.newPolygonShape`, `slick.newBoxShape`, `slick.newCircleShape`, etc; see `slick.collision.shapelike` documentation below
+* `shape` is a `slick.collision.shapelike` object created by functions like `slick.newPolygonShape`, `slick.newRectangleShape`, `slick.newCircleShape`, etc; see `slick.collision.shapelike` documentation below
 
 If `item` already exists in the world, you will receive an error. You can use `slick.world.has` to check if the world already contains `item`.
 
@@ -219,7 +219,7 @@ Below is an API reference for **slick**.
 <a id="slickworldnewworld"></a>
 
 * `slick.newWorld(width: number, height: number, options: slick.options?): slick.world`
-  
+
   Creates a new `slick.world`. `width` and `height` are the width and height of the world. By default, the upper left corner of the world is (0, 0) and the bottom right corner is (`width`, `height`).
 
   `options` is an optional table with the following fields:
@@ -235,7 +235,7 @@ Below is an API reference for **slick**.
 
     * `sharedCache`: This is an optional `slick.cache` to use for this world. This is a very advanced feature and is only useful if you have multiple `slick.world` objects and need to share things like the triangulator between them. To create a cache, use `slick.newCache` and pass in an `slick.options` object. You can then pass around the cache to different worlds via the `sharedCache` field in `slick.options`. **This is probably only needed in 1% of use cases where you would create multiple worlds! Don't prematurely optimize!**
     * `debug`: slows down certain things dramatically but ensures robustness of simulation with lots of error checking and `assert(...)`s. This is `false` by default. **Only should be enabled if trying to submit a detailed bug report or doing development on slick. Do not expect even remotely realtime performance with this enabled.**
-  
+
   There is no one-size-fits-all for the quad tree options. You will have to tweak the values on a per-game, and perhaps even per-level, basis, for maximum performance. In an open-world game, for example, you might have to adjust these values over time. See `slick.world.optimize` for specifics.
 
 <a id="slickworldadd"></a>
@@ -247,7 +247,7 @@ Below is an API reference for **slick**.
 <a id="slickworldhas"></a>
 
 * `slick.world:has(item): boolean`
-  
+
   Returns true if `item` exists in the world; false otherwise. Remember: it is an error to `remove` an item that is **not** in the world and it is an error to `add` an item that already exists in the world.
 
 <a id="slickworldget"></a>
@@ -266,9 +266,9 @@ Below is an API reference for **slick**.
 <a id="slickworldmove"></a>
 
 * `slick.world:move(item, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc?, query: slick.worldQuery?): number, number, slick.worldQueryResponse[], number, slick.worldQuery`
-  
+
   Attempts to move the entity represented by `item` to the provided location. If there is anything blocking movement at some point, then the returned (`actualX`, `actualY`) will be different from the goal. Returns the actual location; an array of collision responses; the length of said collision response array; and the `slick.worldQuery` used during the movement.
-  
+
   **For advanced usage**, by passing in a `slick.worldQuery`, you can save on garbage creation. You can create a `slick.worldQuery` using `slick.newWorldQuery(world)` and re-use it between calls that accept a `query`. Keep in mind **any** collision responses or other query properties from the previous usage of the query **will** be invalidated. This includes point fields like `touch`.
 
   `slick.world.move` is essentially a wrapper around `slick.world.check` and `slick.world.update`. First, the method attempts a movement, and then moves to the last safe position given the goal.
@@ -337,7 +337,7 @@ Below is an API reference for **slick**.
 <a id="slickworldquerycircle"></a>
 
 * `slick.world:queryCircle(x: number, y: number, radius: number, filter: slick.defaultWorldShapeFilterQueryFunc?, query: slick.worldQuery): slick.worldQueryResponse[], number, slick.worldQuery`
-  
+
   Finds all entities that the circle intersects.
 
 <a id="slickworldoptimize"></a>
@@ -397,9 +397,9 @@ Below is an API reference for **slick**.
 * `slick.worldVisitFunc`
 
   This represents a "visitor" function (or table with a `__call` metatable method) that is called when two entities collide, but before the collision response happens.
-  
+
   The signature of this function is:
-  
+
   `fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number): string`
 
   The return value is expected to be the name of a collision response handler; if nothing is returned, this defaults to `slide`.
@@ -410,11 +410,11 @@ Below is an API reference for **slick**.
 <a id="slickworldquery"></a>
 
 * `slick.worldQuery`
-  
+
   This represents a query against the world. It has a single field, `results`, which is an array of `slick.worldQueryResponse`. `results` will be sorted by first time of collision to last time of collision.
 
   * `slick.worldQueryResponse`:
-    
+
     This represents a single collision of two shapes from two different entities belonging to a specific `slick.worldQuery`.
 
     This object has the following fields:
@@ -436,9 +436,9 @@ Below is an API reference for **slick**.
   * `slick.worldQuery:move(response: slick.worldQueryResponse)`
 
      Moves `response` from its current `slick.worldQuery` to this `slick.worldQuery`. For example, `slick.world.check` uses a temporary query to find potential collisions, then `move`s all handled collisions to the result `query` parameter.
-  
+
   * `slick.worldQuery:allocate(type: any, ...: any): any`
-  
+
     Takes a poolable **slick** type (like `slick.geometry.point`) to allocate and return. The returned instance of `type` is valid until the query is re-used (e.g., passed to another `slick.world` method that accepts a `query`) or reset (see `slick.worldQuery.reset`).
 
     Creating pools of `type` will be handled transparently. If a pool of `type` already exists (i.e., from a previous `slick.worldQuery.allocate` call with the same `type`), then it will be used instead. The underlying pool will persist for the lifetime of the `slick.worldQuery`.
@@ -446,13 +446,13 @@ Below is an API reference for **slick**.
   * `slick.worldQuery:reset()`
 
     Resets this world query. All instances allocated by `slick.worldQuery.allocate` will no longer be valid. All `slick.worldQueryResponse` in `slick.worldQuery.results` will no longer be valid. This is automatically called by methods like `slick.world.project` when passing in a `slick.worldQuery`. See advanced usage below for caveats of re-using a `slick.worldQuery`.
-  
+
   #### Saving on garbage: re-using a `slick.worldQuery` or a `slick.worldQueryResponse` (advanced usage)
 
   Re-using a `slick.worldQuery` or `slick.worldQueryResponse` can reduce garbage generation during movement and projection. This is an opt-in behavior because there are some caveats.
-  
+
   If you do not re-use `slick.worldQuery` responses, then none of this applies to you. However, if you create a `slick.worldQuery` (i.e., via `slick.newWorldQuery`) and proceed to re-use it between calls to methods that take a `slick.worldQuery` like `slick.world.project` and `slick.world.move` (among others), then this section applies to you.
-  
+
   **Do not keep references to any fields (like `touch` or `offset`) belonging to the `slick.worldQueryResponse` between usages of the parent `slick.worldQuery`.** For example, the `x` and `y` components of `touch` **might** change if the `slick.worldQuery` is re-used. Similarly, do not keep a reference to a specific `slick.worldQueryResponse` between usages of the same `slick.worldQuery`.
 
   **Do not do this:**
@@ -497,11 +497,11 @@ Below is an API reference for **slick**.
   A `slick.worldResponseFunc` is a stateless function that receives the state of a collision in the world and is expected to safely resolve the collision. **slick** comes with a few built-in collision response handlers that cover a majority of use cases, but if there's a need for a very specific behavior, then see the documentation below.
 
   **Be warned, below is for advanced use cases when the built-in responses are not enough.** Review an existing response handler to see how they work before adding your own. Review `slick.worldQuery`, `slick.worldQueryResponse`, `slick.world.check`, and `slick.world.project`. Make sure you understand the advanced usage of these types and methods. You might have to dig into the source code if there's an gaps. Feel free to open a PR with improvements to the documentation or raise an issue if something doesn't work as described
-  
+
   The `world` the collision is is occurring in, the `query` and the `response` belonging to `query` that caused this resolution, the current and goal (`x`, `y`) coordinates of the working collision resolution (such as in `slick.world.check`), and the `filter` passed to `slick.world.check` and resolves a collision.
-  
+
   This function is in the following form:
-  
+
   ```
   fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc, result: slick.worldQuery): number, number, number, number, string?, slick.worldQueryResponse
   ```
@@ -518,7 +518,7 @@ Below is an API reference for **slick**.
   After resolving the collision, the response handler should also perform the next `slick.world.project` with the relevant current and goal positions using the provided `query`. The specific values for current and goal positions will change based on the behavior and requirements of the response handler. For example, `touch` will use `response.touch.x` and `response.touch.y` for both current and goal positions. On the other hand, `slide` uses `response.touch.x` and `response.touch.y` for the current position and the projection of the goal position parameter on the normal of the collision to create an entirely new goal position.
 
   If a response handler needs to create extra data about the collision, then this data can be stored in the `extra` table of the `slick.worldQueryResponse` **before** moving the response to `result`.
-  
+
   If storing, for example, a reflection normal, you might need to allocate a **slick** value (such as a `slick.geometry.point`). In order to not create garbage, see `slick.worldQuery.allocate` on how to safely allocate an instance. Only **slick** types can be safely pooled, but any value or instance can be stored in `extra`. Obviously, primitives like numbers do not need to be pooled and do not create garbage. Furthermore, all of this is of course optional if the memory performance requirements are more lax.
 
   To add, remove, or retrieve a custom or built-in response handler to a `slick.world`, you can:
@@ -571,7 +571,7 @@ The only public field for a `slick.collision.shapelike` is a value called `tag`.
 When adding or updating an `item` to the world, you can provide a `slick.collision.shapeDefinition`. The constructor for a `slick.collision.shapeDefinition` takes a list of properties that define the shape. All `slick.collision.shapeDefinition` constructors can take an optional `slick.tag` as the last value, which will be stored in the `tag` field of the `slick.collision.shapelike`. In order to to create a `slick.tag`, you can the `slick.newTag` constructor:
 
 * `slick.newTag(value: any): slick.tag`
-  
+
   Instantiates an opaque `slick.tag` instance wrapping `value`. Keep in mind the `tag` field will be the `value` argument, **not** a `slick.tag` instance. All shape definition constructors optionally take a `slick.tag` as the last parameter.
 
 The complete list of of shape definitions are:
@@ -595,7 +595,7 @@ The complete list of of shape definitions are:
 * `slick.newPolygonMeshShape(...contours: number[], tag: slick.tag?)`
 
   Creates a polygon mesh from a variable number of contours. The contours are in the form `{ x1, y1, x2, y2, x3, y3, ..., xn, yn }`.
-  
+
   By default, **slick** will clean up the input data and try to produce a valid polygonization no matter how bad the data is. If the data does not result in a valid polygonization, then an empty shape is returned.
 
   Polygons can self-intersect; be concave; have holes; have duplicate points; have collinear edges; etc. However, the worse the quality of the input data, the longer the polygonization will take. Similarly, the more contours / points in the contour data, the longer the triangulation/polygonization will take.
@@ -607,7 +607,7 @@ The complete list of of shape definitions are:
   This shape definition constructor is useful to easily construct shapes from [simple triangulation, polygonization, and clipping API](#simple-triangulation-polygonization-and-clipping-api). Generating convex polygons from the polygonization or clipping API will be faster than a triangle mesh.
 
 * `slick.newShapeGroup(...shapes: slick.collision.shapeDefinition, tag: slick.tag?)`
-  
+
   Create a group of shapes. Useful to put all level geometry in one entity, for example, or make a "capsule" shape for a player out of two circle and a box (or things of that nature).
 
   The value stored in the `slick.tag` (if provided) will be inherited by all children shapes definition, unless the child shape definition has its own `slick.tag`.
@@ -636,11 +636,11 @@ To update an existing transform object:
 To transform a point:
 
 * `slick.geometry.transform:transformPoint(x: number, y: number): number, number` and `slick.geometry.transform:transformPoint(x: number, y: number): number, number`
-  
+
   Transforms a point into or out of the transform's coordinate system.
 
 * `slick.geometry.transform:transformNormal(x: number, y: number): number, number`
-  
+
   Transforms a normal by **only** the rotation and scaling portions of the transform.
 
 ### Simple triangulation, polygonization, and clipping API
@@ -654,7 +654,7 @@ Similarly, all these functions (unless otherwise noted) return return an array o
 **Something cool!** All these methods automatically clean the input contours. No need to dissolve duplicate points, split self-intersections, dissolve collinear edges, or any other gotchas that would make a triangulation fail normally.
 
 * `slick.triangulate(contours: number[][]): number[][]`
-  
+
   Triangulates a list of contours. Returns an array of triangles.
 
 * `slick.polygonize(contours: number[][]): number[][]` **or** `slick.polygonize(maxPolygonVertexCount: number, contours: number[][]): number[][]`
@@ -664,7 +664,7 @@ Similarly, all these functions (unless otherwise noted) return return an array o
 * `slick.clip(operation: slick.simple.clipOperation, maxVertexCount: number?): number[][]`
 
   Evaluates a clip operation. Returns a triangulation or polygonization of the result of the clip operation. `maxVertexCount` can be set to a number between 4 and `math.huge` to create a polygonization (see `slick.polygonize`). This value defaults to 3, thus returning a triangulation (not polygonization) of the clip operation.
-  
+
   `slick.simple.clipOperation` can be created by these handy functions:
 
   * `slick.newUnionClipOperation(subject: number[][] | slick.simple.clipOperation, other: number[][] | slick.simple.clipOperation): slick.simple.clipOperation`:
@@ -678,9 +678,9 @@ Similarly, all these functions (unless otherwise noted) return return an array o
   * `slick.newIntersectionClipOperation(subject: number[][] | slick.simple.clipOperation, other: number[][] | slick.simple.clipOperation): slick.simple.clipOperation`:
 
     Performs an intersection of the `subject` contours against `other` contours (i.e., only the edges from `subject` that are also contained within `other` will form the output shape). This is essentially a logically flipped `difference` and thus is **not** commutative and order **does** matter.
-  
+
   Each `slick.simple.clipOperation` constructor takes `subject` contours and and `other` contours. Some of these operations are commutative, some are not.
-  
+
   Instead of a contour for `subject` and/or `other`, you can also pass in another `slick.simple.clipOperation` in case you want to perform multiple clip operations in a specific order. For example, to perform a complex clip operation like `intersection(union(a, b), difference(c, d))`, you can chain them like so:
 
   ```lua
@@ -883,7 +883,7 @@ end
   Creates a new clipper with the provided Delaunay triangulator. If one is not provided, will create an internal Delaunay triangulator.
 
 * `slick.geometry.clipper:clip(operation: slick.geometry.clipper.clipOperation, subjectPoints: number[], subjectEdges: number[], otherPoints: number[], otherEdges: number[], options: slick.geometry.clipper.clipOptions?, subjectUserdata: any[]?, otherUserdata: any[]?, resultPoints: number[]?, resultEdges: number[]?, resultUserdata: number[]?)`
-  
+
   Performs the provided `operation` against the subject shape (composed from `subjectPoints` and `subjectEdges`) and other shape (similarly composed from `otherPoints` and `otherEdges`).
 
   The operations available are:
@@ -901,7 +901,7 @@ end
   Similarly, the output points and edges will be valid input into a triangulator without any clean up. So no need to clean the output data - that will be pointless!
 
   You can pass in a `slick.geometry.clipper.clipOptions` which is otherwise identical to `slick.geometry.triangulation.delaunayCleanupOptions`, with (optional) `intersect` and `dissolve` methods that will be called when generating new vertices or dissolving old ones. See `slick.geometry.triangulation.delaunay.cleanup` for specifics of how these functions work and what inputs they take.
-  
+
   Like with `clean`, you can pass in userdata.
 
   Lastly, you can pass in the resulting points, edges, and (if using userdata) userdata arrays. **The existing data in these arrays will be lost.**
@@ -1003,11 +1003,11 @@ For comparisons:
   Returns the first index in the array less than or equal to `value`. If no value is equal, returns the `start` (or 1 if `start` was not provided).
 
 * `slick.util.search.greaterThan`
-  
+
   Returns the index of the first value greater than `value`. If no value is greater than `value`, returns `stop` + 1 (or `#array + 1` if `stop` was not provided.)
 
 * `slick.util.search.greaterThan`
-  
+
   Returns the index of the first value greater than or equal to `value`. If no value is greater than or equal to `value`, returns `stop` + 1 (or `#array + 1` if `stop` was not provided.)
 
 You can use these to not have to sort an array. For example, given this array:
