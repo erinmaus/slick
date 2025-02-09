@@ -152,7 +152,7 @@ function world:add(item, a, b, c)
     e:add(self)
 
     self.itemToEntity[item] = i
-    return entity
+    return e
 end
 
 --- @param item any
