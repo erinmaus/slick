@@ -18,23 +18,97 @@ local function _defaultFilter()
     return true
 end
 
----@class slick.draw.options
----@field draw_text boolean
----@field draw_quad_tree boolean
----@field draw_shape_normals boolean
+--- @param world slick.world
+local function _drawShapes(world)
+    local items = world:getItems()
+    for _, item in ipairs(items) do
+        local entity = world:get(item)
+        for _, shape in ipairs(entity.shapes.shapes) do
+            if util.is(shape, circle) then
+                --- @cast shape slick.collision.circle
+                love.graphics.circle("line", shape.center.x, shape.center.y, shape.radius)
+            elseif util.is(shape, lineSegment) then
+                --- @cast shape slick.collision.lineSegment
+                love.graphics.line(shape.segment.a.x, shape.segment.a.y, shape.segment.b.x, shape.segment.b.y)
+            elseif shape.vertexCount == 4 then
+                love.graphics.polygon("line", shape.vertices[1].x, shape.vertices[1].y, shape.vertices[2].x,
+                    shape.vertices[2].y, shape.vertices[3].x, shape.vertices[3].y, shape.vertices[4].x,
+                    shape.vertices[4].y)
+            else
+                for i = 1, shape.vertexCount do
+                    local j = i % shape.vertexCount + 1
+
+                    local a = shape.vertices[i]
+                    local b = shape.vertices[j]
+
+                    love.graphics.line(a.x, a.y, b.x, b.y)
+                end
+            end
+        end
+    end
+end
+
+--- @param world slick.world
+local function _drawText(world)
+    local items = world:getItems()
+    for _, item in ipairs(items) do
+        local entity = world:get(item)
+        for _, shape in ipairs(entity.shapes.shapes) do
+            if util.is(shape, circle) then
+                --- @cast shape slick.collision.circle
+                love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.bounds.topLeft.x, shape.bounds.topLeft.y)
+                love.graphics.print(string.format("%.2f radius", shape.radius), shape.bounds.topLeft.x, shape.bounds.topLeft.y + 8)
+            else
+                love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.vertices[1].x, shape.vertices[1].y)
+                love.graphics.print(string.format("%.2f x %.2f", shape.bounds:width(), shape.bounds:height()), shape.vertices[1].x, shape.vertices[1].y + 8)
+            end
+        end
+    end
+end
+
+--- @param world slick.world
+local function _drawNormals(world)
+    local items = world:getItems()
+    for _, item in ipairs(items) do
+        local entity = world:get(item)
+        for _, shape in ipairs(entity.shapes.shapes) do
+            if not util.is(shape, circle) then
+                local localSize = math.max(shape.bounds:width(), shape.bounds:height()) / 8
+
+                for i = 1, shape.vertexCount do
+                    local j = i % shape.vertexCount + 1
+
+                    local a = shape.vertices[i]
+                    local b = shape.vertices[j]
+
+                    if i <= shape.normalCount then
+                        local n = shape.normals[i]
+                        love.graphics.line((a.x + b.x) / 2, (a.y + b.y) / 2, (a.x + b.x) / 2 + n.x * localSize, (a.y + b.y) / 2 + n.y * localSize)
+                    end
+                end
+            end
+        end
+    end
+end
+
+--- @class slick.draw.options
+--- @field text boolean?
+--- @field quadTree boolean?
+--- @field normals boolean?
+local defaultOptions = {
+    text = true,
+    quadTree = true,
+    normals = true
+}
 
 --- @param world slick.world
 --- @param queries { filter: slick.worldShapeFilterQueryFunc, shape: slick.geometry.shape }[]?
---- @param options slick.draw.options
+--- @param options slick.draw.options?
 local function draw(world, queries, options)
-    if options == nil then
-        options = 
-        {
-            draw_text = true,
-            draw_quad_tree = true,
-            draw_shape_normals = true
-        }
-    end
+    options = options or defaultOptions
+    local drawText = options.text == nil and defaultOptions.text or options.text
+    local drawQuadTree = options.quadTree == nil and defaultOptions.quadTree or options.quadTree
+    local drawNormals = options.normals == nil and defaultOptions.normals or options.normals
 
     local bounds = rectangle.new(world.quadTree:computeExactBounds())
     local size = math.min(bounds:width(), bounds:height()) / 16
@@ -43,80 +117,16 @@ local function draw(world, queries, options)
 
     local cr, cg, cb, ca = love.graphics.getColor()
 
-    local items = world:getItems()
-    for _, item in ipairs(items) do
-        local entity = world:get(item)
-        for _, shape in ipairs(entity.shapes.shapes) do
-            if util.is(shape, circle) then
-                --- @cast shape slick.collision.circle
+    _drawShapes(world)
 
-                if options.draw_text then 
-                    love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.bounds.topLeft.x, shape.bounds.topLeft.y)
-                    love.graphics.print(string.format("%.2f radius", shape.radius), shape.bounds.topLeft.x, shape.bounds.topLeft.y + 8)
-                end
-                
-                love.graphics.circle("line", shape.center.x, shape.center.y, shape.radius)
-            elseif util.is(shape, lineSegment) then
-                --- @cast shape slick.collision.lineSegment
-                love.graphics.line(shape.segment.a.x, shape.segment.a.y, shape.segment.b.x, shape.segment.b.y)
-            
-            -- 4 vertx polygons are common, so it's nice to provide a quick way to render them
-            elseif shape.vertexCount == 4 then
-                if options.draw_text then
-                    love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.bounds.topLeft.x, shape.bounds.topLeft.y)
-                    love.graphics.print(string.format("%.2f x %.2f", shape.bounds:width(), shape.bounds:height()), shape.bounds.topLeft.x, shape.bounds.topLeft.y + 8)
-                end
-
-                love.graphics.polygon("line", shape.vertices[1].x, shape.vertices[1].y, shape.vertices[2].x, shape.vertices[2].y, shape.vertices[3].x, shape.vertices[3].y, shape.vertices[4].x, shape.vertices[4].y)
-            
-                local localSize = math.max(shape.bounds:width(), shape.bounds:height()) / 8
-
-                if options.draw_shape_normals then
-                    for i = 1, shape.vertexCount do
-                        local j = i % shape.vertexCount + 1
-
-                        local a = shape.vertices[i]
-                        local b = shape.vertices[j]
-
-                            if i <= shape.normalCount then
-                                local n = shape.normals[i]
-
-                                love.graphics.setColor(0, 1, 0, ca)
-                                love.graphics.line((a.x + b.x) / 2, (a.y + b.y) / 2, (a.x + b.x) / 2 + n.x * localSize, (a.y + b.y) / 2 + n.y * localSize)
-
-                                love.graphics.setColor(cr, cg, cb, ca)
-                            end
-                    end
-                end
-            else
-                local localSize = math.max(shape.bounds:width(), shape.bounds:height()) / 8
-
-                if options.draw_text then
-                    love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.vertices[1].x, shape.vertices[1].y)
-                    love.graphics.print(string.format("%.2f x %.2f", shape.bounds:width(), shape.bounds:height()), shape.vertices[1].x, shape.vertices[1].y + 8)
-                end
-                
-                for i = 1, shape.vertexCount do
-                    local j = i % shape.vertexCount + 1
-
-                    local a = shape.vertices[i]
-                    local b = shape.vertices[j]
-
-                    love.graphics.line(a.x, a.y, b.x, b.y)
-
-                    if options.draw_shape_normals then
-                        if i <= shape.normalCount then
-                            local n = shape.normals[i]
-
-                            love.graphics.setColor(0, 1, 0, ca)
-                            love.graphics.line((a.x + b.x) / 2, (a.y + b.y) / 2, (a.x + b.x) / 2 + n.x * localSize, (a.y + b.y) / 2 + n.y * localSize)
-
-                            love.graphics.setColor(cr, cg, cb, ca)
-                        end
-                    end
-                end
-            end
-        end
+    if drawNormals then
+        love.graphics.setColor(0, 1, 0, ca)
+        _drawNormals(world)
+        love.graphics.setColor(cr, cg, cb, ca)
+    end
+    
+    if drawText then
+        _drawText(world)
     end
 
     if queries then
@@ -170,7 +180,7 @@ local function draw(world, queries, options)
     end
 
     love.graphics.setColor(0, 1, 1, 0.5)
-    if options.draw_quad_tree then
+    if drawQuadTree then
         world.quadTree.root:visit(_drawQuadTreeNode)
     end
 
