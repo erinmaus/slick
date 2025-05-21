@@ -294,11 +294,15 @@ Below is an API reference for **slick**.
 
 <a id="slickworldpush"></a>
 
-* `slick.world:push(item, filter: slick.worldFilterQueryFunc?, x: number, y: number, shape: slick.collision.shapelike): number, number`
+* `slick.world:push(item, filter: slick.worldFilterQueryFunc, x: number, y: number, shape: slick.collision.shapelike?): number, number` **or** `slick.world:push(item, filter: slick.worldFilterQueryFunc, transform: slick.geometry.transform, shape: slick.collision.shapelike?): number, number`
 
-  Attempts to "push" the entity represented by `item` out of any other entities filtered by `filter`. This can be used, for example, when placing items in the world. Normally, if an entity is **not** overlapping another entity currently, it will **never** overlap another entity. But if you're placing an item due to a mouse click, you might want to use this (or use a query and prevent placing an entity if it doesn't fit!).
+  Update an entity and attempts to push it out of any objects it might colliding with.
+  
+  Like `slick.world.update`, takes an `x, y` tuple or `transform` and optionally a `slick.collision.shapelike`. Moves the entity to the position and updates the shape (if a shape is provided). This does not perform any collision detection at this point.
 
-  The entity will **never** overlap another entity filtered by `filter` **but** it might go somewhere you wouldn't expect! If you place an entity inside a wall, it will try and take the shortest route out, but this is not guaranteed bases on the location of the object and the other entities.
+  After moving the entity to the desired position (and updating the shape, if provided), attempts to "push" the entity represented by `item` out of any other entities filtered by `filter`. This can be used, for example, when placing items in the world. Normally, if an entity is **not** overlapping another entity currently, it will **never** overlap another entity. But if you're placing an item due to a mouse click, you might want to use this (or use a query and prevent placing an entity if it doesn't fit!).
+
+  The entity will **never** overlap another entity filtered by `filter` **but** it might go somewhere you wouldn't expect! If you place an entity inside a wall, it will try and take the shortest route out, but this is not guaranteed based on the location of the object and the other entities.
 
 <a id="slickworldrotate"></a>
 
