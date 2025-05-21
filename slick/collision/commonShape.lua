@@ -234,6 +234,7 @@ function commonShape:raycast(r, normal)
 
     if normal and hit then
         normal:normalize(normal)
+        normal:left(normal)
     end
 
     return hit or false, x, y
