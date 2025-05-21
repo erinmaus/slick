@@ -192,8 +192,8 @@ function world:update(item, a, b, c)
     return transform.x, transform.y
 end
 
---- @overload fun(self: slick.world, item: any, filter: slick.worldFilterQueryFunc?, x: number, y: number, shape: slick.collision.shapeDefinition): number, number
---- @overload fun(self: slick.world, item: any, filter: slick.worldFilterQueryFunc?, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition): number, number
+--- @overload fun(self: slick.world, item: any, filter: slick.worldFilterQueryFunc, x: number, y: number, shape: slick.collision.shapeDefinition?): number, number
+--- @overload fun(self: slick.world, item: any, filter: slick.worldFilterQueryFunc, transform: slick.geometry.transform, shape: slick.collision.shapeDefinition?): number, number
 function world:push(item, filter, a, b, c)
     local e = self:get(item)
     local transform, shapes = _getTransformShapes(e, a, b, c)
