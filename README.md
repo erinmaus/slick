@@ -84,7 +84,6 @@ world:remove(level)
        * [slick.world.queryRay](#slickworldqueryray): Query all items colliding the ray in the world
        * [slick.world.querySegment](#slickworldquerysegment): Query all items colliding the segment in the world
        * [slick.world.queryRectangle](#slickworldqueryrectangle): Query all items colliding the rectangle in the world
-       * [slick.world.queryCircle](#slickworldquerycircle): Query all items colliding the rectangle in the world
        * [slick.world.optimize](#slickworldoptimize): Optimize quad tree representing world
        * [slick.worldFilterQueryFunc](#slickworldfilterqueryfunc): Interface to filter world during collision response
        * [slick.worldShapeFilterQueryFunc](#slickworldshapefilterqueryfunc): Interface to filter world during queries
@@ -338,12 +337,6 @@ Below is an API reference for **slick**.
 
   Finds all entities that the rectangle intersects.
 
-<a id="slickworldquerycircle"></a>
-
-* `slick.world:queryCircle(x: number, y: number, radius: number, filter: slick.defaultWorldShapeFilterQueryFunc?, query: slick.worldQuery): slick.worldQueryResponse[], number, slick.worldQuery`
-
-  Finds all entities that the circle intersects.
-
 <a id="slickworldoptimize"></a>
 
 * `slick.world:optimize(width: number?, height: number?, options: slick.options?)`
@@ -586,9 +579,9 @@ The complete list of of shape definitions are:
 
   For example, if an entity is at `100, 150` and the box is created at `10, 10`, then the box will be at `110, 160` in the world.
 
-* `slick.newCircleShape(x: number, y: number, radius: number, tag: slick.tag?)`
+* `slick.newCircleShape(x: number, y: number, radius: number, segments: number?, tag: slick.tag?)`
 
-  A rectangle with its center relative to the entity at (`x`, `y`). The rectangle will have a radius of `radius`.
+  A circle with its center relative to the entity at (`x`, `y`). The circle will have a radius of `radius`. `segments` is how many segments the circle will have; if `segments` is not provided, a good enough value 1:1 with a pixel grid will be used.
 
 * `slick.newPolygonShape(vertices: number[], tag: slick.tag?)`
 

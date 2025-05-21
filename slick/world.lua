@@ -1,5 +1,4 @@
 local cache = require("slick.cache")
-local circle = require("slick.collision.circle")
 local quadTree = require("slick.collision.quadTree")
 local entity = require("slick.entity")
 local point = require("slick.geometry.point")
@@ -412,22 +411,6 @@ function world:queryPoint(x, y, filter, query)
     return query.results, #query.results, query
 end
 
-local _cachedQueryCircle = circle.new(nil, 0, 0, 1)
-
---- @param x number
---- @param y number
---- @param filter slick.worldShapeFilterQueryFunc?
---- @param query slick.worldQuery?
---- @return slick.worldQueryResponse[], number, slick.worldQuery
-function world:queryCircle(x, y, radius, filter, query)
-    query = query or worldQuery.new(self)
-
-    _cachedQueryCircle:init(x, y, radius)
-    query:performPrimitive(_cachedQueryCircle, filter or defaultWorldShapeFilterQueryFunc)
-
-    return query.results, #query.results, query
-end
-
 local _cachedRemappedHandlers = {}
 
 --- @param item any
@@ -494,7 +477,7 @@ function world:check(item, goalX, goalY, filter, query)
             result.response = responseName
 
             --- @cast responseName string
-            responseName = _cachedRemappedHandlers[shape] or responseName
+            responseName = _cachedRemappedHandlers[otherShape] or responseName
 
             assert(type(responseName) == "string", "expect name of response handler as string")
 
@@ -503,7 +486,8 @@ function world:check(item, goalX, goalY, filter, query)
             local remappedResponseName, nextResult
             x, y, goalX, goalY, remappedResponseName, nextResult = response(self, cachedQuery, result, previousResponse, x, y, goalX, goalY, filter, query)
 
-            _cachedRemappedHandlers[shape] = remappedResponseName
+            --- @cast otherShape slick.collision.shapelike
+            _cachedRemappedHandlers[otherShape] = remappedResponseName
 
             result = nextResult
         until not result
@@ -523,7 +507,7 @@ function world:check(item, goalX, goalY, filter, query)
 
     previousQuery:reset()
     for _, response in ipairs(query.results) do
-        previousQuery:push(response)
+        previousQuery:push(response, true)
     end
 
     return actualX, actualY, query.results, #query.results, query

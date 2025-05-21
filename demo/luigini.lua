@@ -19,7 +19,10 @@ local function makePlayer()
         x = 340,
         y = 500,
 
-        jumpYVelocity = 0,
+        velocityX = 0,
+        velocityY = 0,
+        groundDrag = 10,
+        airDrag = 1,
 
         w = 16,
         h = 32
@@ -71,7 +74,7 @@ local function dot(x1, y1, x2, y2)
 end
 
 local function getPlayerGroundContactInfo(player)
-    if player.jumpYVelocity < 0 then
+    if player.velocityY < 0 then
         return false
     end
 
@@ -113,23 +116,23 @@ local function updatePlayer(player, deltaTime)
     local didJump = false
     if isOnGround then
         if inputY ~= 0 then
-            player.jumpYVelocity = inputY * JUMP_POWER
+            player.velocityY = inputY * JUMP_POWER
             isOnGround = false
             didJump = true
         else
-            player.jumpYVelocity = 0
+            player.velocityY = 0
         end
     else
         local gravity = GRAVITY_Y
-        if player.jumpYVelocity < 0 then
+        if player.velocityY < 0 then
             gravity = gravity * 0.5
         end
 
-        player.jumpYVelocity = player.jumpYVelocity + gravity * deltaTime
+        player.velocityY = player.velocityY + gravity * deltaTime
     end
 
-    local xOffset = inputX * PLAYER_SPEED * deltaTime
-    local yOffset = player.jumpYVelocity * deltaTime
+    local xOffset = inputX * PLAYER_SPEED * deltaTime + player.velocityX * deltaTime
+    local yOffset = player.velocityY * deltaTime
 
     local goalX, goalY
     if isOnGround then
@@ -140,6 +143,11 @@ local function updatePlayer(player, deltaTime)
         goalY = player.y + yOffset
     end
 
+    local drag = isOnGround and player.groundDrag or player.airDrag
+    local decay = 1 / (1 + (deltaTime * drag))
+    player.velocityX = player.velocityX * decay
+    player.velocityY = player.velocityY * decay
+
     local actualX, actualY, collisions = demo.world:check(player, goalX, goalY, playerFilter)
 
     local hitGround = false
@@ -148,20 +156,21 @@ local function updatePlayer(player, deltaTime)
             if math.abs(collision.normal.y) > 0 then
                 local direction = dot(collision.normal.x, collision.normal.y, xOffset, yOffset)
 
-                if not hitGround and direction < 0 and player.jumpYVelocity > 0 then
+                if not hitGround and direction < 0 and player.velocityY > 0 then
                     hitGround = true
 
                     actualX = collision.touch.x
                     actualY = collision.touch.y
                 end
 
-                if direction < 0 and player.jumpYVelocity < 0 then
-                    player.jumpYVelocity = 0
+                if direction < 0 and player.velocityY < 0 then
+                    player.velocityY = 0
                 end
             end
 
             if collision.response == "bounce" then
-                player.jumpYVelocity = collision.normal.y * JUMP_POWER * 2
+                player.velocityX = collision.extra.bounceNormal.x * JUMP_POWER
+                player.velocityY = collision.extra.bounceNormal.y * JUMP_POWER * 2
             end
         end
     end
@@ -203,10 +212,10 @@ local function makeLevel()
             1200, 1000,
             100, 1000
         }),
-        slick.newCircleShape(250, 550, 25, slick.newTag("bounce")),
-        slick.newCircleShape(1350, 750, 25, slick.newTag("bounce")),
-        slick.newCircleShape(1400, 600, 25, slick.newTag("bounce")),
-        slick.newCircleShape(1600, 400, 50, slick.newTag("bounce")),
+        slick.newCircleShape(250, 550, 25, nil, slick.newTag("bounce")),
+        slick.newCircleShape(1350, 750, 25, nil, slick.newTag("bounce")),
+        slick.newCircleShape(1400, 600, 25, nil, slick.newTag("bounce")),
+        slick.newCircleShape(1600, 400, 50, nil, slick.newTag("bounce")),
         slick.newRectangleShape(1200, 800, 100, 200),
         slick.newRectangleShape(1300, 850, 100, 150),
         slick.newRectangleShape(1700, 500, 100, 200)
