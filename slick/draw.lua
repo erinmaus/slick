@@ -1,4 +1,3 @@
-local circle = require "slick.collision.circle"
 local lineSegment = require "slick.collision.lineSegment"
 local point = require "slick.geometry.point"
 local ray = require "slick.geometry.ray"
@@ -24,10 +23,7 @@ local function _drawShapes(world)
     for _, item in ipairs(items) do
         local entity = world:get(item)
         for _, shape in ipairs(entity.shapes.shapes) do
-            if util.is(shape, circle) then
-                --- @cast shape slick.collision.circle
-                love.graphics.circle("line", shape.center.x, shape.center.y, shape.radius)
-            elseif util.is(shape, lineSegment) then
+            if util.is(shape, lineSegment) then
                 --- @cast shape slick.collision.lineSegment
                 love.graphics.line(shape.segment.a.x, shape.segment.a.y, shape.segment.b.x, shape.segment.b.y)
             elseif shape.vertexCount == 4 then
@@ -54,14 +50,8 @@ local function _drawText(world)
     for _, item in ipairs(items) do
         local entity = world:get(item)
         for _, shape in ipairs(entity.shapes.shapes) do
-            if util.is(shape, circle) then
-                --- @cast shape slick.collision.circle
-                love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.bounds.topLeft.x, shape.bounds.topLeft.y)
-                love.graphics.print(string.format("%.2f radius", shape.radius), shape.bounds.topLeft.x, shape.bounds.topLeft.y + 8)
-            else
-                love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.vertices[1].x, shape.vertices[1].y)
-                love.graphics.print(string.format("%.2f x %.2f", shape.bounds:width(), shape.bounds:height()), shape.vertices[1].x, shape.vertices[1].y + 8)
-            end
+            love.graphics.print(string.format("%.2f, %.2f", shape.bounds.topLeft.x, shape.bounds.topLeft.y), shape.vertices[1].x, shape.vertices[1].y)
+            love.graphics.print(string.format("%.2f x %.2f", shape.bounds:width(), shape.bounds:height()), shape.vertices[1].x, shape.vertices[1].y + 8)
         end
     end
 end

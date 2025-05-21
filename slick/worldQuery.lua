@@ -1,6 +1,5 @@
 local worldQueryResponse = require("slick.worldQueryResponse")
 local box = require("slick.collision.box")
-local circle = require("slick.collision.circle")
 local lineSegment = require("slick.collision.lineSegment")
 local quadTreeQuery = require("slick.collision.quadTreeQuery")
 local ray = require("slick.geometry.ray")
@@ -12,6 +11,7 @@ local transform = require("slick.geometry.transform")
 local slicktable = require("slick.util.slicktable")
 local util = require("slick.util")
 local pool = require ("slick.util.pool")
+local commonShape = require("slick.collision.commonShape")
 
 --- @class slick.worldQuery
 --- @field world slick.world
@@ -142,11 +142,11 @@ function worldQuery:_performPrimitiveSegmentQuery(s, filter)
     self:_performShapeQuery(_cachedQueryLineSegmentShape, filter)
 end
 
---- @param shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray | slick.collision.circle
+--- @param shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray | slick.collision.commonShape
 --- @param filter slick.worldShapeFilterQueryFunc
 function worldQuery:performPrimitive(shape, filter)
-    if util.is(shape, circle) then
-        --- @cast shape slick.collision.circle
+    if util.is(shape, commonShape) then
+        --- @cast shape slick.collision.commonShape
         self:_beginPrimitiveQuery(shape.bounds)
     else
         --- @cast shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray
@@ -165,8 +165,8 @@ function worldQuery:performPrimitive(shape, filter)
     elseif util.is(shape, ray) then
         --- @cast shape slick.geometry.ray
         self:_performPrimitiveRayQuery(shape, filter)
-    elseif util.is(shape, circle) then
-        --- @cast shape slick.collision.circle
+    elseif util.is(shape, commonShape) then
+        --- @cast shape slick.collision.commonShape
         self:_performShapeQuery(shape, filter)
     end
 
@@ -291,7 +291,8 @@ function worldQuery:_addCollision(shape, otherShape, response, offset, primitive
 end
 
 --- @param response slick.worldQueryResponse
-function worldQuery:push(response)
+--- @param copy boolean?
+function worldQuery:push(response, copy)
     local index = #self.results + 1
     local result = self.cachedResults[index]
     if not result then
@@ -299,7 +300,7 @@ function worldQuery:push(response)
         table.insert(self.cachedResults, result)
     end
 
-    response:move(result)
+    response:move(result, copy)
     table.insert(self.results, result)
 end
 

@@ -1,5 +1,4 @@
 local box = require("slick.collision.box")
-local circle = require("slick.collision.circle")
 local lineSegment = require("slick.collision.lineSegment")
 local polygon = require("slick.collision.polygon")
 local polygonMesh = require("slick.collision.polygonMesh")
@@ -25,14 +24,24 @@ end
 --- @param x number
 --- @param y number
 --- @param radius number
+--- @param segments number?
 --- @param tag slick.tag?
 --- @return slick.collision.shapeDefinition
-local function newCircle(x, y, radius, tag)
+local function newCircle(x, y, radius, segments, tag)
+	local points = segments or math.max(math.floor(math.sqrt(radius * 20)), 8)
+    local vertices = {}
+    local angleStep = (2 * math.pi) / points
+
+    for angle = 0, 2 * math.pi - angleStep, angleStep do
+        table.insert(vertices, x + radius * math.cos(angle))
+        table.insert(vertices, y + radius * math.sin(angle))
+    end
+
     return {
-        type = circle,
-        n = 3,
+        type = polygon,
+        n = #vertices,
         tag = tag,
-        arguments = { x, y, radius }
+        arguments = vertices
     }
 end
 

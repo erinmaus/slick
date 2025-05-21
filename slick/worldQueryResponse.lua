@@ -129,7 +129,8 @@ function worldQueryResponse:notTouchingWillTouch()
 end
 
 --- @param other slick.worldQueryResponse
-function worldQueryResponse:move(other)
+--- @param copy boolean?
+function worldQueryResponse:move(other, copy)
     other.response = self.response
 
     other.shape = self.shape
@@ -156,21 +157,24 @@ function worldQueryResponse:move(other)
         local outputContactPoint = self.query:allocate(point, inputContactPoint.x, inputContactPoint.y)
         table.insert(other.contactPoints, outputContactPoint)
     end
-    slicktable.clear(self.contactPoints)
     
-    other.extra, self.extra = self.extra, other.extra
-    slicktable.clear(self.extra)
+    if not copy then
+        slicktable.clear(self.contactPoints)
 
-    for key, value in pairs(other.extra) do
-        local keyType = util.type(key)
-        local valueType = util.type(value)
+        other.extra, self.extra = self.extra, other.extra
+        slicktable.clear(self.extra)
 
-        if keyType then
-            pool.swap(self.query:getPool(keyType), other.query:getPool(keyType), key)
-        end
+        for key, value in pairs(other.extra) do
+            local keyType = util.type(key)
+            local valueType = util.type(value)
 
-        if valueType then
-            pool.swap(self.query:getPool(valueType), other.query:getPool(valueType), value)
+            if keyType then
+                pool.swap(self.query:getPool(keyType), other.query:getPool(keyType), key)
+            end
+
+            if valueType then
+                pool.swap(self.query:getPool(valueType), other.query:getPool(valueType), value)
+            end
         end
     end
 end
