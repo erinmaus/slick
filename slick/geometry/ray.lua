@@ -43,6 +43,8 @@ local _cachedHitSegmentPointA = point.new()
 local _cachedHitSegmentPointB = point.new()
 local _cachedHitSegmentPointC = point.new()
 local _cachedHitSegmentPointD = point.new()
+local _cachedHitSegmentResult = point.new()
+local _cachedHitSegmentDirection = point.new()
 
 --- @param s slick.geometry.segment
 --- @param E number?
@@ -77,8 +79,15 @@ function ray:hitSegment(s, E)
         return false
     end
 
+
     local rx = _cachedHitSegmentPointA.x + bax * u
     local ry = _cachedHitSegmentPointA.y + bay * u
+
+    _cachedHitSegmentResult:init(rx, ry)
+    self.origin:direction(_cachedHitSegmentResult, _cachedHitSegmentDirection)
+    if _cachedHitSegmentDirection:dot(self.direction) < 0 then
+        return false
+    end
 
     return true, rx, ry, u
 end
