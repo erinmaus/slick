@@ -1078,7 +1078,7 @@ function shapeCollisionResolutionQuery:_handleTunnelAxis(axis, velocity)
     local otherInterval = self.otherShape.currentInterval
 
     local side
-    if otherInterval.max <= selfInterval.min + self.epsilon then
+    if otherInterval.max < selfInterval.min then
         if speed <= 0 then
             return false, nil
         end
@@ -1095,7 +1095,7 @@ function shapeCollisionResolutionQuery:_handleTunnelAxis(axis, velocity)
         if self.firstTime > self.lastTime then
             return false, nil
         end
-    elseif selfInterval.max <= otherInterval.min + self.epsilon then
+    elseif selfInterval.max < otherInterval.min then
         if speed >= 0 then
             return false, nil
         end

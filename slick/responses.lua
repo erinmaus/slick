@@ -10,6 +10,7 @@ local _cachedSlideDirection = point.new()
 --- @param world slick.world
 --- @param query slick.worldQuery
 --- @param response slick.worldQueryResponse
+--- @param previousResponse slick.worldQueryResponse?
 --- @param x number
 --- @param y number
 --- @param goalX number
@@ -17,7 +18,7 @@ local _cachedSlideDirection = point.new()
 --- @param filter slick.worldFilterQueryFunc
 --- @param result slick.worldQuery
 --- @return number, number, number, number, string?, slick.worldQueryResponse?
-local function slide(world, query, response, x, y, goalX, goalY, filter, result)
+local function slide(world, query, response, previousResponse, x, y, goalX, goalY, filter, result)
     _cachedSlideCurrentPosition:init(x, y)
     _cachedSlideTouchPosition:init(response.touch.x, response.touch.y)
     _cachedSlideGoalPosition:init(goalX, goalY)
@@ -37,12 +38,22 @@ local function slide(world, query, response, x, y, goalX, goalY, filter, result)
     
     result:push(response)
     world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
-    return touchX, touchY, newGoalX, newGoalY, "touch", nil
+
+    local nextResponse = nil
+    if previousResponse then
+        local distance = (touchX - previousResponse.touch.x) ^ 2 + (touchY - previousResponse.touch.y) ^ 2
+        if distance < world.options.maxJitter ^ 2 then
+            nextResponse = "touch"
+        end
+    end
+
+    return touchX, touchY, newGoalX, newGoalY, nextResponse, nil
 end
 
 --- @param world slick.world
 --- @param query slick.worldQuery
 --- @param response slick.worldQueryResponse
+--- @param previousResponse slick.worldQueryResponse?
 --- @param x number
 --- @param y number
 --- @param goalX number
@@ -50,7 +61,7 @@ end
 --- @param filter slick.worldFilterQueryFunc
 --- @param result slick.worldQuery
 --- @return number, number, number, number, string?, slick.worldQueryResponse?
-local function touch(world, query, response, x, y, goalX, goalY, filter, result)
+local function touch(world, query, response, previousResponse, x, y, goalX, goalY, filter, result)
     local touchX, touchY = response.touch.x, response.touch.y
     
     result:push(response)
@@ -62,6 +73,7 @@ end
 --- @param world slick.world
 --- @param query slick.worldQuery
 --- @param response slick.worldQueryResponse
+--- @param previousResponse slick.worldQueryResponse?
 --- @param x number
 --- @param y number
 --- @param goalX number
@@ -69,7 +81,7 @@ end
 --- @param filter slick.worldFilterQueryFunc
 --- @param result slick.worldQuery
 --- @return number, number, number, number, string?, slick.worldQueryResponse?
-local function cross(world, query, response, x, y, goalX, goalY, filter, result)
+local function cross(world, query, response, previousResponse, x, y, goalX, goalY, filter, result)
     result:push(response)
 
     local index = 1
@@ -109,13 +121,13 @@ local _cachedBounceCurrentPosition = point.new()
 local _cachedBounceTouchPosition = point.new()
 local _cachedBounceGoalPosition = point.new()
 local _cachedBounceNormal = point.new()
-local _cachedBounceGoalDirection = point.new()
 local _cachedBounceNewGoalPosition = point.new()
 local _cachedBounceDirection = point.new()
 
 --- @param world slick.world
 --- @param query slick.worldQuery
 --- @param response slick.worldQueryResponse
+--- @param previousResponse slick.worldQueryResponse?
 --- @param x number
 --- @param y number
 --- @param goalX number
@@ -123,7 +135,7 @@ local _cachedBounceDirection = point.new()
 --- @param filter slick.worldFilterQueryFunc
 --- @param result slick.worldQuery
 --- @return number, number, number, number, string?, slick.worldQueryResponse?
-local function bounce(world, query, response, x, y, goalX, goalY, filter, result)
+local function bounce(world, query, response, previousResponse, x, y, goalX, goalY, filter, result)
     _cachedBounceCurrentPosition:init(x, y)
     _cachedBounceTouchPosition:init(response.touch.x, response.touch.y)
     _cachedBounceGoalPosition:init(goalX, goalY)

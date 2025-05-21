@@ -24,7 +24,7 @@ local function defaultWorldShapeFilterQueryFunc()
     return true
 end
 
---- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc, result: slick.worldQuery): number, number, number, number, string?, slick.worldQueryResponse
+--- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, previousResponse: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc, result: slick.worldQuery): number, number, number, number, string?, slick.worldQueryResponse
 --- @alias slick.worldVisitFunc fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number): string
 
 --- @class slick.world
@@ -35,6 +35,8 @@ end
 --- @field private responses table<string, slick.worldResponseFunc>
 --- @field private entities slick.entity[]
 --- @field private itemToEntity table<any, number>
+--- @field private previousEntityCollisions table<slick.entity, slick.worldQuery>
+--- @field private freeWorldQueries slick.worldQuery[]
 --- @field private freeList number[]
 --- @field private cachedQuery slick.worldQuery
 --- @field private cachedPushQuery slick.worldQuery
@@ -76,6 +78,7 @@ function world.new(width, height, options)
         debug = options.debug == nil and defaultOptions.debug or options.debug,
         epsilon = options.epsilon or defaultOptions.epsilon or slickmath.EPSILON,
         maxBounces = options.maxBounces or defaultOptions.maxBounces,
+        maxJitter = options.maxJitter or defaultOptions.maxJitter,
         quadTreeOptimizationMargin = options.quadTreeOptimizationMargin or defaultOptions.quadTreeOptimizationMargin
     }
 
@@ -88,7 +91,9 @@ function world.new(width, height, options)
         itemToEntity = {},
         freeList = {},
         visited = {},
-        responses = {}
+        responses = {},
+        previousEntityCollisions = {},
+        freeWorldQueries = {}
     }, metatable)
 
     self.cachedQuery = worldQuery.new(self)
@@ -152,6 +157,13 @@ function world:add(item, a, b, c)
     e:add(self)
 
     self.itemToEntity[item] = i
+
+    --- @type slick.worldQuery
+    local query = table.remove(self.freeWorldQueries) or worldQuery.new(self)
+    query:reset()
+
+    self.previousEntityCollisions[e] = query
+
     return e
 end
 
@@ -302,6 +314,9 @@ function world:remove(item)
     table.insert(self.freeList, entityIndex)
 
     self.itemToEntity[item] = nil
+
+    table.insert(self.freeWorldQueries, self.previousEntityCollisions[e])
+    self.previousEntityCollisions[e] = nil
 end
 
 --- @param item any
@@ -430,12 +445,14 @@ function world:check(item, goalX, goalY, filter, query)
 
     slicktable.clear(_cachedRemappedHandlers)
 
+    
     local cachedQuery = self.cachedQuery
     filter = filter or defaultWorldFilterQueryFunc
-
+    
     local e = self:get(item)
+    local previousQuery = self.previousEntityCollisions[e]
     local x, y = e.transform.x, e.transform.y
-
+    
     self:project(item, x, y, goalX, goalY, filter, cachedQuery)
     if #cachedQuery.results == 0 then
         return goalX, goalY, query.results, #query.results, query
@@ -454,6 +471,14 @@ function world:check(item, goalX, goalY, filter, query)
             shape = result.shape
             otherShape = result.otherShape
 
+            local previousResponse
+            for _, response in ipairs(previousQuery.results) do
+                if response.shape == shape and response.otherShape == otherShape then
+                    previousResponse = response
+                    break
+                end
+            end
+
             --- @type string
             local responseName
             if not responseName then
@@ -469,16 +494,16 @@ function world:check(item, goalX, goalY, filter, query)
             result.response = responseName
 
             --- @cast responseName string
-            responseName = _cachedRemappedHandlers[responseName] or responseName
+            responseName = _cachedRemappedHandlers[shape] or responseName
 
             assert(type(responseName) == "string", "expect name of response handler as string")
 
             local response = self:getResponse(responseName)
 
             local remappedResponseName, nextResult
-            x, y, goalX, goalY, remappedResponseName, nextResult = response(self, cachedQuery, result, x, y, goalX, goalY, filter, query)
+            x, y, goalX, goalY, remappedResponseName, nextResult = response(self, cachedQuery, result, previousResponse, x, y, goalX, goalY, filter, query)
 
-            _cachedRemappedHandlers[responseName] = remappedResponseName
+            _cachedRemappedHandlers[shape] = remappedResponseName
 
             result = nextResult
         until not result
@@ -494,6 +519,11 @@ function world:check(item, goalX, goalY, filter, query)
             actualX = x
             actualY = y
         end
+    end
+
+    previousQuery:reset()
+    for _, response in ipairs(query.results) do
+        previousQuery:push(response)
     end
 
     return actualX, actualY, query.results, #query.results, query
