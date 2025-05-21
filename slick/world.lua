@@ -206,7 +206,7 @@ function world:push(item, filter, a, b, c)
     local visited = self.cachedPushQuery
     visited:reset()
 
-    self:project(item, x, y, x, y, nil, cachedQuery)
+    self:project(item, x, y, x, y, filter, cachedQuery)
     while #cachedQuery.results > 0 do
         --- @type slick.worldQueryResponse
         local result
