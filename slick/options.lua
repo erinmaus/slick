@@ -3,6 +3,7 @@ local slickmath = require "slick.util.slickmath"
 --- @class slick.options
 --- @field epsilon number?
 --- @field maxBounces number?
+--- @field maxJitter number?
 --- @field debug boolean?
 --- @field quadTreeX number?
 --- @field quadTreeY number?
@@ -15,6 +16,7 @@ local defaultOptions = {
     debug = false,
 
     maxBounces = 4,
+    maxJitter = 1,
 
     quadTreeMaxLevels = 8,
     quadTreeMaxData = 8,
