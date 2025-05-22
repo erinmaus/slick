@@ -25,6 +25,26 @@ local shapes = {
 }
 
 do
+    -- See: https://github.com/erinmaus/slick/issues/69
+    local numPoints = 2 ^ 6
+    
+    local step = (2 * math.pi) / numPoints
+    local vertices = {}
+    for angle = 0, 2 * math.pi, step do
+        local x = 0 + math.cos(angle) * 10
+        local y = 0 + math.sin(angle) * 10
+    
+        table.insert(vertices, x)
+        table.insert(vertices, y)
+    end
+
+    table.insert(shapes, {
+        name = "big circle",
+        contours = { vertices }
+    })
+end
+
+do
     local items = love.filesystem.getDirectoryItems("test/data")
 
     for _, item in ipairs(items) do
