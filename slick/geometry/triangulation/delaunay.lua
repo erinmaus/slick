@@ -967,7 +967,7 @@ function delaunay:_refine()
             local first = i
             local second = vertices[j]
 
-            if second > first and not self:_isTriangleEdgeConstrained(first, second) then
+            if second < first and not self:_isTriangleEdgeConstrained(first, second) then
                 local x = vertices[j - 1]
                 local y
 
