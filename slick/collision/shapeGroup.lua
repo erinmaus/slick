@@ -1,4 +1,6 @@
 local polygonMesh = require("slick.collision.polygonMesh")
+local enum = require("slick.enum")
+local tag = require("slick.tag")
 local util = require("slick.util")
 
 --- @class slick.collision.shapeGroup
@@ -9,7 +11,7 @@ local shapeGroup = {}
 local metatable = { __index = shapeGroup }
 
 --- @param entity slick.entity
---- @param tag slick.tag?
+--- @param tag slick.tag | slick.enum | nil
 --- @param ... slick.collision.shapeDefinition
 --- @return slick.collision.shapeGroup
 function shapeGroup.new(entity, tag, ...)
@@ -24,10 +26,10 @@ function shapeGroup.new(entity, tag, ...)
 end
 
 --- @private
---- @param tag slick.tag?
+--- @param tagInstance slick.tag | slick.enum | nil
 --- @param shapeDefinition slick.collision.shapeDefinition?
 --- @param ... slick.collision.shapeDefinition
-function shapeGroup:_addShapeDefinitions(tag, shapeDefinition, ...)
+function shapeGroup:_addShapeDefinitions(tagInstance, shapeDefinition, ...)
     if not shapeDefinition then
         return
     end
@@ -39,12 +41,20 @@ function shapeGroup:_addShapeDefinitions(tag, shapeDefinition, ...)
         shape = shapeDefinition.type.new(self.entity, unpack(shapeDefinition.arguments, 1, shapeDefinition.n))
     end
 
-    local shapeTag = shapeDefinition.tag or tag
-    local tagValue = shapeTag and shapeTag.value
+    local shapeTag = shapeDefinition.tag or tagInstance
+    local tagValue = nil
+    if util.is(shapeTag, tag) then
+        tagValue = shapeTag and shapeTag.value
+    elseif util.is(shapeTag, enum) then
+        tagValue = shapeTag
+    elseif type(shapeTag) ~= "nil" then
+        error("expected tag to be an instance of slick.enum or slick.tag")
+    end
+
     shape.tag = tagValue
 
     self:_addShapes(shape)
-    self:_addShapeDefinitions(tag, ...)
+    self:_addShapeDefinitions(tagInstance, ...)
 end
 
 --- @private
