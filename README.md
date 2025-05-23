@@ -109,6 +109,18 @@ First, require **slick**:
 local slick = require("slick") -- or wherever you put it; e.g., if you put it in `./libs/slick` then use `require("libs.slick")`
 ```
 
+**Import warning**
+
+**Do not import into individual files in slick!** Some import magic goes on. If you do something like:
+
+```lua
+local tag = require("libs.slick.tag")
+```
+
+...this will **not** be the same object (to **slick**) as returned by `"slick.newTag"`. Anything not exposed directly by importing **slick** is considered private. Please only use the constructors in the object returned by **slick**'s root import.
+
+With that said...
+
 Next, create a new world:
 
 ```lua
