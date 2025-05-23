@@ -61,7 +61,62 @@ local function newLineSegment(x1, y1, x2, y2, tag)
     }
 end
 
+local function _newChainHelper(points, i, j)
+    local length = #points / 2
+
+    i = i or 1
+    j = j or length
+
+    local k = (i % length) + 1
+    local x1, y1 = points[(i - 1) * 2 + 1], points[(i - 1) * 2 + 2]
+    local x2, y2 = points[(k - 1) * 2 + 1], points[(k - 1) * 2 + 2]
+    if i == j then
+        return newLineSegment(x1, y1, x2, y2)
+    else
+        return newLineSegment(x1, y1, x2, y2), _newChainHelper(points, i + 1, j)
+    end
+end
+
+--- @param points number[] an array of points in the form { x1, y2, x2, y2, ... }
+--- @param tag slick.tag | slick.enum | nil
+--- @return slick.collision.shapeDefinition
+local function newChain(points, tag)
+    assert(#points % 2 == 0, "expected a list of (x, y) tuples")
+    assert(#points >= 6, "expected a minimum of 3 points")
+
+    return {
+        type = shapeGroup,
+        n = #points / 2,
+        tag = tag,
+        arguments = { _newChainHelper(points) }
+    }
+end
+
+local function _newPolylineHelper(segments, i, j)
+    i = i or 1
+    j = j or #segments
+
+    if i == j then
+        return newLineSegment(unpack(segments[i]))
+    else
+        return newLineSegment(unpack(segments[i])), _newPolylineHelper(segments, i + 1, j)
+    end
+end
+
+--- @param segments number[][] an array of segments in the form { { x1, y1, x2, y2 }, { x1, y1, x2, y2 }, ... }
+--- @param tag slick.tag | slick.enum | nil
+--- @return slick.collision.shapeDefinition
+local function newPolyline(segments, tag)
+    return {
+        type = shapeGroup,
+        n = #segments,
+        tag = tag,
+        arguments = { _newPolylineHelper(segments) }
+    }
+end
+
 --- @param vertices number[] a list of x, y coordinates in the form `{ x1, y1, x2, y2, ..., xn, yn }`
+--- @param tag slick.tag | slick.enum | nil
 --- @return slick.collision.shapeDefinition
 local function newPolygon(vertices, tag)
     return {
@@ -69,29 +124,6 @@ local function newPolygon(vertices, tag)
         n = #vertices,
         tag = tag,
         arguments = { unpack(vertices) }
-    }
-end
-
-local function _newPolylineHelper(lines, i, j)
-    i = i or 1
-    j = j or #lines
-
-    if i == j then
-        return newLineSegment(unpack(lines[i]))
-    else
-        return newLineSegment(unpack(lines[i])), _newPolylineHelper(lines, i + 1, j)
-    end
-end
-
---- @param lines number[][] an array of segments in the form { { x1, y1, x2, y2 }, { x1, y1, x2, y2 }, ... }
---- @param tag slick.tag | slick.enum | nil
---- @return slick.collision.shapeDefinition
-local function newPolyline(lines, tag)
-    return {
-        type = shapeGroup,
-        n = #lines,
-        tag = tag,
-        arguments = { _newPolylineHelper(lines) }
     }
 end
 
@@ -168,8 +200,9 @@ return {
     newRectangle = newRectangle,
     newCircle = newCircle,
     newLineSegment = newLineSegment,
-    newPolygon = newPolygon,
+    newChain = newChain,
     newPolyline = newPolyline,
+    newPolygon = newPolygon,
     newPolygonMesh = newPolygonMesh,
     newMesh = newMesh,
     newShapeGroup = newShapeGroup,

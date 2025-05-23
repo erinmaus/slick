@@ -120,11 +120,12 @@ return {
     newTransform = geometry.transform.new,
 
     newRectangleShape = shape.newRectangle,
+    newChain = shape.newChain,
     newCircleShape = shape.newCircle,
     newLineSegmentShape = shape.newLineSegment,
     newPolygonShape = shape.newPolygon,
-    newPolylineShape = shape.newPolyline,
     newPolygonMeshShape = shape.newPolygonMesh,
+    newPolylineShape = shape.newPolyline,
     newMeshShape = shape.newMesh,
     newShapeGroup = shape.newShapeGroup,
     newEnum = enum.new,

@@ -303,6 +303,8 @@ Below is an API reference for **slick**.
 
   The entity will **never** overlap another entity filtered by `filter` **but** it might go somewhere you wouldn't expect! If you place an entity inside a wall, it will try and take the shortest route out, but this is not guaranteed based on the location of the object and the other entities.
 
+  **Pushing an object near a line segment can cause it to "pass-through" the line segment.**
+
 <a id="slickworldrotate"></a>
 
 * `slick.world:rotate(item, angle: number, rotateFilter: slick.worldFilterQueryFunc, pushFilter: slick.worldFilterQueryFunc, query: slick.worldQuery?)`
@@ -312,6 +314,8 @@ Below is an API reference for **slick**.
   `rotateFilter` is used to filter all entities that will be pushed (via `slick.world.push`) out of the way of the rotating `item`. `pushFilter` is used to determine what entities, when pushing via `slick.world.push`, will affect the push. You might want all items of type `thing` to be affected by the rotation of `item`; but then only have the `thing` items by pushed by level geometry (and, probably, the rotating `item`).
 
   See the `moveGear` function in the demo for an example usage of this.
+
+  **Pushing an object via `slick.world.rotate` near a line segment can cause it to "pass-through" the line segment.**
 
 <a id="slickworldquerypoint"></a>
 
@@ -626,6 +630,18 @@ The complete list of of shape definitions are:
   Creates a mesh out of triangles or convex polygons. The vertices of each polygon are in the order `{ x1, y1, x2, y2, x3, y3, ..., xn, yn }`.
 
   This shape definition constructor is useful to easily construct shapes from [simple triangulation, polygonization, and clipping API](#simple-triangulation-polygonization-and-clipping-api). Generating convex polygons from the polygonization or clipping API will be faster than a triangle mesh.
+
+* `slick.newLineSegment(x1: number, y1: number, x2: number, y2: number, tag: slick.tag | slick.enum | nil)`
+  
+  Creates a single line segment. This is a useful building block of something like Box2D's chain shape.
+
+* `slick.newPolyline(segments: number[][], tag: slick.tag | slick.enum | nil)`
+  
+  Creates a poly line. Each segment is in the form `{ x1, y1, x2, y2 }`. The points are not connected.
+
+* `slick.newChain(points: number[], tag: slick.tag | slick.enum | nil)`
+  
+  Creates a chain shape (like in Box2D). The last point connects to the first. `points` is in the form `{ x1, y1, x2, y2, x3, y3, ... }`. Must have at least 3 points. `points` must be even (e.g., there are a valid number of points).
 
 * `slick.newShapeGroup(...shapes: slick.collision.shapeDefinition, tag: slick.tag | slick.enum | nil)`
 
