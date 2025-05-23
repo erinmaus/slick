@@ -62,19 +62,17 @@ local function _drawNormals(world)
     for _, item in ipairs(items) do
         local entity = world:get(item)
         for _, shape in ipairs(entity.shapes.shapes) do
-            if not util.is(shape, circle) then
-                local localSize = math.max(shape.bounds:width(), shape.bounds:height()) / 8
+            local localSize = math.max(shape.bounds:width(), shape.bounds:height()) / 8
 
-                for i = 1, shape.vertexCount do
-                    local j = i % shape.vertexCount + 1
+            for i = 1, shape.vertexCount do
+                local j = i % shape.vertexCount + 1
 
-                    local a = shape.vertices[i]
-                    local b = shape.vertices[j]
+                local a = shape.vertices[i]
+                local b = shape.vertices[j]
 
-                    if i <= shape.normalCount then
-                        local n = shape.normals[i]
-                        love.graphics.line((a.x + b.x) / 2, (a.y + b.y) / 2, (a.x + b.x) / 2 + n.x * localSize, (a.y + b.y) / 2 + n.y * localSize)
-                    end
+                if i <= shape.normalCount then
+                    local n = shape.normals[i]
+                    love.graphics.line((a.x + b.x) / 2, (a.y + b.y) / 2, (a.x + b.x) / 2 + n.x * localSize, (a.y + b.y) / 2 + n.y * localSize)
                 end
             end
         end
