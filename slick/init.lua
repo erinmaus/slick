@@ -12,6 +12,9 @@ local draw
 --- @module "slick.entity"
 local entity
 
+--- @module "slick.enum"
+local enum
+
 --- @module "slick.geometry"
 local geometry
 
@@ -47,6 +50,7 @@ local function load()
     collision = require("slick.collision")
     draw = require("slick.draw")
     entity = require("slick.entity")
+    enum = require("slick.enum")
     geometry = require("slick.geometry")
     defaultOptions = require("slick.options")
     responses = require("slick.responses")
@@ -123,6 +127,7 @@ return {
     newPolygonMeshShape = shape.newPolygonMesh,
     newMeshShape = shape.newMesh,
     newShapeGroup = shape.newShapeGroup,
+    newEnum = enum.new,
     newTag = tag.new,
 
     triangulate = geometry.simple.triangulate,

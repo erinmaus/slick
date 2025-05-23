@@ -4,13 +4,14 @@ local polygon = require("slick.collision.polygon")
 local polygonMesh = require("slick.collision.polygonMesh")
 local shapeGroup = require("slick.collision.shapeGroup")
 local tag = require("slick.tag")
+local enum = require("slick.enum")
 local util = require("slick.util")
 
 --- @param x number
 --- @param y number
 --- @param w number
 --- @param h number
---- @param tag slick.tag?
+--- @param tag slick.tag | slick.enum | nil
 --- @return slick.collision.shapeDefinition
 local function newRectangle(x, y, w, h, tag)
     return {
@@ -25,7 +26,7 @@ end
 --- @param y number
 --- @param radius number
 --- @param segments number?
---- @param tag slick.tag?
+--- @param tag slick.tag | slick.enum | nil
 --- @return slick.collision.shapeDefinition
 local function newCircle(x, y, radius, segments, tag)
 	local points = segments or math.max(math.floor(math.sqrt(radius * 20)), 8)
@@ -49,7 +50,7 @@ end
 --- @param y1 number
 --- @param x2 number
 --- @param y2 number
---- @param tag slick.tag
+--- @param tag slick.tag | slick.enum | nil
 --- @return slick.collision.shapeDefinition
 local function newLineSegment(x1, y1, x2, y2, tag)
     return {
@@ -61,7 +62,6 @@ local function newLineSegment(x1, y1, x2, y2, tag)
 end
 
 --- @param vertices number[] a list of x, y coordinates in the form `{ x1, y1, x2, y2, ..., xn, yn }`
---- @param tag slick.tag?
 --- @return slick.collision.shapeDefinition
 local function newPolygon(vertices, tag)
     return {
@@ -84,7 +84,7 @@ local function _newPolylineHelper(lines, i, j)
 end
 
 --- @param lines number[][] an array of segments in the form { { x1, y1, x2, y2 }, { x1, y1, x2, y2 }, ... }
---- @param tag slick.tag?
+--- @param tag slick.tag | slick.enum | nil
 --- @return slick.collision.shapeDefinition
 local function newPolyline(lines, tag)
     return {
@@ -101,14 +101,14 @@ local function _getTagAndCount(...)
     local n = select("#", ...)
 
     local maybeTag = select(select("#", ...), ...)
-    if util.is(maybeTag, tag) then
+    if util.is(maybeTag, tag) or util.is(maybeTag, enum) then
         return n - 1, maybeTag
     end
 
     return n, nil
 end
 
---- @param ... number[] a list of x, y coordinates in the form `{ x1, y1, x2, y2, ..., xn, yn }`
+--- @param ... number[] | slick.tag | slick.enum a list of x, y coordinates in the form `{ x1, y1, x2, y2, ..., xn, yn }`
 --- @return slick.collision.shapeDefinition
 local function newPolygonMesh(...)
     local n, tag = _getTagAndCount(...)
@@ -133,7 +133,7 @@ local function _newMeshHelper(polygons, i, j)
 end
 
 --- @param polygons number[][] an array of segments in the form { { x1, y1, x2, y2, x3, y3, ..., xn, yn }, ... }
---- @param tag slick.tag?
+--- @param tag slick.tag | slick.enum | nil
 --- @return slick.collision.shapeDefinition
 local function newMesh(polygons, tag)
     return {

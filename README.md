@@ -565,31 +565,55 @@ A `slick.collision.shapelike` can be a polygon, circle, box, or shape group. An 
 
 The only public field for a `slick.collision.shapelike` is a value called `tag`. This value is passed to a `slick.collision.shapeDefinition` constructor. `tag` can be any value. If not provided, `tag` will be `nil`.
 
-When adding or updating an `item` to the world, you can provide a `slick.collision.shapeDefinition`. The constructor for a `slick.collision.shapeDefinition` takes a list of properties that define the shape. All `slick.collision.shapeDefinition` constructors can take an optional `slick.tag` as the last value, which will be stored in the `tag` field of the `slick.collision.shapelike`. In order to to create a `slick.tag`, you can the `slick.newTag` constructor:
+When adding or updating an `item` to the world, you can provide a `slick.collision.shapeDefinition`. The constructor for a `slick.collision.shapeDefinition` takes a list of properties that define the shape. All `slick.collision.shapeDefinition` constructors can take an optional `slick.tag` **or** `slick.enum` as the last value, which will be stored in the `tag` field of the `slick.collision.shapelike`. In order to to create a `slick.tag` or `slick.enum`, you can the use the `slick.newTag` or `slick.newEnum` constructor:
 
 * `slick.newTag(value: any): slick.tag`
 
   Instantiates an opaque `slick.tag` instance wrapping `value`. Keep in mind the `tag` field will be the `value` argument, **not** a `slick.tag` instance. All shape definition constructors optionally take a `slick.tag` as the last parameter.
 
+* `slick.newEnum(value: any): slick.enum`
+  
+  Instantiates a `slick.enum` wrapping `value`. Unlike `slick.newTag`, The `tag` field will be the `slick.enum` instance itself. Thus this makes it easier to do something like this:
+
+  ```lua
+  local types = {
+    LEVEL = slick.newEnum({ type = "LEVEL" }),
+    SPIKE = slick.newEnum({ type = "SPIKE", damage = 10 })
+  }
+
+  -- ... create shapes ...
+
+  local collisions = world:project(...)
+  for _, collision in ipairs(collisions) do
+    if collision.otherShape.tag == types.SPIKE then
+      -- deal damage, whatever
+      -- you can get `value` too like this:
+      print("took", collision.otherShape.tag.value.damage, "from", collision.otherShape.tag.value.type)
+    end
+  end
+  ```
+
+  `slick.enum` has a single public read-only field, `value`. This will be identical to the `value` passed in the constructor.
+
 The complete list of of shape definitions are:
 
-* `slick.newRectangleShape(x: number, y: number, w: number, h: number, tag: slick.tag?)`
+* `slick.newRectangleShape(x: number, y: number, w: number, h: number, tag: slick.tag | slick.enum | nil)`
 
   A rectangle with its top-left corner relative to the entity at (`x`, `y`). The rectangle will have a width of `w` and a height of `h`.
 
   For example, if an entity is at `100, 150` and the box is created at `10, 10`, then the box will be at `110, 160` in the world.
 
-* `slick.newCircleShape(x: number, y: number, radius: number, segments: number?, tag: slick.tag?)`
+* `slick.newCircleShape(x: number, y: number, radius: number, segments: number?, tag: slick.tag | slick.enum | nil)`
 
   A circle with its center relative to the entity at (`x`, `y`). The circle will have a radius of `radius`. `segments` is how many segments the circle will have; if `segments` is not provided, a good enough value 1:1 with a pixel grid will be used.
 
-* `slick.newPolygonShape(vertices: number[], tag: slick.tag?)`
+* `slick.newPolygonShape(vertices: number[], tag: slick.tag | slick.enum | nil)`
 
   Creates a polygon from a list of vertices. The vertices are in the order `{ x1, y1, x2, y2, x3, y3, ..., xn, yn }`.
 
   The polygon **must** be a valid convex polygon. This means no self-intersections; all interior angles are less than 180 degrees; no holes; and no duplicate points. To create a polygon that might self-intersect, have holes, or be concave, use `slick.newPolygonMeshShape`.
 
-* `slick.newPolygonMeshShape(...contours: number[], tag: slick.tag?)`
+* `slick.newPolygonMeshShape(...contours: number[], tag: slick.tag | slick.enum | nil)`
 
   Creates a polygon mesh from a variable number of contours. The contours are in the form `{ x1, y1, x2, y2, x3, y3, ..., xn, yn }`.
 
@@ -597,13 +621,13 @@ The complete list of of shape definitions are:
 
   Polygons can self-intersect; be concave; have holes; have duplicate points; have collinear edges; etc. However, the worse the quality of the input data, the longer the polygonization will take. Similarly, the more contours / points in the contour data, the longer the triangulation/polygonization will take.
 
-* `slick.newMeshShape(...polygons: number[][], tag: slick.tag?)`
+* `slick.newMeshShape(...polygons: number[][], tag: slick.tag | slick.enum | nil)`
 
   Creates a mesh out of triangles or convex polygons. The vertices of each polygon are in the order `{ x1, y1, x2, y2, x3, y3, ..., xn, yn }`.
 
   This shape definition constructor is useful to easily construct shapes from [simple triangulation, polygonization, and clipping API](#simple-triangulation-polygonization-and-clipping-api). Generating convex polygons from the polygonization or clipping API will be faster than a triangle mesh.
 
-* `slick.newShapeGroup(...shapes: slick.collision.shapeDefinition, tag: slick.tag?)`
+* `slick.newShapeGroup(...shapes: slick.collision.shapeDefinition, tag: slick.tag | slick.enum | nil)`
 
   Create a group of shapes. Useful to put all level geometry in one entity, for example, or make a "capsule" shape for a player out of two circle and a box (or things of that nature).
 
