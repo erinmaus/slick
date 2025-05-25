@@ -208,6 +208,7 @@ local function _getRectangle(a, b, c, d)
     return r
 end
 
+--- @private
 --- @param r slick.geometry.rectangle
 function quadTree:_tryExpand(r)
     if r:overlaps(self.bounds) then

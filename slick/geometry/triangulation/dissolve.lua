@@ -16,10 +16,14 @@ end
 --- @param p slick.geometry.point
 --- @param index number
 --- @param userdata any?
-function dissolve:init(p, index, userdata)
+--- @param otherIndex number
+--- @param otherUserdata number
+function dissolve:init(p, index, userdata, otherIndex, otherUserdata)
     self.point:init(p.x, p.y)
     self.index = index
     self.userdata = userdata
+    self.otherIndex = otherIndex
+    self.otherUserdata = otherUserdata
 end
 
 --- @param d slick.geometry.triangulation.dissolve

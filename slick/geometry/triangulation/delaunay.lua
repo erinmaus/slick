@@ -284,7 +284,7 @@ function delaunay:_dedupePoints(dissolve, userdata)
             didDedupe = true
 
             local nextPoint = sortedPoints[nextIndex]
-            self.dissolve:init(sortedPoint.point, sortedPoint.id, userdata and userdata[sortedPoint.id])
+            self.dissolve:init(sortedPoint.point, sortedPoint.id, userdata and userdata[sortedPoint.id], nextPoint.id, userdata and userdata[nextPoint.id])
             dissolve(self.dissolve)
 
             local pointEdges = self.pointsToEdges[nextPoint.id]

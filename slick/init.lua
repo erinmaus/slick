@@ -18,6 +18,9 @@ local enum
 --- @module "slick.geometry"
 local geometry
 
+--- @module "slick.navigation"
+local navigation
+
 --- @module "slick.options"
 local defaultOptions
 
@@ -52,6 +55,7 @@ local function load()
     entity = require("slick.entity")
     enum = require("slick.enum")
     geometry = require("slick.geometry")
+    navigation = require("slick.navigation")
     defaultOptions = require("slick.options")
     responses = require("slick.responses")
     shape = require("slick.shape")
@@ -120,7 +124,7 @@ return {
     newTransform = geometry.transform.new,
 
     newRectangleShape = shape.newRectangle,
-    newChain = shape.newChain,
+    newChainShape = shape.newChain,
     newCircleShape = shape.newCircle,
     newLineSegmentShape = shape.newLineSegment,
     newPolygonShape = shape.newPolygon,
@@ -138,6 +142,8 @@ return {
     newUnionClipOperation = geometry.simple.newUnionClipOperation,
     newIntersectionClipOperation = geometry.simple.newIntersectionClipOperation,
     newDifferenceClipOperation = geometry.simple.newDifferenceClipOperation,
+
+    navigation = navigation,
 
     drawWorld = draw
 }

@@ -2,11 +2,11 @@ local point = require("slick.geometry.point")
 local rectangle = require("slick.geometry.rectangle")
 local segment = require("slick.geometry.segment")
 local slickmath = require("slick.util.slickmath")
-local slicktable= require("slick.util.slicktable")
+local slicktable = require("slick.util.slicktable")
 
 --- @class slick.collision.commonShape
 --- @field tag any
---- @field entity slick.entity?
+--- @field entity slick.entity | slick.cache | nil
 --- @field vertexCount number
 --- @field normalCount number
 --- @field center slick.geometry.point
@@ -18,7 +18,7 @@ local slicktable= require("slick.util.slicktable")
 local commonShape = {}
 local metatable = { __index = commonShape }
 
---- @param e slick.entity?
+--- @param e slick.entity | slick.cache | nil
 --- @return slick.collision.commonShape
 function commonShape.new(e)
     return setmetatable({

@@ -1,6 +1,7 @@
 local bill = require("demo.bill")
 local lonk = require("demo.lonk")
 local luigini = require("demo.luigini")
+local mush = require("demo.mush")
 
 local currentDemo = lonk
 local showHelp = false
@@ -16,6 +17,9 @@ function love.keypressed(key, scan, isRepeat)
             handled = true
         elseif key == "3" then
             currentDemo = bill
+            handled = true
+        elseif key == "4" then
+            currentDemo = mush
             handled = true
         elseif key == "f1" then
             showHelp = not showHelp
@@ -48,6 +52,7 @@ global controls
 - 1: legend of lönk top-down "RPG" demo
 - 2: luigini brothers platformer demo
 - 3: bill c. triangulation demo
+- 4: mush navigation demo
 ]]
 
 function love.draw()
