@@ -1,4 +1,3 @@
-local common = require("demo.common")
 local json = require("demo.json")
 local slick = require("slick")
 
@@ -7,11 +6,20 @@ local shapes = json.decode(love.filesystem.read("demo/mush.json"))
 --- @type slick.navigation.mesh
 local mesh
 
---- @type slick.navigation.vertex[] | false
+local pathfinder = slick.navigation.path.new({
+    neighbor = function(fromX, fromY, fromUserdata, toX, toY, toUserdata)
+        return not ((fromUserdata and fromUserdata.door) or (toUserdata and toUserdata.door)) or love.keyboard.isDown("k")
+    end
+})
+
+--- @type number[] | false
 local path = false
 
 --- @type number
 local generationTimeMS
+
+--- @type number
+local pathFindTimeMS
 
 local BACKGROUND = slick.newEnum("background")
 local WALL = slick.newEnum("wall")
@@ -87,86 +95,10 @@ local function findPath()
         return
     end
 
-    local start = slick.navigation.vertex.new(slick.geometry.point.new(startX, startY), nil, -1)
-    local goal = slick.navigation.vertex.new(slick.geometry.point.new(goalX, goalY), nil, -1)
-
-    local goalNeighbors = {}
-    do
-        local triangle = mesh:getContainingTriangle(goalX, goalY)
-        if not triangle then
-            return
-        end
-
-        if triangle then
-            for _, index in ipairs(triangle) do
-                goalNeighbors[index] = true
-            end
-        end
-    end
-
-    path = common.pathfind(
-        {
-            start = start,
-
-            goal = function(vertex)
-                return goal == vertex
-            end,
-
-            --- @param vertex slick.navigation.vertex
-            neighbours = function(vertex)
-                if vertex == start then
-                    local triangle = mesh:getContainingTriangle(vertex.point.x, vertex.point.y)
-
-                    local result = {}
-                    if triangle then
-                        for _, index in ipairs(triangle) do
-                            table.insert(result, mesh:getVertex(index))
-                        end
-                    end
-
-                    return result
-                end
-
-                --- @type slick.navigation.vertex[]
-                local result = {}
-                local neighbors = mesh:getNeighbors(vertex.index)
-                for _, neighbor in ipairs(neighbors) do
-                    if (not (neighbor.a.userdata and neighbor.a.userdata.door) and not (neighbor.b.userdata and neighbor.b.userdata.door)) or love.keyboard.isDown("k") then
-                        table.insert(result, neighbor.b)
-                    end
-                end
-
-                local hasGoal = true
-                for index in pairs(goalNeighbors) do
-                    local isNeighbor = index == vertex.index
-                    if not isNeighbor then
-                        for _, vertex in ipairs(result) do
-                            if vertex.index == index then
-                                isNeighbor = true
-                                break
-                            end
-                        end
-                    end
-
-                    if not isNeighbor then
-                        hasGoal = false
-                        break
-                    end
-                end
-
-                if hasGoal then
-                    table.insert(result, goal)
-                end
-
-                return result
-            end,
-
-            --- @param a slick.navigation.vertex
-            --- @param b slick.navigation.vertex
-            distance = function(a, b)
-                return a.point:distance(b.point)
-            end
-        })
+    local before = love.timer.getTime()
+    path = pathfinder:nearest(mesh, startX, startY, goalX, goalY) or false
+    local after = love.timer.getTime()
+    pathFindTimeMS = (after - before) * 1000
 end
 
 function demo.mousepressed(x, y)
@@ -259,6 +191,9 @@ function demo.draw()
         love.graphics.setColor(1, 1, 0, 1)
 
         for i = 1, #path - 1 do
+            --local ax, ay, bx, by = unpack(path, i, i + 3)
+            --love.graphics.line(ax, ay, bx, by)
+
             local j = i + 1
             
             local a = path[i]

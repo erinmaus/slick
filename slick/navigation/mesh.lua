@@ -4,7 +4,6 @@ local point = require "slick.geometry.point"
 local rectangle = require "slick.geometry.rectangle"
 local edge = require "slick.navigation.edge"
 local vertex = require "slick.navigation.vertex"
-local search = require "slick.util.search"
 local slickmath = require "slick.util.slickmath"
 
 --- @class slick.navigation.mesh
