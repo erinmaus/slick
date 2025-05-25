@@ -1,3 +1,9 @@
+local jit = require("jit")
+if jit.arch == "arm64" and love.system.getOS() == "OS X" then
+    jit.off()
+end
+
+
 local bill = require("demo.bill")
 local lonk = require("demo.lonk")
 local luigini = require("demo.luigini")

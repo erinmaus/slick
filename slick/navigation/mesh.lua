@@ -2,9 +2,11 @@ local quadTree = require "slick.collision.quadTree"
 local quadTreeQuery = require "slick.collision.quadTreeQuery"
 local point = require "slick.geometry.point"
 local rectangle = require "slick.geometry.rectangle"
+local segment = require "slick.geometry.segment"
 local edge = require "slick.navigation.edge"
 local triangle = require "slick.navigation.triangle"
 local vertex = require "slick.navigation.vertex"
+local search = require "slick.util.search"
 local slickmath = require "slick.util.slickmath"
 
 --- @class slick.navigation.mesh
@@ -18,6 +20,8 @@ local slickmath = require "slick.util.slickmath"
 --- @field inputUserdata any[]
 --- @field vertexToTriangle table<number, slick.navigation.triangle[]>
 --- @field triangleNeighbors table<number, slick.navigation.triangle[]>
+--- @field sharedTriangleEdges table<number, table<number, slick.navigation.edge>>
+--- @field edgeTriangles table<slick.navigation.edge, slick.navigation.triangle[]>
 --- @field quadTree slick.collision.quadTree?
 --- @field quadTreeQuery slick.collision.quadTreeQuery?
 local mesh = {}
@@ -33,7 +37,9 @@ local function _findSharedTriangle(aTriangles, bTriangles, e)
         for _, t2 in ipairs(bTriangles) do
             if t1.index ~= t2.index then
                 if t1.vertices[e.a.index] and t1.vertices[e.b.index] and t2.vertices[e.a.index] and t2.vertices[e.b.index] then
-                    return t1, t2
+                    if t1.index ~= t2.index then
+                        return t1, t2
+                    end
                 end
             end
         end
@@ -58,6 +64,8 @@ function mesh.new(points, userdata, edges, triangles)
         inputEdges = {},
         inputUserdata = {},
         vertexToTriangle = {},
+        sharedTriangleEdges = {},
+        edgeTriangles = {},
         bounds = rectangle.new(points[1], points[2], points[1], points[2])
     }, metatable)
 
@@ -145,12 +153,36 @@ function mesh.new(points, userdata, edges, triangles)
             table.insert(self.triangles, n)
         end
 
+        table.sort(self.edges, edge.less)
+
         for _, e in ipairs(self.edges) do
             local aTriangles = self.vertexToTriangle[e.a.index]
             local bTriangles = self.vertexToTriangle[e.b.index]
 
             local a, b = _findSharedTriangle(aTriangles, bTriangles, e)
             if a and b then
+                self.edgeTriangles[e] = { a, b }
+
+                do
+                    local x = self.sharedTriangleEdges[a.index]
+                    if not x then
+                        x = {}
+                        self.sharedTriangleEdges[a.index] = x
+                    end
+
+                    x[b.index] = e
+                end
+
+                do
+                    local x = self.sharedTriangleEdges[b.index]
+                    if not x then
+                        x = {}
+                        self.sharedTriangleEdges[b.index] = x
+                    end
+
+                    x[a.index] = e
+                end
+
                 do
                     local neighbors = self.triangleNeighbors[a.index]
                     if neighbors == nil then
@@ -284,6 +316,104 @@ end
 --- @return slick.navigation.edge[]
 function mesh:getVertexNeighbors(index)
     return self.vertexNeighbors[index]
+end
+
+local _insideSegment = segment.new()
+local _triangleSegment = segment.new()
+local _insideTriangleSegment = segment.new()
+
+--- @param a slick.navigation.vertex
+--- @param b slick.navigation.vertex
+--- @return boolean, number?, number?
+function mesh:cross(a, b)
+    if not self.quadTree then
+        self:_buildQuadTree()
+    end
+
+    _insideSegment:init(a.point, b.point)
+    self.quadTreeQuery:perform(_insideSegment)
+
+    local hasIntersectedTriangle = false
+    local bestDistance = math.huge
+    local bestX, bestY
+    for _, hit in ipairs(self.quadTreeQuery.results) do
+        --- @cast hit slick.navigation.triangle
+
+        local intersectedTriangle = false
+        for i, vertex in ipairs(hit.triangle) do
+            local otherVertex = hit.triangle[(i % #hit.triangle) + 1]
+
+            _triangleSegment:init(vertex.point, otherVertex.point)
+            _insideTriangleSegment:init(vertex.point, otherVertex.point)
+            _insideTriangleSegment.a:init(vertex.point.x, vertex.point.y)
+            _insideTriangleSegment.b:init(otherVertex.point.x, otherVertex.point.y)
+
+            local i, x, y, u, v = slickmath.intersection(vertex.a, otherVertex.b, a.point, b.point, slickmath.EPSILON)
+            if i and u and v then
+                intersectedTriangle = true
+
+                if not self:isSharedEdge(vertex.index, otherVertex.index) then
+                    local distance = (x - a.point.x) ^ 2 + (x - a.point.y) ^ 2
+                    if distance < bestDistance then
+                        bestDistance = distance
+                        bestX, bestY = x, y
+                    end
+                end
+            end
+        end
+
+        hasIntersectedTriangle = hasIntersectedTriangle or intersectedTriangle
+    end
+
+    return hasIntersectedTriangle, bestX, bestY
+end
+
+local _a = vertex.new(point.new(0, 0), nil, 1)
+local _b = vertex.new(point.new(0, 0), nil, 2)
+local _edge = edge.new(_a, _b)
+
+--- @param a number
+--- @param b number
+--- @return slick.navigation.edge
+function mesh:getEdge(a, b)
+    _edge.a = self.vertices[a]
+    _edge.b = self.vertices[b]
+    _edge.min = math.min(a, b)
+    _edge.max = math.max(a, b)
+
+    local index = search.first(self.edges, _edge, edge.compare)
+    return self.edges[index]
+end
+
+--- @param a slick.navigation.triangle
+--- @param b slick.navigation.triangle
+--- @return slick.navigation.edge
+function mesh:getSharedTriangleEdge(a, b)
+    local t = self.sharedTriangleEdges[a.index]
+    local e = t and t[b.index]
+
+    return e
+end
+
+--- @param a number
+--- @param b number
+function mesh:isSharedEdge(a, b)
+    local edge = self:getEdge(a, b)
+    local triangles = self.edgeTriangles[edge]
+    return triangles ~= nil and #triangles == 2
+end
+
+--- @param a number
+--- @param b number
+--- @return slick.navigation.triangle ...
+function mesh:getEdgeTriangles(a, b)
+    local edge = self:getEdge(a, b)
+    local triangles = self.edgeTriangles[edge]
+    if not triangles then
+        return
+    end
+
+    return unpack(triangles)
 end
 
 return mesh

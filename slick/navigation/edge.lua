@@ -24,4 +24,22 @@ function edge:same(other)
     return self == other or (self.min == other.min and self.max == other.max)
 end
 
+--- @param a slick.navigation.edge
+--- @param b slick.navigation.edge
+--- @return -1 | 0 | 1
+function edge.compare(a, b)
+    if a.min == b.min then
+        return a.max - b.max
+    else
+        return a.min - b.min
+    end
+end
+
+--- @param a slick.navigation.edge
+--- @param b slick.navigation.edge
+--- @return boolean
+function edge.less(a, b)
+    return edge.compare(a, b) < 0
+end
+
 return edge

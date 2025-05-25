@@ -7,8 +7,8 @@ local shapes = json.decode(love.filesystem.read("demo/mush.json"))
 local mesh
 
 local pathfinder = slick.navigation.path.new({
-    neighbor = function(fromX, fromY, fromUserdata, toX, toY, toUserdata)
-        return not ((fromUserdata and fromUserdata.door) or (toUserdata and toUserdata.door)) or love.keyboard.isDown("k")
+    neighbor = function(_, _, e)
+        return not ((e.a.userdata and e.a.userdata.door) or (e.b.userdata and e.b.userdata.door)) or love.keyboard.isDown("k")
     end
 })
 
@@ -23,7 +23,6 @@ local pathFindTimeMS
 
 local BACKGROUND = slick.newEnum("background")
 local WALL = slick.newEnum("wall")
-local DOOR = slick.newEnum("door")
 
 local function generate()
     local meshBuilder = slick.navigation.meshBuilder.new()
@@ -99,6 +98,11 @@ local function findPath()
         return
     end
 
+    local hasGoal = mesh:getContainingTriangle(goalX, goalY)
+    if not hasGoal then
+        return
+    end
+
     local before = love.timer.getTime()
     do
         local _, p = pathfinder:nearest(mesh, startX, startY, goalX, goalY)
@@ -136,8 +140,23 @@ function demo.keyreleased(key, _, isRepeat)
     end
 end
 
+local help = [[
+mush navigation mesh demo
+
+controls
+- mouse left click: place "start" point
+- move mouse: move "goal" point
+- hold k: unblock red edge (door)
+]]
+
+function demo.help()
+    love.graphics.print(help, 8, 8)
+end
+
 function demo.draw()
     love.graphics.push("all")
+    love.graphics.print(string.format("generation time: %.2f ms", generationTimeMS or 0), 8, 8)
+    love.graphics.print(string.format("pathfinding time: %.2f ms", pathFindTimeMS or 0), 8, 24)
 
     local width = love.graphics.getWidth()
     local height = love.graphics.getHeight()
@@ -198,28 +217,10 @@ function demo.draw()
         love.graphics.setColor(1, 1, 0, 1)
 
         for i = 1, #path - 1 do
-            --local ax, ay, bx, by = unpack(path, i, i + 3)
-            --love.graphics.line(ax, ay, bx, by)
-
             local j = i + 1
-            
+
             local a = path[i]
             local b = path[j]
-            
-            love.graphics.line(a.point.x, a.point.y, b.point.x, b.point.y)
-        end
-
-        love.graphics.setLineWidth(2)
-        love.graphics.setColor(0, 0, 1, 1)
-
-        for i = 1, #pathfinder.result - 1 do
-            --local ax, ay, bx, by = unpack(pathfinder.result, i, i + 3)
-            --love.graphics.line(ax, ay, bx, by)
-
-            local j = i + 1
-
-            local a = pathfinder.result[i]
-            local b = pathfinder.result[j]
 
             love.graphics.line(a.point.x, a.point.y, b.point.x, b.point.y)
         end

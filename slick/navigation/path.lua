@@ -1,61 +1,49 @@
-local point = require "slick.geometry.point"
+local point  = require "slick.geometry.point"
+local edge = require "slick.navigation.edge"
 local vertex = require "slick.navigation.vertex"
 local slicktable = require "slick.util.slicktable"
 local slickmath  = require "slick.util.slickmath"
 
 --- @class slick.navigation.pathOptions
 --- @field optimize boolean?
---- @field neighbor nil | fun(fromX: number, fromY: number, fromUserdata: any, toX: number, toY: number, toUserdata: any): boolean
---- @field neighbors nil | fun(mesh: slick.navigation.mesh, vertex: slick.navigation.vertex): slick.navigation.edge[] | nil
---- @field distance nil | fun(fromX: number, fromY: number, fromUserdata: any, toX: number, toY: number, toUserdata: any): number
---- @field heuristic nil | fun(x: number, y: number, userdata: any, goalX: number, goalY: number): number
+--- @field neighbor nil | fun(from: slick.navigation.triangle, to: slick.navigation.triangle, e: slick.navigation.edge): boolean
+--- @field neighbors nil | fun(mesh: slick.navigation.mesh, triangle: slick.navigation.triangle): slick.navigation.triangle[] | nil
+--- @field distance nil | fun(from: slick.navigation.triangle, to: slick.navigation.triangle, e: slick.navigation.edge): number
+--- @field heuristic nil | fun(triangle: slick.navigation.triangle, goalX: number, goalY: number): number
 --- @field yield fun() | nil
 local defaultPathOptions = {
     optimize = true
 }
 
---- @generic F
---- @generic T
---- @param fromX number
---- @param fromY number
---- @param fromUserdata F
---- @param toX number
---- @param toY number
---- @param toUserdata T
+--- @param from slick.navigation.triangle
+--- @param to slick.navigation.triangle
+--- @param e slick.navigation.edge
 --- @return boolean
-function defaultPathOptions.neighbor(fromX, fromY, fromUserdata, toX, toY, toUserdata)
+function defaultPathOptions.neighbor(from, to, e)
     return true
 end
 
 --- @param mesh slick.navigation.mesh
---- @param vertex slick.navigation.vertex
+--- @param triangle slick.navigation.triangle
 --- @return slick.navigation.edge[] | nil
-function defaultPathOptions.neighbors(mesh, vertex)
-    return mesh:getVertexNeighbors(vertex.index)
+function defaultPathOptions.neighbors(mesh, triangle)
+    return mesh:getTriangleNeighbors(triangle.index)
 end
 
---- @generic F
---- @generic T
---- @param fromX number
---- @param fromY number
---- @param fromUserdata F
---- @param toX number
---- @param toY number
---- @param toUserdata T
---- @return number
-function defaultPathOptions.distance(fromX, fromY, fromUserdata, toX, toY, toUserdata)
-    return math.sqrt((fromX - toX) ^ 2 + (fromY - toY) ^ 2)
+--- @param from slick.navigation.triangle
+--- @param to slick.navigation.triangle
+--- @param e slick.navigation.edge
+function defaultPathOptions.distance(from, to, e)
+    return from.centroid:distance(to.centroid)
 end
 
---- @generic U
---- @param x number
---- @param y number
---- @param userdata U
+
+--- @param triangle slick.navigation.triangle
 --- @param goalX number
 --- @param goalY number
 --- @return number
-function defaultPathOptions.heuristic(x, y, userdata, goalX, goalY)
-    return math.sqrt((x - goalX) ^ 2 + (y - goalY) ^ 2)
+function defaultPathOptions.heuristic(triangle, goalX, goalY)
+    return math.sqrt((triangle.centroid.x - goalX) ^ 2 + (triangle.centroid.y - goalY) ^ 2)
 end
 
 function defaultPathOptions.yield()
@@ -63,27 +51,32 @@ function defaultPathOptions.yield()
 end
 
 --- @class slick.navigation.impl.pathBehavior
---- @field start slick.navigation.vertex
---- @field goal slick.navigation.vertex
---- @field goalTriangle slick.navigation.triangle
+--- @field start slick.navigation.triangle | nil
+--- @field goal slick.navigation.triangle | nil
 local internalPathBehavior = {}
 
 --- @class slick.navigation.path
 --- @field private options slick.navigation.pathOptions
 --- @field private behavior slick.navigation.impl.pathBehavior
---- @field private fScores table<slick.navigation.vertex, number>
---- @field private gScores table<slick.navigation.vertex, number>
---- @field private hScores table<slick.navigation.vertex, number>
---- @field private visited table<slick.navigation.vertex, true>
---- @field private pending slick.navigation.vertex[]
---- @field private closed slick.navigation.vertex[]
---- @field private neighbors slick.navigation.vertex[]
---- @field private graph table<slick.navigation.vertex, slick.navigation.vertex>
---- @field private result slick.navigation.vertex[]
+--- @field private fScores table<slick.navigation.triangle, number>
+--- @field private gScores table<slick.navigation.triangle, number>
+--- @field private hScores table<slick.navigation.triangle, number>
+--- @field private visited table<slick.navigation.triangle, true>
+--- @field private pending slick.navigation.triangle[]
+--- @field private closed slick.navigation.triangle[]
+--- @field private neighbors slick.navigation.triangle[]
+--- @field private graph table<slick.navigation.triangle, slick.navigation.triangle>
+--- @field private path slick.navigation.edge[]
 --- @field private portals slick.navigation.vertex[]
 --- @field private funnel slick.navigation.vertex[]
---- @field private _sortFScoreFunc fun(a: slick.navigation.vertex, b: slick.navigation.vertex): boolean
---- @field private _sortHScoreFunc fun(a: slick.navigation.vertex, b: slick.navigation.vertex): boolean
+--- @field private result slick.navigation.vertex[]
+--- @field private startVertex slick.navigation.vertex
+--- @field private goalVertex slick.navigation.vertex
+--- @field private startEdge slick.navigation.edge
+--- @field private goalEdge slick.navigation.edge
+--- @field private sharedStartGoalEdge slick.navigation.edge
+--- @field private _sortFScoreFunc fun(a: slick.navigation.triangle, b: slick.navigation.triangle): boolean
+--- @field private _sortHScoreFunc fun(a: slick.navigation.triangle, b: slick.navigation.triangle): boolean
 local path = {}
 local metatable = { __index = path }
 
@@ -99,10 +92,7 @@ function path.new(options)
             yield = options.yield or defaultPathOptions.yield,
         },
 
-        behavior = {
-            start = vertex.new(point.new(0, 0), nil, -1),
-            goal = vertex.new(point.new(0, 0), nil, -2)
-        },
+        behavior = {},
 
         fScores = {},
         gScores = {},
@@ -112,10 +102,18 @@ function path.new(options)
         closed = {},
         neighbors = {},
         graph = {},
-        result = {},
+        path = {},
         portals = {},
-        funnel = {}
+        funnel = {},
+        result = {},
+
+        startVertex = vertex.new(point.new(0, 0), nil, -1),
+        goalVertex = vertex.new(point.new(0, 0), nil, -2),
     }, metatable)
+
+    self.startEdge = edge.new(self.startVertex, self.startVertex)
+    self.goalEdge = edge.new(self.goalVertex, self.goalVertex)
+    self.sharedStartGoalEdge = edge.new(self.startVertex, self.goalVertex)
 
     function self._sortFScoreFunc(a, b)
         --- @diagnostic disable-next-line: invisible
@@ -130,60 +128,20 @@ function path.new(options)
     return self
 end
 
-local _neighborIndices = {}
-
 --- @private
 --- @param mesh slick.navigation.mesh
---- @param vertex slick.navigation.vertex
---- @return slick.navigation.vertex[]
-function path:_neighbors(mesh, vertex)
+--- @param triangle slick.navigation.triangle
+--- @return slick.navigation.triangle[]
+function path:_neighbors(mesh, triangle)
     slicktable.clear(self.neighbors)
 
-    if vertex == self.behavior.start then
-        local triangle = mesh:getContainingTriangle(vertex.point.x, vertex.point.y)
-
-        if triangle then
-            for _, vertex in ipairs(triangle.triangle) do
-                table.insert(self.neighbors, vertex)
-            end
-        end
-
-        if triangle == self.behavior.goalTriangle then
-            table.insert(self.neighbors, self.behavior.goal)
-        end
-
-        return self.neighbors
-    end
-
-    --- @type slick.navigation.vertex[]
-    slicktable.clear(_neighborIndices)
-
-    local neighbors = self.options.neighbors(mesh, vertex)
+    local neighbors = self.options.neighbors(mesh, triangle)
     if neighbors then
         for _, neighbor in ipairs(neighbors) do
-            if self.options.neighbor(neighbor.a.point.x, neighbor.a.point.y, neighbor.a.userdata, neighbor.b.point.x, neighbor.b.point.y, neighbor.b.userdata) then
-                _neighborIndices[neighbor.b.index] = true
-                table.insert(self.neighbors, neighbor.b)
+            if self.options.neighbor(triangle, neighbor, mesh:getSharedTriangleEdge(triangle, neighbor)) then
+                table.insert(self.neighbors, neighbor)
             end
         end
-    end
-
-    local hasGoal
-    if self.behavior.goalTriangle then
-        hasGoal = true
-
-        for _, v in ipairs(self.behavior.goalTriangle.triangle) do
-            if not (_neighborIndices[v.index] or v.index == vertex.index) then
-                hasGoal = false
-                break
-            end
-        end
-    else
-        hasGoal = false
-    end
-
-    if hasGoal then
-        table.insert(self.neighbors, self.behavior.goal)
     end
 
     return self.neighbors
@@ -197,73 +155,85 @@ function path:_reset()
     slicktable.clear(self.visited)
     slicktable.clear(self.pending)
     slicktable.clear(self.graph)
-
-    self.path = nil
 end
 
 --- @private
 function path:_funnel()
     slicktable.clear(self.funnel)
-    -- slicktable.clear(self.portals)
+    slicktable.clear(self.portals)
 
-    -- table.insert(self.portals, self.result[1])
-    -- table.insert(self.portals, self.result[1])
-    -- for i = 2, #self.result do
-    --     table.insert(self.portals, self.result[i - 1])
-    --     table.insert(self.portals, self.result[i])
-    -- end
-    -- table.insert(self.portals, self.result[#self.result])
-    -- table.insert(self.portals, self.result[#self.result])
+    table.insert(self.portals, self.path[1].a)
+    table.insert(self.portals, self.path[1].a)
+    for i = 2, #self.path - 1 do
+        local p = self.path[i]
 
-    local apex, left, right = self.result[1], self.result[1], self.result[2]
-    local leftIndex, rightIndex = 1, 2
+        local C, D = p.a, p.b
+        local L, R = self.portals[#self.portals - 1], self.portals[#self.portals]
+
+        local sign = slickmath.direction(D.point, C.point, L.point, slickmath.EPSILON)
+        sign = sign == 0 and slickmath.direction(D.point, C.point, R.point, slickmath.EPSILON) or sign
+
+        if sign > 0 then
+            table.insert(self.portals, D)
+            table.insert(self.portals, C)
+        else
+            table.insert(self.portals, C)
+            table.insert(self.portals, D)
+        end
+    end
+    table.insert(self.portals, self.path[#self.path].b)
+    table.insert(self.portals, self.path[#self.path].b)
+
+    local apex, left, right = self.portals[1], self.portals[1], self.portals[2]
+    local leftIndex, rightIndex = 1, 1
 
     table.insert(self.funnel, apex)
 
+    local n = #self.portals / 2
     local index = 2
-    while index < #self.result do
-        local otherLeft = self.result[index]
-        local otherRight = self.result[index + 1]
+    while index <= n do
+        local i = (index - 1) * 2 + 1
+        local j = i + 1
 
-        local nextIndex = index
+        local otherLeft = self.portals[i]
+        local otherRight = self.portals[j]
+
         local skip = false
-
-        if slickmath.direction(apex.point, right.point, otherRight.point, slickmath.EPSILON) >= 0 then
-            if apex.index == right.index or slickmath.direction(apex.point, left.point, otherRight.point, slickmath.EPSILON) < 0 then
+        if slickmath.direction(right.point, otherRight.point, apex.point, slickmath.EPSILON) <= 0 then
+            if apex.index == right.index or slickmath.direction(left.point, otherRight.point, apex.point, slickmath.EPSILON) > 0 then
                 right = otherRight
                 rightIndex = index
             else
                 table.insert(self.funnel, left)
                 apex = left
-                rightIndex = leftIndex
-                nextIndex = leftIndex
+                right = left
 
-                left = apex
-                right = apex
-                
+                rightIndex = leftIndex
+
+                index = leftIndex
                 skip = true
             end
         end
 
-        if not skip and slickmath.direction(apex.point, left.point, otherLeft.point, slickmath.EPSILON) <= 0 then
-            if apex.index == left.index or slickmath.direction(apex.point, right.point, otherLeft.point, slickmath.e) > 0 then
+        if not skip and slickmath.direction(left.point, otherLeft.point, apex.point, slickmath.EPSILON) >= 0 then
+            if apex.index == left.index or slickmath.direction(right.point, otherLeft.point, apex.point, slickmath.EPSILON) < 0 then
                 left = otherLeft
                 leftIndex = index
             else
                 table.insert(self.funnel, right)
                 apex = right
-                leftIndex = rightIndex
-                nextIndex = rightIndex
+                left = right
 
-                left = apex
-                right = apex
+                leftIndex = rightIndex
+
+                index = rightIndex
             end
         end
 
-        index = nextIndex + 1
+        index = index + 1
     end
 
-    table.insert(self.funnel, self.result[#self.result])
+    table.insert(self.funnel, self.portals[#self.portals])
 end
 
 --- @private
@@ -274,13 +244,16 @@ end
 --- @param goalY number
 --- @param nearest boolean
 --- @param result number[]?
---- @return number[]?, slick.navigation.vertex[]?
+--- @return number[]?, slick.navigation.triangle[]?
 function path:_find(mesh, startX, startY, goalX, goalY, nearest, result)
     self:_reset()
 
-    self.behavior.start.point:init(startX, startY)
-    self.behavior.goal.point:init(goalX, goalY)
-    self.behavior.goalTriangle = mesh:getContainingTriangle(goalX, goalY)
+    self.behavior.start = mesh:getContainingTriangle(startX, startY)
+    self.behavior.goal = mesh:getContainingTriangle(goalX, goalY)
+
+    if not self.behavior.start then
+        return nil
+    end
 
     self.fScores[self.behavior.start] = 0
     self.gScores[self.behavior.start] = 0
@@ -292,10 +265,10 @@ function path:_find(mesh, startX, startY, goalX, goalY, nearest, result)
 
         for _, neighbor in ipairs(self:_neighbors(mesh, current)) do
             if not self.visited[neighbor] then
-                local distance = self.options.distance(current.point.x, current.point.y, current.userdata, neighbor.point.x, neighbor.point.y, neighbor.userdata)
+                local distance = self.options.distance(current, neighbor, mesh:getSharedTriangleEdge(current, neighbor))
                 local pendingGScore = (self.gScores[current] or math.huge) + distance
                 if pendingGScore < (self.gScores[neighbor] or math.huge) then
-                    local heuristic = self.options.heuristic(neighbor.point.x, neighbor.point.y, neighbor.userdata, self.behavior.goal.point.x, self.behavior.goal.point.y)
+                    local heuristic = self.options.heuristic(neighbor, goalX, goalY)
 
                     self.graph[neighbor] = current
                     self.gScores[neighbor] = pendingGScore
@@ -312,38 +285,94 @@ function path:_find(mesh, startX, startY, goalX, goalY, nearest, result)
         current = table.remove(self.pending)
     end
 
-    if current ~= self.behavior.goal then
+    local reachedGoal = current == self.behavior.goal and self.behavior.goal
+    if not reachedGoal then
         if not nearest then
             return nil
         end
 
-        local bestVertex = nil
+        local bestTriangle = nil
         local bestHScore = math.huge
-        for _, vertex in ipairs(self.closed) do
-            local hScore = self.hScores[vertex]
+        for _, triangle in ipairs(self.closed) do
+            local hScore = self.hScores[triangle]
             if hScore and hScore < bestHScore then
                 bestHScore = hScore
-                bestVertex = vertex
+                bestTriangle = triangle
             end
         end
 
-        if not bestVertex then
+        if not bestTriangle then
             return nil
         end
 
-        current = bestVertex
+        current = bestTriangle
     end
 
-    slicktable.clear(self.result)
+    slicktable.clear(self.path)
     while current do
-        table.insert(self.result, 1, current)
+        local next = self.graph[current]
+        if next then
+            table.insert(self.path, 1, mesh:getSharedTriangleEdge(current, next))
+        end
+        
         current = self.graph[current]
     end
 
-    local path = self.result
-    if self.options.optimize then
+    if #self.path == 0 then
+        self.startVertex.point:init(startX, startY)
+        self.goalVertex.point:init(goalX, goalY)
+
+        table.insert(self.path, self.sharedStartGoalEdge)
+    else
+        self.startEdge.a.point:init(startX, startY)
+        self.startEdge.b = self.path[1].a
+        self.startEdge.min = math.min(self.startEdge.a.index, self.startEdge.b.index)
+        self.startEdge.max = math.max(self.startEdge.a.index, self.startEdge.b.index)
+
+        if self.startEdge.a.point:distance(self.startEdge.b.point) > slickmath.EPSILON then
+            table.insert(self.path, 1, self.startEdge)
+        end
+
+        if reachedGoal then
+            self.goalEdge.a = self.path[#self.path].b
+            self.goalEdge.b.point:init(goalX, goalY)
+            self.goalEdge.min = math.min(self.goalEdge.a.index, self.goalEdge.b.index)
+            self.goalEdge.max = math.max(self.goalEdge.a.index, self.goalEdge.b.index)
+
+            if self.goalEdge.a.point:distance(self.goalEdge.b.point) > slickmath.EPSILON then
+                table.insert(self.path, self.goalEdge)
+            end
+        end
+    end
+
+    --- @type slick.navigation.vertex[]
+    local path
+    if self.options.optimize and #self.path > 1 then
         self:_funnel()
         path = self.funnel
+    else
+        slicktable.clear(self.result)
+        if #self.path == 1 then
+            local p = self.path[1]
+            table.insert(self.result, p.a)
+            table.insert(self.result, p.b)
+        else
+            table.insert(self.result, self.path[1].a)
+
+            for i = 1, #self.path - 1 do
+                local p1 = self.path[i]
+                local p2 = self.path[i + 1]
+
+                if p1.b.index == p2.a.index then
+                    table.insert(self.result, p1.b)
+                elseif p1.a.index == p2.b.index then
+                    table.insert(self.result, p1.a)
+                end
+            end
+
+            table.insert(self.result, self.path[#self.path].b)
+        end
+        path = self.result
     end
 
     result = result or {}

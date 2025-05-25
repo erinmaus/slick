@@ -21,6 +21,7 @@ end
 ---     userdata: any,
 ---     polygons: table<slick.geometry.clipper.polygon, number[]>,
 ---     parent: slick.geometry.clipper.polygon,
+---     hasEdge: boolean,
 --- }
 
 --- @alias slick.geometry.clipper.polygon {
@@ -339,6 +340,7 @@ function clipper:_preparePolygon(polygon)
         slicktable.clear(userdata.polygons[polygon])
 
         userdata.userdata = polygon.userdata[vertexIndex]
+        userdata.hasEdge = false
         
         local index = (i - 1) / 2 + 1
         polygon.pointToCombinedPointIndex[index] = combinedIndex
@@ -364,6 +366,9 @@ function clipper:_preparePolygon(polygon)
         local a = polygon.edges[i] + numPoints
         local b = polygon.edges[i + 1] + numPoints
 
+        self.combinedUserdata[a].hasEdge = true
+        self.combinedUserdata[b].hasEdge = true
+
         table.insert(self.combinedEdges, a)
         table.insert(self.combinedEdges, b)
     end
@@ -376,13 +381,35 @@ function clipper:_prepare()
 end
 
 --- @private
+--- @param operation slick.geometry.clipper.clipOperation
+function clipper:_mergePoints(operation)
+    for i = 1, #self.combinedPoints, 2 do
+        local index = (i - 1) / 2 + 1
+        local combinedUserdata = self.combinedUserdata[index]
+
+        local x = self.combinedPoints[i]
+        local y = self.combinedPoints[i + 1]
+
+        if not combinedUserdata.hasEdge then
+            if  operation == self.difference and not self:_pointInside(x, y, self.otherPolygon) then
+                self:_addResultEdge(index)
+            elseif operation == self.union then
+                self:_addResultEdge(index)
+            elseif operation == self.intersection and (self:_pointInside(x, y, self.subjectPolygon) and self:_pointInside(x, y, self.otherPolygon)) then
+                self:_addResultEdge(index)
+            end
+        end
+    end
+end
+
+--- @private
 function clipper:_mergeUserdata()
     if not (self.inputCleanupOptions and self.inputCleanupOptions.merge) then
         return
     end
 
     local n = #self.combinedPoints / 2
-    for i = 1, n, 2 do
+    for i = 1, n do
         local index = (i - 1) / 2 + 1
         local combinedUserdata = self.combinedUserdata[index]
         
@@ -603,11 +630,11 @@ function clipper:_popPendingEdge()
 end
 
 --- @private
---- @param a number
---- @param b number
+--- @param a number?
+--- @param b number?
 function clipper:_addResultEdge(a, b)
     local aResultIndex = self.indexToResultIndex[a]
-    if not aResultIndex then
+    if not aResultIndex and a then
         aResultIndex = self.resultIndex
         self.resultIndex = self.resultIndex + 1
 
@@ -625,7 +652,7 @@ function clipper:_addResultEdge(a, b)
     end
 
     local bResultIndex = self.indexToResultIndex[b]
-    if not bResultIndex then
+    if not bResultIndex and b then
         bResultIndex = self.resultIndex
         self.resultIndex = self.resultIndex + 1
 
@@ -642,8 +669,10 @@ function clipper:_addResultEdge(a, b)
         end
     end
 
-    table.insert(self.resultEdges, aResultIndex)
-    table.insert(self.resultEdges, bResultIndex)
+    if a and b then
+        table.insert(self.resultEdges, aResultIndex)
+        table.insert(self.resultEdges, bResultIndex)
+    end
 end
 
 --- @param a number
@@ -769,6 +798,7 @@ function clipper:clip(operation, subjectPoints, subjectEdges, otherPoints, other
         operation(self, a, b)
     end
 
+    self:_mergePoints(operation)
     self:_mergeUserdata()
 
     self.resultPoints = nil
