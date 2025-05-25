@@ -3,6 +3,7 @@ local quadTreeQuery = require "slick.collision.quadTreeQuery"
 local point = require "slick.geometry.point"
 local rectangle = require "slick.geometry.rectangle"
 local edge = require "slick.navigation.edge"
+local triangle = require "slick.navigation.triangle"
 local vertex = require "slick.navigation.vertex"
 local slickmath = require "slick.util.slickmath"
 
@@ -10,15 +11,36 @@ local slickmath = require "slick.util.slickmath"
 --- @field vertices slick.navigation.vertex[]
 --- @field edges slick.navigation.edge[]
 --- @field bounds slick.geometry.rectangle
---- @field neighbors table<number, slick.navigation.edge[]>
---- @field triangles number[][]
+--- @field vertexNeighbors table<number, slick.navigation.edge[]>
+--- @field triangles slick.navigation.triangle[]
 --- @field inputPoints number[]
 --- @field inputEdges number[]
 --- @field inputUserdata any[]
+--- @field vertexToTriangle table<number, slick.navigation.triangle[]>
+--- @field triangleNeighbors table<number, slick.navigation.triangle[]>
 --- @field quadTree slick.collision.quadTree?
 --- @field quadTreeQuery slick.collision.quadTreeQuery?
 local mesh = {}
 local metatable = { __index = mesh }
+
+
+--- @param aTriangles slick.navigation.triangle[]
+--- @param bTriangles slick.navigation.triangle[]
+--- @param e slick.navigation.edge
+--- @return slick.navigation.triangle?, slick.navigation.triangle?
+local function _findSharedTriangle(aTriangles, bTriangles, e)
+    for _, t1 in ipairs(aTriangles) do
+        for _, t2 in ipairs(bTriangles) do
+            if t1.index ~= t2.index then
+                if t1.vertices[e.a.index] and t1.vertices[e.b.index] and t2.vertices[e.a.index] and t2.vertices[e.b.index] then
+                    return t1, t2
+                end
+            end
+        end
+    end
+
+    return nil, nil
+end
 
 --- @param points number[]
 --- @param userdata any[]
@@ -29,11 +51,13 @@ function mesh.new(points, userdata, edges, triangles)
     local self = setmetatable({
         vertices = {},
         edges = {},
-        neighbors = {},
+        vertexNeighbors = {},
+        triangleNeighbors = {},
         triangles = {},
         inputPoints = {},
         inputEdges = {},
         inputUserdata = {},
+        vertexToTriangle = {},
         bounds = rectangle.new(points[1], points[2], points[1], points[2])
     }, metatable)
 
@@ -56,29 +80,29 @@ function mesh.new(points, userdata, edges, triangles)
     end
 
     if triangles then
-        for _, triangle in ipairs(triangles) do
-            --- @cast triangle number[]
+        for _, t in ipairs(triangles) do
+            local n = triangle.new(self.vertices[t[1]], self.vertices[t[2]], self.vertices[t[3]], #self.triangles + 1)
 
-            for i = 1, #triangle do
-                local j = (i % #triangle) + 1
+            for i = 1, #t do
+                local j = (i % #t) + 1
 
-                local s = triangle[i]
-                local t = triangle[j]
+                local s = t[i]
+                local t = t[j]
                 
                 local e1 = edge.new(self.vertices[s], self.vertices[t])
                 local e2 = edge.new(self.vertices[t], self.vertices[s])
                 table.insert(self.edges, e1)
 
-                local neighborsI = self.neighbors[s]
+                local neighborsI = self.vertexNeighbors[s]
                 if not neighborsI then
                     neighborsI = {}
-                    self.neighbors[s] = neighborsI
+                    self.vertexNeighbors[s] = neighborsI
                 end
 
-                local neighborsJ = self.neighbors[t]
+                local neighborsJ = self.vertexNeighbors[t]
                 if not neighborsJ then
                     neighborsJ = {}
-                    self.neighbors[t] = neighborsJ
+                    self.vertexNeighbors[t] = neighborsJ
                 end
 
                 do
@@ -108,9 +132,67 @@ function mesh.new(points, userdata, edges, triangles)
                         table.insert(neighborsJ, e2)
                     end
                 end
+
+                local v = self.vertexToTriangle[s]
+                if not v then
+                    v = {}
+                    self.vertexToTriangle[s] = v
+                end
+
+                table.insert(v, n)
             end
 
-            table.insert(self.triangles, { unpack(triangle) })
+            table.insert(self.triangles, n)
+        end
+
+        for _, e in ipairs(self.edges) do
+            local aTriangles = self.vertexToTriangle[e.a.index]
+            local bTriangles = self.vertexToTriangle[e.b.index]
+
+            local a, b = _findSharedTriangle(aTriangles, bTriangles, e)
+            if a and b then
+                do
+                    local neighbors = self.triangleNeighbors[a.index]
+                    if neighbors == nil then
+                        neighbors = {}
+                        self.triangleNeighbors[a.index] = neighbors
+                    end
+
+                    local hasT = false
+                    for _, neighbor in ipairs(neighbors) do
+                        if neighbor.index == b.index then
+                            hasT = true
+                            break
+                        end
+                    end
+
+                    if not hasT then
+                        table.insert(neighbors, b)
+                        assert(#neighbors <= 3)
+                    end
+                end
+
+                do
+                    local neighbors = self.triangleNeighbors[b.index]
+                    if neighbors == nil then
+                        neighbors = {}
+                        self.triangleNeighbors[b.index] = neighbors
+                    end
+
+                    local hasT = false
+                    for _, neighbor in ipairs(neighbors) do
+                        if neighbor.index == a.index then
+                            hasT = true
+                            break
+                        end
+                    end
+
+                    if not hasT then
+                        table.insert(neighbors, a)
+                        assert(#neighbors <= 3)
+                    end
+                end
+            end
         end
     end
 
@@ -125,8 +207,6 @@ local _quadTreeOptions = {
     height = 0
 }
 
-local _quadTreeTriangleBounds = rectangle.new()
-
 --- @private
 function mesh:_buildQuadTree()
     _quadTreeOptions.x = self.bounds:left()
@@ -138,15 +218,7 @@ function mesh:_buildQuadTree()
     self.quadTreeQuery = quadTreeQuery.new(self.quadTree)
 
     for _, triangle in ipairs(self.triangles) do
-        local v = self.vertices[triangle[1]]
-        _quadTreeTriangleBounds:init(v.point.x, v.point.y, v.point.x, v.point.y)
-
-        for i = 2, #triangle do
-            local otherV = self.vertices[triangle[i]]
-            _quadTreeTriangleBounds:expand(otherV.point.x, otherV.point.y)
-        end
-
-        self.quadTree:insert(triangle, _quadTreeTriangleBounds)
+        self.quadTree:insert(triangle, triangle.bounds)
     end
 end
 
@@ -154,7 +226,7 @@ local _getTrianglePoint = point.new()
 
 --- @param x number
 --- @param y number
---- @return number[]?
+--- @return slick.navigation.triangle | nil
 function mesh:getContainingTriangle(x, y)
     if not self.quadTree then
         self:_buildQuadTree()
@@ -164,12 +236,14 @@ function mesh:getContainingTriangle(x, y)
     self.quadTreeQuery:perform(_getTrianglePoint, slickmath.EPSILON)
 
     for _, hit in ipairs(self.quadTreeQuery.results) do
+        --- @cast hit slick.navigation.triangle
+
         local inside = true
         local currentSide
-        for i = 1, #hit do
+        for i = 1, #hit.triangle do
             local side = slickmath.direction(
-                self.vertices[hit[i]].point,
-                self.vertices[hit[i % #hit + 1]].point,
+                hit.triangle[i].point,
+                hit.triangle[(i % #hit.triangle) + 1].point,
                 _getTrianglePoint)
 
             -- Point is collinear with edge.
@@ -202,8 +276,14 @@ end
 
 --- @param index number
 --- @return slick.navigation.edge[]
-function mesh:getNeighbors(index)
-    return self.neighbors[index]
+function mesh:getTriangleNeighbors(index)
+    return self.triangleNeighbors[index]
+end
+
+--- @param index number
+--- @return slick.navigation.edge[]
+function mesh:getVertexNeighbors(index)
+    return self.vertexNeighbors[index]
 end
 
 return mesh

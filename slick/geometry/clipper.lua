@@ -404,7 +404,7 @@ function clipper:_mergeUserdata()
             self.inputCleanupOptions.merge(self.merge)
 
             if self.merge.resultUserdata ~= nil then
-                self.resultUserdata[self.merge.resultUserdata] = self.merge.resultUserdata
+                self.resultUserdata[self.merge.resultIndex] = self.merge.resultUserdata
             end
         end
     end

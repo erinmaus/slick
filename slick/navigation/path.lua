@@ -1,17 +1,18 @@
 local point = require "slick.geometry.point"
 local vertex = require "slick.navigation.vertex"
 local slicktable = require "slick.util.slicktable"
+local slickmath  = require "slick.util.slickmath"
 
 --- @class slick.navigation.pathOptions
 --- @field optimize boolean?
 --- @field neighbor nil | fun(fromX: number, fromY: number, fromUserdata: any, toX: number, toY: number, toUserdata: any): boolean
+--- @field neighbors nil | fun(mesh: slick.navigation.mesh, vertex: slick.navigation.vertex): slick.navigation.edge[] | nil
 --- @field distance nil | fun(fromX: number, fromY: number, fromUserdata: any, toX: number, toY: number, toUserdata: any): number
 --- @field heuristic nil | fun(x: number, y: number, userdata: any, goalX: number, goalY: number): number
 --- @field yield fun() | nil
 local defaultPathOptions = {
     optimize = true
 }
-
 
 --- @generic F
 --- @generic T
@@ -24,6 +25,13 @@ local defaultPathOptions = {
 --- @return boolean
 function defaultPathOptions.neighbor(fromX, fromY, fromUserdata, toX, toY, toUserdata)
     return true
+end
+
+--- @param mesh slick.navigation.mesh
+--- @param vertex slick.navigation.vertex
+--- @return slick.navigation.edge[] | nil
+function defaultPathOptions.neighbors(mesh, vertex)
+    return mesh:getVertexNeighbors(vertex.index)
 end
 
 --- @generic F
@@ -57,15 +65,8 @@ end
 --- @class slick.navigation.impl.pathBehavior
 --- @field start slick.navigation.vertex
 --- @field goal slick.navigation.vertex
---- @field goalTriangle number[]?
+--- @field goalTriangle slick.navigation.triangle
 local internalPathBehavior = {}
-
---- comment
---- @param options slick.navigation.pathOptions
---- @param behavior slick.navigation.impl.pathBehavior
-local function find(path, options, behavior)
-
-end
 
 --- @class slick.navigation.path
 --- @field private options slick.navigation.pathOptions
@@ -79,6 +80,8 @@ end
 --- @field private neighbors slick.navigation.vertex[]
 --- @field private graph table<slick.navigation.vertex, slick.navigation.vertex>
 --- @field private result slick.navigation.vertex[]
+--- @field private portals slick.navigation.vertex[]
+--- @field private funnel slick.navigation.vertex[]
 --- @field private _sortFScoreFunc fun(a: slick.navigation.vertex, b: slick.navigation.vertex): boolean
 --- @field private _sortHScoreFunc fun(a: slick.navigation.vertex, b: slick.navigation.vertex): boolean
 local path = {}
@@ -90,6 +93,7 @@ function path.new(options)
         options = {
             optimize = options.optimize == nil and defaultPathOptions.optimize or not not options.optimize,
             neighbor = options.neighbor or defaultPathOptions.neighbor,
+            neighbors = options.neighbors or defaultPathOptions.neighbors,
             distance = options.distance or defaultPathOptions.distance,
             heuristic = options.heuristic or defaultPathOptions.heuristic,
             yield = options.yield or defaultPathOptions.yield,
@@ -97,7 +101,7 @@ function path.new(options)
 
         behavior = {
             start = vertex.new(point.new(0, 0), nil, -1),
-            goal = vertex.new(point.new(0, 0), nil, -1)
+            goal = vertex.new(point.new(0, 0), nil, -2)
         },
 
         fScores = {},
@@ -108,7 +112,9 @@ function path.new(options)
         closed = {},
         neighbors = {},
         graph = {},
-        result = {}
+        result = {},
+        portals = {},
+        funnel = {}
     }, metatable)
 
     function self._sortFScoreFunc(a, b)
@@ -137,8 +143,8 @@ function path:_neighbors(mesh, vertex)
         local triangle = mesh:getContainingTriangle(vertex.point.x, vertex.point.y)
 
         if triangle then
-            for _, index in ipairs(triangle) do
-                table.insert(self.neighbors, mesh:getVertex(index))
+            for _, vertex in ipairs(triangle.triangle) do
+                table.insert(self.neighbors, vertex)
             end
         end
 
@@ -152,11 +158,13 @@ function path:_neighbors(mesh, vertex)
     --- @type slick.navigation.vertex[]
     slicktable.clear(_neighborIndices)
 
-    local neighbors = mesh:getNeighbors(vertex.index)
-    for _, neighbor in ipairs(neighbors) do
-        if self.options.neighbor(neighbor.a.point.x, neighbor.a.point.y, neighbor.a.userdata, neighbor.b.point.x, neighbor.b.point.y, neighbor.b.userdata) then
-            _neighborIndices[neighbor.b.index] = true
-            table.insert(self.neighbors, neighbor.b)
+    local neighbors = self.options.neighbors(mesh, vertex)
+    if neighbors then
+        for _, neighbor in ipairs(neighbors) do
+            if self.options.neighbor(neighbor.a.point.x, neighbor.a.point.y, neighbor.a.userdata, neighbor.b.point.x, neighbor.b.point.y, neighbor.b.userdata) then
+                _neighborIndices[neighbor.b.index] = true
+                table.insert(self.neighbors, neighbor.b)
+            end
         end
     end
 
@@ -164,8 +172,8 @@ function path:_neighbors(mesh, vertex)
     if self.behavior.goalTriangle then
         hasGoal = true
 
-        for _, index in ipairs(self.behavior.goalTriangle) do
-            if not (_neighborIndices[index] or index == vertex.index) then
+        for _, v in ipairs(self.behavior.goalTriangle.triangle) do
+            if not (_neighborIndices[v.index] or v.index == vertex.index) then
                 hasGoal = false
                 break
             end
@@ -189,6 +197,73 @@ function path:_reset()
     slicktable.clear(self.visited)
     slicktable.clear(self.pending)
     slicktable.clear(self.graph)
+
+    self.path = nil
+end
+
+--- @private
+function path:_funnel()
+    slicktable.clear(self.funnel)
+    -- slicktable.clear(self.portals)
+
+    -- table.insert(self.portals, self.result[1])
+    -- table.insert(self.portals, self.result[1])
+    -- for i = 2, #self.result do
+    --     table.insert(self.portals, self.result[i - 1])
+    --     table.insert(self.portals, self.result[i])
+    -- end
+    -- table.insert(self.portals, self.result[#self.result])
+    -- table.insert(self.portals, self.result[#self.result])
+
+    local apex, left, right = self.result[1], self.result[1], self.result[2]
+    local leftIndex, rightIndex = 1, 2
+
+    table.insert(self.funnel, apex)
+
+    local index = 2
+    while index < #self.result do
+        local otherLeft = self.result[index]
+        local otherRight = self.result[index + 1]
+
+        local nextIndex = index
+        local skip = false
+
+        if slickmath.direction(apex.point, right.point, otherRight.point, slickmath.EPSILON) >= 0 then
+            if apex.index == right.index or slickmath.direction(apex.point, left.point, otherRight.point, slickmath.EPSILON) < 0 then
+                right = otherRight
+                rightIndex = index
+            else
+                table.insert(self.funnel, left)
+                apex = left
+                rightIndex = leftIndex
+                nextIndex = leftIndex
+
+                left = apex
+                right = apex
+                
+                skip = true
+            end
+        end
+
+        if not skip and slickmath.direction(apex.point, left.point, otherLeft.point, slickmath.EPSILON) <= 0 then
+            if apex.index == left.index or slickmath.direction(apex.point, right.point, otherLeft.point, slickmath.e) > 0 then
+                left = otherLeft
+                leftIndex = index
+            else
+                table.insert(self.funnel, right)
+                apex = right
+                leftIndex = rightIndex
+                nextIndex = rightIndex
+
+                left = apex
+                right = apex
+            end
+        end
+
+        index = nextIndex + 1
+    end
+
+    table.insert(self.funnel, self.result[#self.result])
 end
 
 --- @private
@@ -199,6 +274,7 @@ end
 --- @param goalY number
 --- @param nearest boolean
 --- @param result number[]?
+--- @return number[]?, slick.navigation.vertex[]?
 function path:_find(mesh, startX, startY, goalX, goalY, nearest, result)
     self:_reset()
 
@@ -258,15 +334,26 @@ function path:_find(mesh, startX, startY, goalX, goalY, nearest, result)
         current = bestVertex
     end
 
-    result = result or {}
-    slicktable.clear(result)
-
+    slicktable.clear(self.result)
     while current do
-        table.insert(result, 1, current)
+        table.insert(self.result, 1, current)
         current = self.graph[current]
     end
 
-    return result
+    local path = self.result
+    if self.options.optimize then
+        self:_funnel()
+        path = self.funnel
+    end
+
+    result = result or {}
+    slicktable.clear(result)
+    for _, vertex in ipairs(path) do
+        table.insert(result, vertex.point.x)
+        table.insert(result, vertex.point.y)
+    end
+
+    return result, path
 end
 
 --- @param mesh slick.navigation.mesh

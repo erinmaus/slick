@@ -8,6 +8,7 @@ local tag = require "slick.tag"
 local util = require "slick.util"
 local slicktable = require "slick.util.slicktable"
 local slickmath = require "slick.util.slickmath"
+local lineSegment = require "slick.collision.lineSegment"
 
 --- @alias slick.navigation.navMeshBuilder.combineMode "union" | "difference"
 
@@ -103,10 +104,9 @@ function navMeshBuilder:addLayer(t, combineMode)
     self.layerMeshes[key] = {}
 end
 
---- @private
 --- @param t slick.tag | slick.enum
 --- @param m slick.navigation.mesh
-function navMeshBuilder:_addMesh(t, m)
+function navMeshBuilder:addMesh(t, m)
     local key = _getKey(t)
 
     local meshes = self.layerMeshes[key]
@@ -126,17 +126,37 @@ local function _shapeToPointEdges(shape, points, edges, userdata, userdataValue)
     slicktable.clear(edges)
     slicktable.clear(userdata)
 
-    --- @cast shape slick.collision.commonShape
-    for i, v in ipairs(shape.vertices) do
-        table.insert(points, v.x)
-        table.insert(points, v.y)
+    if util.is(shape, lineSegment) then
+        --- @cast shape slick.collision.lineSegment
+        for i = 1, #shape.vertices do
+            local v = shape.vertices[i]
 
-        local j = (i % #shape.vertices) + 1
-        table.insert(edges, i)
-        table.insert(edges, j)
+            table.insert(points, v.x)
+            table.insert(points, v.y)
 
-        if userdataValue ~= nil then
-            table.insert(userdata, userdataValue)
+            if i < #shape.vertices then
+                table.insert(edges, i)
+                table.insert(edges, i + 1)
+            end
+
+            if userdataValue ~= nil then
+                table.insert(userdata, userdataValue)
+            end
+        end
+    else
+
+        --- @cast shape slick.collision.commonShape
+        for i, v in ipairs(shape.vertices) do
+            table.insert(points, v.x)
+            table.insert(points, v.y)
+
+            local j = (i % #shape.vertices) + 1
+            table.insert(edges, i)
+            table.insert(edges, j)
+
+            if userdataValue ~= nil then
+                table.insert(userdata, userdataValue)
+            end
         end
     end
 end
@@ -177,7 +197,7 @@ function navMeshBuilder:addShape(t, shape, userdata)
     end
     
     local m = mesh.new(finalPoints, finalUserdata, finalEdges)
-    self:_addMesh(t, m)
+    self:addMesh(t, m)
 end
 
 --- @private

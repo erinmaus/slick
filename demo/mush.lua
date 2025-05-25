@@ -12,7 +12,7 @@ local pathfinder = slick.navigation.path.new({
     end
 })
 
---- @type number[] | false
+--- @type slick.navigation.vertex[] | false
 local path = false
 
 --- @type number
@@ -28,27 +28,35 @@ local DOOR = slick.newEnum("door")
 local function generate()
     local meshBuilder = slick.navigation.meshBuilder.new()
 
-    local function _addLayer(t, layer, combineMode, userdata)
-        meshBuilder:addLayer(t, combineMode)
+    local function _addLayer(t, layer)
+        meshBuilder:addLayer(t)
 
         for _, shape in ipairs(layer) do
-            if #shape == 4 then
-                meshBuilder:addShape(t, slick.newLineSegmentShape(shape[1], shape[2], shape[3], shape[4]), userdata)
-            elseif #shape == 8 then
-                meshBuilder:addShape(t, slick.newPolylineShape({
-                    { shape[1], shape[2], shape[3], shape[4] },
-                    { shape[5], shape[6], shape[7], shape[8] }
-                }), userdata)
-            else
-                meshBuilder:addShape(t, slick.newPolygonMeshShape(shape), userdata)
+            local points = shape.points
+            local inputUserdata = shape.userdata
+
+            local userdata = {}
+            if inputUserdata then
+                for _, u in ipairs(inputUserdata) do
+                    userdata[u.index] = u.value
+                end
             end
+
+            local edges = {}
+
+            local n = #points / 2
+            for i = 1, n do
+                table.insert(edges, i)
+                table.insert(edges, (i % n) + 1)
+            end
+
+            meshBuilder:addMesh(t, slick.navigation.mesh.new(points, userdata, edges))
         end
     end
 
     local before = love.timer.getTime()
-    _addLayer(BACKGROUND, shapes[BACKGROUND.value], "union")
-    _addLayer(DOOR, shapes[DOOR.value], "union", { door = true })
-    _addLayer(WALL, shapes[WALL.value], "difference")
+    _addLayer(BACKGROUND, shapes[BACKGROUND.value])
+    _addLayer(WALL, shapes[WALL.value])
 
     mesh = meshBuilder:build({
         dissolve = function(dissolve)
@@ -57,10 +65,6 @@ local function generate()
 
         intersect = function(intersect)
             intersect.resultUserdata = intersect.a1Userdata or intersect.a2Userdata or intersect.b1Userdata or intersect.b2Userdata 
-        end,
-
-        merge = function(merge)
-            merge.resultUserdata = merge.sourceUserdata
         end
     })
 
@@ -96,7 +100,10 @@ local function findPath()
     end
 
     local before = love.timer.getTime()
-    path = pathfinder:nearest(mesh, startX, startY, goalX, goalY) or false
+    do
+        local _, p = pathfinder:nearest(mesh, startX, startY, goalX, goalY)
+        path = p or false
+    end
     local after = love.timer.getTime()
     pathFindTimeMS = (after - before) * 1000
 end
@@ -140,20 +147,20 @@ function demo.draw()
         (height - mesh.bounds:height()) / 2)
         
     for _, triangle in ipairs(mesh.triangles) do
-        local i, j, k = unpack(triangle)
+        local i, j, k = unpack(triangle.triangle)
         
         love.graphics.setColor(0.2, 0.8, 0.3, 0.5)
         love.graphics.polygon(
             "fill",
-            mesh.vertices[i].point.x, mesh.vertices[i].point.y,
-            mesh.vertices[j].point.x, mesh.vertices[j].point.y,
-            mesh.vertices[k].point.x, mesh.vertices[k].point.y)
+            i.point.x, i.point.y,
+            j.point.x, j.point.y,
+            k.point.x, k.point.y)
             
-        for i = 1, #triangle do
-            local j = (i % #triangle) + 1
+        for i = 1, #triangle.triangle do
+            local j = (i % #triangle.triangle) + 1
             
-            local a = mesh:getVertex(triangle[i])
-            local b = mesh:getVertex(triangle[j])
+            local a = triangle.triangle[i]
+            local b = triangle.triangle[j]
 
             if a.userdata and a.userdata.door and b.userdata and b.userdata.door then
                 love.graphics.setLineWidth(4)
@@ -199,6 +206,21 @@ function demo.draw()
             local a = path[i]
             local b = path[j]
             
+            love.graphics.line(a.point.x, a.point.y, b.point.x, b.point.y)
+        end
+
+        love.graphics.setLineWidth(2)
+        love.graphics.setColor(0, 0, 1, 1)
+
+        for i = 1, #pathfinder.result - 1 do
+            --local ax, ay, bx, by = unpack(pathfinder.result, i, i + 3)
+            --love.graphics.line(ax, ay, bx, by)
+
+            local j = i + 1
+
+            local a = pathfinder.result[i]
+            local b = pathfinder.result[j]
+
             love.graphics.line(a.point.x, a.point.y, b.point.x, b.point.y)
         end
     end
