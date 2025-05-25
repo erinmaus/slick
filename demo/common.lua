@@ -69,4 +69,60 @@ function common.updateGear(gear, world, deltaTime)
     world:rotate(gear, gear.angle, notLevelRotateFilter, thingPushFilter)
 end
 
+local generate_constant = function() return 1 end
+
+-- borrowed from https://github.com/1bardesign/batteries/blob/master/pathfind.lua
+function common.pathfind(args)
+	local start = args.start or args.start_node
+	local is_goal = args.is_goal or args.goal
+	local neighbours = args.neighbours or args.generate_neighbours
+	local distance = args.distance or args.weight or args.g or generate_constant
+	local heuristic = args.heuristic or args.h or generate_constant
+
+	local predecessor = {}
+	local seen = {}
+	local f_score = {[start] = 0}
+	local g_score = {[start] = 0}
+
+	local function search_compare(a, b)
+		return
+			(f_score[a] or math.huge) >
+			(f_score[b] or math.huge)
+	end
+	local to_search = {}
+
+	local current = start
+	while current and not is_goal(current) do
+		seen[current] = true
+		for i, node in ipairs(neighbours(current)) do
+			if not seen[node] then
+				local tentative_g_score = (g_score[current] or math.huge) + distance(current, node)
+				if g_score[node] == nil then
+					if tentative_g_score < (g_score[node] or math.huge) then
+						predecessor[node] = current
+						g_score[node] = tentative_g_score
+						f_score[node] = tentative_g_score + heuristic(node)
+					end
+					table.insert(to_search, node)
+                    table.sort(to_search, search_compare)
+				end
+			end
+		end
+		current = table.remove(to_search)
+	end
+
+	--didn't make it to the goal
+	if not current or not is_goal(current) then
+		return false
+	end
+
+	--build up result path
+	local result = {}
+	while current do
+		table.insert(result, 1, current)
+		current = predecessor[current]
+	end
+	return result
+end
+
 return common

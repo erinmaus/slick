@@ -47,7 +47,7 @@ function mesh.new(points, userdata, edges, triangles)
         table.insert(self.inputPoints, points[i])
         table.insert(self.inputPoints, points[i + 1])
 
-        table.insert(self.inputUserdata, userdata and userdata[n] or nil)
+        self.inputUserdata[n] = userdata and userdata[n] or nil
 
         self.bounds:expand(points[i], points[i + 1])
     end
@@ -62,27 +62,53 @@ function mesh.new(points, userdata, edges, triangles)
 
             for i = 1, #triangle do
                 local j = (i % #triangle) + 1
-                
-                local e = edge.new(self.vertices[i], self.vertices[j])
-                table.insert(self.edges, e)
 
-                local neighborsI = self.neighbors[i]
+                local s = triangle[i]
+                local t = triangle[j]
+                
+                local e1 = edge.new(self.vertices[s], self.vertices[t])
+                local e2 = edge.new(self.vertices[t], self.vertices[s])
+                table.insert(self.edges, e1)
+
+                local neighborsI = self.neighbors[s]
                 if not neighborsI then
                     neighborsI = {}
-                    self.neighbors[i] = neighborsI
+                    self.neighbors[s] = neighborsI
                 end
 
-                local neighborsJ = self.neighbors[j]
+                local neighborsJ = self.neighbors[t]
                 if not neighborsJ then
                     neighborsJ = {}
-                    self.neighbors[j] = neighborsJ
+                    self.neighbors[t] = neighborsJ
                 end
 
-                table.insert(neighborsI, e)
-                table.insert(neighborsJ, e)
+                do
+                    local hasE = false
+                    for _, neighbor in ipairs(neighborsI) do
+                        if neighbor.min == e1.min and neighbor.max == e1.max then
+                            hasE = true
+                            break
+                        end
+                    end
 
-                table.insert(self.inputEdges, i)
-                table.insert(self.inputEdges, j)
+                    if not hasE then
+                        table.insert(neighborsI, e1)
+                    end
+                end
+
+                do
+                    local hasE = false
+                    for _, neighbor in ipairs(neighborsJ) do
+                        if neighbor.min == e2.min and neighbor.max == e2.max then
+                            hasE = true
+                            break
+                        end
+                    end
+
+                    if not hasE then
+                        table.insert(neighborsJ, e2)
+                    end
+                end
             end
 
             table.insert(self.triangles, { unpack(triangle) })

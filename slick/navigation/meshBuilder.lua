@@ -135,7 +135,7 @@ local function _shapeToPointEdges(shape, points, edges, userdata, userdataValue)
         table.insert(edges, i)
         table.insert(edges, j)
 
-        if userdataValue then
+        if userdataValue ~= nil then
             table.insert(userdata, userdataValue)
         end
     end
@@ -167,9 +167,9 @@ function navMeshBuilder:addShape(t, shape, userdata)
             nil,
             _previousShapeUserdata,
             _currentShapeUserdata,
-            _nextShapeEdges, _nextShapePoints, _nextShapeUserdata)
+            _nextShapePoints, _nextShapeEdges, _nextShapeUserdata)
 
-        finalPoints, finalUserdata, finalEdges = _nextShapePoints, _nextShapeEdges, _nextShapeUserdata
+        finalPoints, finalUserdata, finalEdges = _nextShapePoints, _nextShapeUserdata, _nextShapeEdges
 
         _previousShapePoints, _nextShapePoints = _nextShapePoints, _previousShapePoints
         _previousShapeEdges, _nextShapeEdges = _nextShapeEdges, _previousShapeEdges

@@ -31,6 +31,18 @@ function love.keypressed(key, scan, isRepeat)
     end
 end
 
+function love.keyreleased(...)
+    if currentDemo.keyreleased then
+        currentDemo.keyreleased(...)
+    end
+end
+
+function love.mousepressed(...)
+    if currentDemo.mousepressed then
+        currentDemo.mousepressed(...)
+    end
+end
+
 function love.mousemoved(...)
     if currentDemo.mousemoved then
         currentDemo.mousemoved(...)

@@ -205,12 +205,24 @@ end
 --- @param dissolve slick.geometry.triangulation.dissolve
 function clipper:_dissolve(dissolve)
     if self.inputCleanupOptions and self.inputCleanupOptions.dissolve then
+        --- @type slick.geometry.clipper.polygonUserdata
         local u = dissolve.userdata
+
+        --- @type slick.geometry.clipper.polygonUserdata
+        local o = dissolve.otherUserdata
+
         dissolve.userdata = u.userdata
+        dissolve.otherUserdata = o.userdata
 
         self.inputCleanupOptions.dissolve(dissolve)
 
         dissolve.userdata = u
+        dissolve.otherUserdata = o
+
+        if dissolve.resultUserdata ~= nil then
+            o.userdata = dissolve.resultUserdata
+            dissolve.resultUserdata = nil
+        end
     end
 end
 
@@ -387,6 +399,12 @@ function clipper:_mergeUserdata()
                     self.otherPolygon.combinedPointToPointIndex[index],
                     self.otherPolygon.userdata[self.otherPolygon.combinedPointToPointIndex[index]],
                     index)
+            end
+
+            self.inputCleanupOptions.merge(self.merge)
+
+            if self.merge.resultUserdata ~= nil then
+                self.resultUserdata[self.merge.resultUserdata] = self.merge.resultUserdata
             end
         end
     end
@@ -585,6 +603,8 @@ function clipper:_popPendingEdge()
 end
 
 --- @private
+--- @param a number
+--- @param b number
 function clipper:_addResultEdge(a, b)
     local aResultIndex = self.indexToResultIndex[a]
     if not aResultIndex then
@@ -592,7 +612,7 @@ function clipper:_addResultEdge(a, b)
         self.resultIndex = self.resultIndex + 1
 
         self.indexToResultIndex[a] = aResultIndex
-        
+
         local j = (a - 1) * 2 + 1
         local k = j + 1
         
@@ -600,7 +620,7 @@ function clipper:_addResultEdge(a, b)
         table.insert(self.resultPoints, self.resultPolygon.points[k])
         
         if self.resultUserdata then
-            table.insert(self.resultUserdata, self.combinedUserdata[a].userdata)
+            self.resultUserdata[aResultIndex] = self.resultPolygon.userdata[a].userdata
         end
     end
 
@@ -618,7 +638,7 @@ function clipper:_addResultEdge(a, b)
         table.insert(self.resultPoints, self.resultPolygon.points[k])
         
         if self.resultUserdata then
-            table.insert(self.resultUserdata, self.combinedUserdata[b].userdata)
+            self.resultUserdata[bResultIndex] = self.resultPolygon.userdata[b].userdata
         end
     end
 
