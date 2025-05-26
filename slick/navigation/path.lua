@@ -80,8 +80,10 @@ local internalPathBehavior = {}
 local path = {}
 local metatable = { __index = path }
 
---- @param options slick.navigation.pathOptions
+--- @param options slick.navigation.pathOptions?
 function path.new(options)
+    options = options or defaultPathOptions
+
     local self = setmetatable({
         options = {
             optimize = options.optimize == nil and defaultPathOptions.optimize or not not options.optimize,
@@ -244,7 +246,7 @@ end
 --- @param goalY number
 --- @param nearest boolean
 --- @param result number[]?
---- @return number[]?, slick.navigation.triangle[]?
+--- @return number[]?, slick.navigation.vertex[]?
 function path:_find(mesh, startX, startY, goalX, goalY, nearest, result)
     self:_reset()
 
@@ -390,7 +392,7 @@ end
 --- @param startY number
 --- @param goalX number
 --- @param goalY number
---- @return number[] | nil
+--- @return number[]?, slick.navigation.vertex[]?
 function path:find(mesh, startX, startY, goalX, goalY)
     return self:_find(mesh, startX, startY, goalX, goalY, false)
 end
@@ -400,7 +402,7 @@ end
 --- @param startY number
 --- @param goalX number
 --- @param goalY number
---- @return number[] | nil
+--- @return number[]?, slick.navigation.vertex[]?
 function path:nearest(mesh, startX, startY, goalX, goalY)
     return self:_find(mesh, startX, startY, goalX, goalY, true)
 end
