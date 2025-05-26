@@ -284,8 +284,12 @@ function delaunay:_dedupePoints(dissolve, userdata)
             didDedupe = true
 
             local nextPoint = sortedPoints[nextIndex]
-            self.dissolve:init(sortedPoint.point, sortedPoint.id, userdata and userdata[sortedPoint.id])
+            self.dissolve:init(sortedPoint.point, sortedPoint.id, userdata and userdata[sortedPoint.id], nextPoint.id, userdata and userdata[nextPoint.id])
             dissolve(self.dissolve)
+
+            if self.dissolve.resultUserdata ~= nil then
+                userdata[nextPoint.id] = self.dissolve.resultUserdata
+            end
 
             local pointEdges = self.pointsToEdges[nextPoint.id]
             for i = #pointEdges, 1, -1 do
@@ -544,6 +548,10 @@ function delaunay:_splitEdgesAgainstEdges(intersect, userdata)
 
                     self.intersection.result:init(point.x, point.y)
 
+                    if self.intersection.resultUserdata ~= nil then
+                        userdata[self.intersection.resultIndex] = self.intersection.resultUserdata
+                    end
+
                     intersect(self.intersection)
                     point:init(self.intersection.result.x, self.intersection.result.y)
 
@@ -662,7 +670,7 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
         table.insert(outPoints, sortedPoint.point.y)
 
         if userdata and outUserdata then
-            table.insert(outUserdata, userdata[sortedPoint.id])
+            outUserdata[sortedPoint.newID] = userdata[sortedPoint.id]
         end
     end
 

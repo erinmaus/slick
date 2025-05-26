@@ -1,3 +1,4 @@
+local cache = require("slick.cache")
 local polygonMesh = require("slick.collision.polygonMesh")
 local enum = require("slick.enum")
 local tag = require("slick.tag")
@@ -5,12 +6,12 @@ local util = require("slick.util")
 
 --- @class slick.collision.shapeGroup
 --- @field tag any
---- @field entity slick.entity
+--- @field entity slick.entity | slick.cache
 --- @field shapes slick.collision.shape[]
 local shapeGroup = {}
 local metatable = { __index = shapeGroup }
 
---- @param entity slick.entity
+--- @param entity slick.entity | slick.cache
 --- @param tag slick.tag | slick.enum | nil
 --- @param ... slick.collision.shapeDefinition
 --- @return slick.collision.shapeGroup
@@ -81,9 +82,19 @@ function shapeGroup:attach()
     while index <= #shapes do
         local shape = shapes[index]
         if util.is(shape, polygonMesh) then
+            --- @type slick.cache
+            local c
+
+            if util.is(self.entity, cache) then
+                --- @diagnostic disable-next-line: cast-local-type
+                c = self.entity
+            else
+                c = self.entity.world.cache
+            end
+            
             --- @diagnostic disable-next-line: cast-type-mismatch
             --- @cast shape slick.collision.polygonMesh
-            shape:build(self.entity.world.cache.triangulator)
+            shape:build(c.triangulator)
 
             table.remove(shapes, index)
             for i = #shape.polygons, 1, -1 do

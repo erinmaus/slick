@@ -177,7 +177,7 @@ local function newMesh(polygons, tag)
 end
 
 --- @alias slick.collision.shapeDefinition {
----     type: { new: fun(entity: slick.entity, ...: any): slick.collision.shapelike },
+---     type: { new: fun(entity: slick.entity | slick.cache, ...: any): slick.collision.shapelike },
 ---     n: number,
 ---     tag: slick.tag?,
 ---     arguments: table,

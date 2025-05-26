@@ -4,6 +4,8 @@ local point = require("slick.geometry.point")
 --- @field point slick.geometry.point
 --- @field index number
 --- @field userdata any?
+--- @field otherIndex number
+--- @field otherUserdata any?
 local dissolve = {}
 local metatable = { __index = dissolve }
 
@@ -16,10 +18,15 @@ end
 --- @param p slick.geometry.point
 --- @param index number
 --- @param userdata any?
-function dissolve:init(p, index, userdata)
+--- @param otherIndex number
+--- @param otherUserdata any
+function dissolve:init(p, index, userdata, otherIndex, otherUserdata)
     self.point:init(p.x, p.y)
     self.index = index
     self.userdata = userdata
+    self.otherIndex = otherIndex
+    self.otherUserdata = otherUserdata
+    self.resultUserdata = nil
 end
 
 --- @param d slick.geometry.triangulation.dissolve

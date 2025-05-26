@@ -5,7 +5,7 @@ local transform = require("slick.geometry.transform")
 local box = setmetatable({}, { __index = commonShape })
 local metatable = { __index = box }
 
---- @param entity slick.entity?
+--- @param entity slick.entity | slick.cache | nil
 --- @param x number
 --- @param y number
 --- @param w number

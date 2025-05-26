@@ -11,6 +11,7 @@
 * "Game-istic" collision handling and response instead of realistic, physics-based collision handling and response.
 * Rectangle, line segment, ray, circle, and point queries against the world.
 * Triangulation and polygon clipping support.
+* Advanced navigation mesh support with string pulling.
 
 There are no dependencies (other than the demo and debug drawing code using LÖVE). It can be used from any Lua 5.1-compatible environment. There are certain optimizations available when using LuaJIT, but fallbacks are used in vanilla Lua environments.
 
@@ -97,6 +98,11 @@ world:remove(level)
    6. [Advance usage](#advanced-usage)
       1. [slick.geometry.triangulation.delaunay](#slickgeometrytriangulationdelaunay)
       2. [slick.geometry.clipper](#slickgeometryclipper)
+      4. [slick.navigation](#slicknavigation)
+        * [slick.navigation.meshBuilder](#slicknavigationmeshbuilder)
+        * [slick.navigation.mesh](#slicknavigationmesh)
+        * [slick.navigation.path](#slicknavigationpath)
+        * [slick.navigation geometry](#slicknavigation-geometry)
       3. [slick.util.search](#slickutilsearch)
 3. [License](#license)
 
@@ -949,7 +955,7 @@ end
 
   Similarly, the output points and edges will be valid input into a triangulator without any clean up. So no need to clean the output data - that will be pointless!
 
-  You can pass in a `slick.geometry.clipper.clipOptions` which is otherwise identical to `slick.geometry.triangulation.delaunayCleanupOptions`, with (optional) `intersect` and `dissolve` methods that will be called when generating new vertices or dissolving old ones. See `slick.geometry.triangulation.delaunay.cleanup` for specifics of how these functions work and what inputs they take.
+  You can pass in a `slick.geometry.clipper.clipOptions` which is otherwise identical to `slick.geometry.triangulation.delaunayCleanupOptions`, with (optional) `intersect` and `dissolve` methods that will be called when generating new vertices or dissolving old ones. There is also an added `merge` method that will be called for all overlapping vertices. See `slick.geometry.triangulation.delaunay.cleanup` for specifics of how these functions work and what inputs they take. These are optional, but can be used to e.g., interpolate or assign userdata (such as colors) when clipping.
 
   Like with `clean`, you can pass in userdata.
 
@@ -1015,6 +1021,138 @@ end
 This will draw a triangle mesh of a square with a hole in the middle.
 
 Remember, you do not have to clean the output data from the clipper; it is guaranteed to be valid input as-is into the triangulator.
+
+### `slick.navigation`
+
+**slick** comes with a navigation mesh API (because why not?). **slick** navigates on **triangle edges** only and will string-pull the points using a funnel to create efficient, realistic paths. The only thing **slick** doesn't do is steering; that's your job!
+
+The API is a little more advanced but can be used simply enough:
+
+```lua
+local meshBuilder = slick.navigation.meshBuilder.new()
+
+local FLOOR = slick.newEnum("FLOOR")
+local WALL = slick.newEnum("WALL")
+
+meshBuilder:addLayer(FLOOR) -- First layer will automatically union all shapes to build floors if unspecified
+meshBuilder:addLayer(WALL)  -- Second layers (and further) will automatically union all shapes then perform a difference with the first layer (FLOOR) if unspecified
+
+meshBuilder:addShape(FLOOR, slick.newRectangleShape(0, 0, 500, 500))
+meshBuilder:addShape(WALL, slick.newCircleShape(250, 250, 100))
+
+local path = slick.navigation.path.new()
+local p = path:find(50, 50, 450, 450) -- An array of points in the form { x1, y1, x2, y2, x3, y3, ... }, from start to goal; will be false-y (nil) if no path was found
+
+if p then
+  love.graphics.line(unpack(p))
+  end
+```
+
+#### `slick.navigation.meshBuilder`
+
+Constructing this object lets you easily build navigation meshes ready for use with `slick.navigation.path` instances. There's nothing from stopping you doing this yourself, though... Unlike most APIs in **slick**, the mesh builder isn't super friendly to the garbage collector. The idea is the navigation mesh is built offline or during level load, so it shouldn't be a big deal. You probably don't want to create a navigation mesh using this API in realtime.
+
+* `slick.navigation.meshBuilder.new(options: slick.options?)`
+
+  Creates a new mesh builder. Optionally can provide a `slick.cache` via `slick.options` (e.g., like with `slick.newWorld`) if you want to re-use a triangulator between your world and the mesh builder.
+
+* `slick.navigation.meshBuilder:addLayer(tag: slick.tag | slick.enum, combineMode: string?)`
+  
+  Creates a new layer. For the simplest cases, you'll want a `FLOOR` layer and probably also a `WALL` layer.
+
+  * `tag`: name of the layer; used internally.
+  * `combineMode`: optional; defaults to `"combine"` for the first layer and `"difference"` for the second (and others). `"combine"` merges with the previous layers and `"difference"` subtracts from the previous layers.
+
+* `slick.navigation.meshBuilder:addShape(tag: slick.tag | slick.enum, shape: slick.collision.shapeDefinition, userdata: any?)`
+
+  Creates a new shape on layer `tag` (must have been previously created with `slick.navigation.meshBuilder.addLayer`; see above). Any **slick** shape with three or more points is supported. This means no line segments! If you need that fine of control, use `slick.navigation.meshBuilder.addMesh` (see below).
+
+  `userdata` lets you define a `userdata` item for all shapes and sub-shapes in `shape`. See `slick.navigation.meshBuilder.addMesh` if you need finer control over userdata.
+
+* `slick.navigation.meshBuilder:addMesh(tag: slick.tag | slick.enum, mesh: slick.navigation.mesh)`
+
+  Adds an existing "shape-like" navigation mesh to layer `tag`. What "shape-like" means is `mesh` **must just be points, edges, and userdata - no triangles!**; triangles (and any previously triangulation) will be lost. You can have fine control over interior points (e.g., points inside the shape defined by `edges`, such as creating a grid inside the shape) and userdata this way.
+
+* `slick.navigation.mesBuilder:build(options: slick.geometry.clipper.clipOptions?)`
+
+  Builds the mesh using the optional clipping options `options` parameter. See advanced `slick.geometry.clipper` usage for more.
+
+#### `slick.navigation.mesh`
+
+The basic navigation mesh object. Must be triangulated to be used for a navigation mesh. Most of `slick.navigation.mesh` is unnecessary unless you're implementing your own path-finding algorithm over the navigation mesh. See the source files for `slick.navigation.path` and `slick.navigation.mesh` for any undocumented functionality. You can have "shape-like" meshes which can be added to a `slick.navigation.meshBuilder` (they do not have triangles).
+
+  * `slick.navigation.mesh.new(points: number[], userdata: any[], edges: number[], triangles: number[]?)`
+
+    Constructs a new `slick.navigation.mesh` instance. For example, you can create a grid by defining four edge vertices and edges then filling in the interior with points representing doors, cliffs, portals, etc. `userdata` maps to each `point`, though this can be a sparse array (not every array cell in `userdata` has to have a value).
+
+#### `slick.navigation.path`
+
+Navigates a `slick.navigation.mesh`. Takes either a manually triangulated `slick.navigation.mesh` or one produced by `slick.navigation.meshBuilder` and returns the most efficient path. Uses string pulling via a funnel method to take corners tightly, etc.
+
+  * `slick.navigation.path.new(options: slick.navigation.pathOptions)`
+
+    Constructs a new `slick.navigation.mesh` instance. For example, you can create a grid by defining four edge vertices and edges then filling in the interior with points representing doors, cliffs, portals, etc. `userdata` maps to each `point`, though this can be a sparse array (not every array cell in `userdata` has to have a value).
+
+    `slick.navigation.pathOptions` lets you define custom ways to evaluates neighbors, distance, etc via fields:
+
+    * `neighbor: fun(from: slick.navigation.triangle, to: slick.navigation.triangle, e: slick.navigation.edge): boolean`
+    
+      Returns `true` if triangle `to` via edge `e` is a neighbor; `false` otherwise. Defaults to always return `true`. You can use userdata from the two vertices in the edge `e` to return false if, e.g., the edge represents a locked door. Get creative!
+    
+    * `neighbors: fun(mesh: slick.navigation.mesh, triangle: slick.navigation.triangle): slick.navigation.triangle[] | nil`
+
+      Returns a list of `slick.navigation.triangle` from `mesh` (or maybe not - do what you wanna do!) that are neighbors of `triangle`. `neighbor` will still be evaluated per edge (if provided).
+    
+    * `distance: fun(from: slick.navigation.triangle, to: slick.navigation.triangle, e: slick.navigation.edge): number`
+
+      Returns the distance of triangle `from` to triangle `to` via edge `e`. The default implementation returns the Euclidean distance between the centroids of `from` and `to`.
+    
+    * `heuristic: fun(from: slick.navigation.triangle, goalX: number, goalY: number): number`
+
+      Returns the distance of triangle `from` to the goal. The default implementation returns the Euclidean distance between the centroid of `from` to the point `(goalX, goalY)`.
+    
+    * `yield: fun()`
+      
+      Called after every node is processed. You can use this to yield (e.g., via `coroutine.yield`) to make path-finding asynchronous and spread it over multiple frames. Default does nothing, so path-finding **will not yield**.
+    
+    * `optimize: boolean`
+
+      Defaults to `true` if unset or `options` is not provided. You probably don't wanna set this to `false` unless you wanna implement your own string pulling algorithm...
+    
+  * `slick.navigation.path:find(mesh: slick.navigation.mesh, startX: number, startY: number, goalX: number, goalY: number, result: number[]): number[]?, slick.navigation.vertex[]?`
+    
+    Tries to find the shortest path from `(startX, startY)` to `(goalX, goalY)`. If none is found, returns `nil`. Otherwise, returns a `path` (in the form of { startX, startY, x1, y1, ..., xn, yn, goalX, goalY }) and a list of `slick.navigation.vertex`.
+
+    If `result` is provided, it will be cleared and re-used. However, if an array of `slick.navigation.vertex[]` is returned, this array might mutate with the next `slick.navigation.path.find` call; make a deep copy if you need it!
+    
+  * `slick.navigation.path:nearest(mesh: slick.navigation.mesh, startX: number, startY: number, goalX: number, goalY: number, result: number[]): number[]?, slick.navigation.vertex[]?`
+    
+    Just like `slick.navigation.path.find`, except it will try and return a path even if `(goalX, goalY)` could not be reached as close to `(goalX, goalY)` as possible.
+
+#### `slick.navigation` geometry
+
+These are exposed by the custom path-finding functions passed into `slick.navigation.path.new`. Try not to use anything that's not documented here. But I'm a README, not a sign!
+
+##### `slick.navigation.triangle`
+Represents a node (triangle) in a navigation method. Has a few public, read-only fields:
+
+* `triangle: slick.navigation.vertex[]`: a list of vertices that compose this triangle
+* `centroid: slick.geometry.point`: a vector representing the center of the triangle
+* `index: number`: the index of the triangle in a `mesh`; can be used as an ID.
+
+##### `slick.navigation.edge`
+Represents an edge of a triangle in a navigation method. Has a few public, read-only fields:
+
+* `a: slick.navigation.vertex`: the first vertex of this edge
+* `b: slick.navigation.vertex`: the other vertex of this edge
+
+##### `slick.navigation.vertex`
+Represents a vertex of a triangle in a navigation method. Has a few public, read-only fields:
+
+* `point: slick.geometry.point`: a vector representing the position of the vertex
+* `userdata: any?`: optional userdata assigned to this vertex
+* `index: number`: the index of the vertex in a `mesh`; can be used as an ID.
+
 
 #### `slick.util.search`
 
