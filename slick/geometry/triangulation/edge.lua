@@ -21,13 +21,11 @@ end
 --- @param a slick.geometry.triangulation.edge
 --- @param b slick.geometry.triangulation.edge
 function edge.less(a, b)
-    if a.min < b.min then
-        return true
-    elseif a.min == b.min then
+    if a.min == b.min then
         return a.max < b.max
     end
 
-    return false
+    return a.min < b.min
 end
 
 --- @param a slick.geometry.triangulation.edge

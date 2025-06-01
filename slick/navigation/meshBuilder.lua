@@ -207,18 +207,20 @@ function navMeshBuilder:_prepareLayers(options)
         local meshes = self.layerMeshes[layer.key]
 
         if #meshes >= 1 then
-            local currentPoints, currentEdges, currentUserdata = meshes[1].inputPoints, meshes[1].inputEdges, meshes[1].inputUserdata
+            local currentPoints, currentEdges, currentUserdata, currentExteriorEdges, currentInteriorEdges = meshes[1].inputPoints, meshes[1].edges, meshes[1].inputUserdata, meshes[1].inputExteriorEdges, meshes[1].inputInteriorEdges
+
             for i = 2, #meshes do
-                currentPoints, currentEdges, currentUserdata = self.clipper:clip(
+                currentPoints, currentEdges, currentUserdata, currentExteriorEdges, currentInteriorEdges = self.clipper:clip(
                     clipper.union,
-                    currentPoints, currentEdges,
-                    meshes[i].inputPoints, meshes[i].inputEdges,
+                    currentPoints, { currentExteriorEdges, currentInteriorEdges },
+                    meshes[i].inputPoints, { meshes[i].inputExteriorEdges, meshes[i].inputInteriorEdges },
                     options,
                     currentUserdata,
-                    meshes[1].inputUserdata)
+                    meshes[i].inputUserdata,
+                    {}, {}, {}, {}, {})
             end
 
-            layer.mesh = mesh.new(currentPoints, currentUserdata, currentEdges)
+            layer.mesh = mesh.new(currentPoints, currentUserdata, currentExteriorEdges, currentInteriorEdges)
         end
     end
 end
@@ -226,7 +228,7 @@ end
 --- @private
 --- @param options slick.geometry.clipper.clipOptions?
 function navMeshBuilder:_combineLayers(options)
-    local currentPoints, currentEdges, currentUserdata = self.layers[1].mesh.inputPoints, self.layers[1].mesh.inputEdges, self.layers[1].mesh.inputUserdata
+    local currentPoints, currentEdges, currentUserdata, currentExteriorEdges, currentInteriorEdges = self.layers[1].mesh.inputPoints, self.layers[1].mesh.edges, self.layers[1].mesh.inputUserdata, self.layers[1].mesh.inputExteriorEdges, self.layers[1].mesh.inputInteriorEdges
 
     for i = 2, #self.layers do
         local layer = self.layers[i]
@@ -239,17 +241,22 @@ function navMeshBuilder:_combineLayers(options)
         end
 
         if func and layer.mesh then
-            currentPoints, currentEdges, currentUserdata = self.clipper:clip(
+            currentPoints, currentEdges, currentUserdata, currentExteriorEdges, currentInteriorEdges = self.clipper:clip(
                 func,
-                currentPoints, currentEdges,
-                layer.mesh.inputPoints, layer.mesh.inputEdges,
+                currentPoints, { currentExteriorEdges, currentInteriorEdges },
+                layer.mesh.inputPoints, { layer.mesh.inputExteriorEdges, layer.mesh.inputInteriorEdges },
                 options,
                 currentUserdata,
-                layer.mesh.inputUserdata)
+                layer.mesh.inputUserdata,
+                {}, {}, {}, {}, {})
         end
     end
 
-    return currentPoints, currentEdges, currentUserdata
+    if #self.layers == 1 then
+        currentPoints, currentEdges, currentUserdata = self.cache.triangulator:clean(currentPoints, currentEdges, currentUserdata, options)
+    end
+
+    return currentPoints, currentExteriorEdges, currentUserdata
 end
 
 --- @param options slick.geometry.clipper.clipOptions?
