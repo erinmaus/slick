@@ -8,13 +8,17 @@ local metatable = { __index = edge }
 
 --- @param a slick.navigation.vertex
 --- @param b slick.navigation.vertex
+--- @param interior boolean?
+--- @param exterior boolean?
 --- @return slick.navigation.edge
-function edge.new(a, b)
+function edge.new(a, b, interior, exterior)
     return setmetatable({
         a = a,
         b = b,
         min = math.min(a.index, b.index),
         max = math.max(a.index, b.index),
+        interior = not not interior,
+        exterior = not not exterior
     }, metatable)
 end
 

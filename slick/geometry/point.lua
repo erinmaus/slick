@@ -29,13 +29,13 @@ end
 --- @param a slick.geometry.point
 --- @param b slick.geometry.point
 --- @return slick.util.search.compareResult
-function point.compare(a, b)
-    local result = slickmath.sign(a.x - b.x, slickmath.EPSILON)
+function point.compare(a, b, E)
+    local result = slickmath.sign(a.x - b.x, E or slickmath.EPSILON)
     if result ~= 0 then
         return result
     end
 
-    return slickmath.sign(a.y - b.y, slickmath.EPSILON)
+    return slickmath.sign(a.y - b.y, E or slickmath.EPSILON)
 end
 
 --- @param a slick.geometry.point

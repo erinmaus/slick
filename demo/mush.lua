@@ -6,11 +6,7 @@ local shapes = json.decode(love.filesystem.read("demo/mush.json"))
 --- @type slick.navigation.mesh
 local mesh
 
-local pathfinder = slick.navigation.path.new({
-    neighbor = function(_, _, e)
-        return not ((e.a.userdata and e.a.userdata.door) or (e.b.userdata and e.b.userdata.door)) or love.keyboard.isDown("k")
-    end
-})
+local pathfinder = slick.navigation.path.new()
 
 --- @type slick.navigation.vertex[] | false
 local path = false
@@ -32,14 +28,6 @@ local function generate()
 
         for _, shape in ipairs(layer) do
             local points = shape.points
-            local inputUserdata = shape.userdata
-
-            local userdata = {}
-            if inputUserdata then
-                for _, u in ipairs(inputUserdata) do
-                    userdata[u.index] = u.value
-                end
-            end
 
             local edges = {}
 
@@ -49,7 +37,7 @@ local function generate()
                 table.insert(edges, (i % n) + 1)
             end
 
-            meshBuilder:addMesh(t, slick.navigation.mesh.new(points, userdata, edges))
+            meshBuilder:addMesh(t, slick.navigation.mesh.new(points, {}, edges))
         end
     end
 
@@ -146,7 +134,6 @@ mush navigation mesh demo
 controls
 - mouse left click: place "start" point
 - move mouse: move "goal" point
-- hold k: unblock red edge (door)
 ]]
 
 function demo.help()
