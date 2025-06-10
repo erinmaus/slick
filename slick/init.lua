@@ -49,6 +49,20 @@ local worldQueryResponse
 local meta
 
 local function load()
+    local requireImpl = require
+    local require = function(path)
+        return requireImpl(PATH .. path)
+    end
+
+    local patchedG = {
+        __index = _G
+    }
+
+    local g = { require = require }
+    g._G = g
+
+    setfenv(0, setmetatable(g, patchedG))
+
     cache = require("slick.cache")
     collision = require("slick.collision")
     draw = require("slick.draw")
@@ -69,34 +83,13 @@ local function load()
 end
 
 do
-    local basePath = PATH:gsub("%.", "/")
-    if basePath == "" then
-        basePath = "./"
-    end
-
-    local pathPrefix = string.format("%s?.lua;%s?/init.lua", basePath, basePath)
-
-    local oldLuaPath = package.path
-    local oldLovePath = love and love.filesystem and love.filesystem.getRequirePath()
-
-    local newLuaPath = string.format("%s;%s", pathPrefix, oldLuaPath)
-    package.path = newLuaPath
-
-    if oldLovePath then
-        local newLovePath = string.format("%s;%s", pathPrefix, oldLovePath)
-        love.filesystem.setRequirePath(newLovePath)
-    end
-
-    local success, result = xpcall(load, debug.traceback)
-
-    package.path = oldLuaPath
-    if oldLovePath then
-        love.filesystem.setRequirePath(oldLovePath)
-    end
-
-    if not success then
-        error(result, 0)
-    end
+    local l = coroutine.create(load)
+    repeat
+        local s, r = coroutine.resume(l)
+        if not s then
+            error(debug.traceback(l, r))
+        end
+    until coroutine.status(l) == "dead"
 end
 
 return {
