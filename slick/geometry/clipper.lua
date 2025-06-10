@@ -398,11 +398,12 @@ function clipper:_preparePolygon(points, polygon)
         for _, vertexIndex in ipairs(p) do
             local combinedIndex = vertexIndex + numPoints
             local userdata = self.combinedUserdata[combinedIndex]
-
-            local polygons = userdata.polygons[polygon]
-            local innerPolygonIndex = search.lessThan(polygons, i, _compareNumber) + 1
-            if polygons[innerPolygonIndex] ~= i then
-                table.insert(polygons, innerPolygonIndex, i)
+            if userdata then
+                local polygons = userdata.polygons[polygon]
+                local innerPolygonIndex = search.lessThan(polygons, i, _compareNumber) + 1
+                if polygons[innerPolygonIndex] ~= i then
+                    table.insert(polygons, innerPolygonIndex, i)
+                end
             end
         end
     end

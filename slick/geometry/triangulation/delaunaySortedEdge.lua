@@ -19,14 +19,14 @@ end
 --- @param b slick.geometry.triangulation.delaunaySortedEdge
 --- @return slick.util.search.compareResult
 function delaunaySortedEdge.compare(a, b)
-    return segment.compare(a.segment, b.segment)
+    return segment.compare(a.segment, b.segment, 0)
 end
 
 --- @param sortedEdge slick.geometry.triangulation.delaunaySortedEdge
 --- @param segment slick.geometry.segment
 --- @return slick.util.search.compareResult
 function delaunaySortedEdge.compareSegment(sortedEdge, segment)
-    return segment.compare(sortedEdge.segment, segment)
+    return segment.compare(sortedEdge.segment, segment, 0)
 end
 
 --- @param a slick.geometry.triangulation.delaunaySortedEdge

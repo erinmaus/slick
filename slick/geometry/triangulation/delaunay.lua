@@ -435,7 +435,7 @@ function delaunay:_splitEdgesAgainstPoints(intersect, userdata)
         local e = sortedEdge.edge
         local s = sortedEdge.segment
 
-        local start = search.lessThanEqual(sortedPoints, s.a, delaunaySortedPoint.comparePoint)
+        local start = math.max(search.lessThanEqual(sortedPoints, s.a, delaunaySortedPoint.comparePoint), 1)
         local stop = search.lessThanEqual(sortedPoints, s.b, delaunaySortedPoint.comparePoint, start)
 
         local dissolve = false
@@ -650,12 +650,12 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
 
     if edges then
         for i = 1, #edges, 2 do
-            local p1 = edges[i]
-            local p2 = edges[i + 1]
+            local e1 = edges[i]
+            local e2 = edges[i + 1]
 
-            if p1 ~= p2 then
-                self:_addEdge(p1, p2)
-                self:_addSortedEdge(p1, p2)
+            if e1 ~= e2 then
+                self:_addEdge(e1, e2)
+                self:_addSortedEdge(e1, e2)
             end
         end
     end
