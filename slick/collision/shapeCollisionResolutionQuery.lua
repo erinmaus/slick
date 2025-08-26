@@ -130,90 +130,65 @@ function shapeCollisionResolutionQuery:addAxis()
     return axis
 end
 
+local _cachedOtherSegment = segment.new()
+local _cachedCurrentPoint = point.new()
 local _cachedOtherNormal = point.new()
 
-function shapeCollisionResolutionQuery:_isCurrentShapeMovingAwayFromOtherShape()
-    local currentVertexCount = self.currentShape.shape.vertexCount
-    local currentVertices = self.currentShape.shape.vertices
+--- @private
+--- @param a slick.collision.shapeCollisionResolutionQueryShape
+--- @param b slick.collision.shapeCollisionResolutionQueryShape
+--- @param aOffset slick.geometry.point
+--- @param bOffset slick.geometry.point
+--- @param scalar number
+--- @return boolean
+function shapeCollisionResolutionQuery:_isShapeMovingAwayFromShape(a, b, aOffset, bOffset, scalar)
+    local currentVertexCount = a.shape.vertexCount
+    local currentVertices = a.shape.vertices
 
-    local otherVertexCount = self.otherShape.shape.vertexCount
-    local otherVertices = self.otherShape.shape.vertices
+    local otherVertexCount = b.shape.vertexCount
+    local otherVertices = b.shape.vertices
 
     for i = 1, otherVertexCount do
         local j = slickmath.wrap(i, 1, otherVertexCount)
 
-        otherVertices[i]:direction(otherVertices[j], _cachedOtherNormal)
+        otherVertices[i]:add(bOffset, _cachedOtherSegment.a)
+        otherVertices[j]:add(bOffset, _cachedOtherSegment.b)
+
+        _cachedOtherSegment.a:direction(_cachedOtherSegment.b, _cachedOtherNormal)
         _cachedOtherNormal:normalize(_cachedOtherNormal)
         _cachedOtherNormal:left(_cachedOtherNormal)
 
         local sameSide = true
         for k = 1, currentVertexCount do
-            local direction = slickmath.direction(otherVertices[i], otherVertices[j], currentVertices[k])
+            currentVertices[k]:add(aOffset, _cachedCurrentPoint)
+
+            local direction = slickmath.direction(_cachedOtherSegment.a, _cachedOtherSegment.b, _cachedCurrentPoint, slickmath.EPSILON)
             if direction < 0 then
                 sameSide = false
                 break
             end
         end
+
+        local o = {}
+        for k = 1, otherVertexCount do
+            table.insert(o, otherVertices[k].x)
+            table.insert(o, otherVertices[k].y)
+        end
+
+        local c = {}
+        for k = 1, currentVertexCount do
+            table.insert(c, currentVertices[k].x)
+            table.insert(c, currentVertices[k].y)
+        end
         
         if sameSide then
-            if self.relativeDirection:dot(_cachedOtherNormal) >= 0 then
+            if (scalar * self.relativeDirection:dot(_cachedOtherNormal)) >= 0 then
                 return true
             end
         end
     end
 
     return false
-end
-
-function shapeCollisionResolutionQuery:_areMovingApart()
-    local currentInterval = self.currentShape.currentInterval
-    local otherInterval = self.otherShape.currentInterval
-
-    for i = 1, #self.currentShape.shape.vertices do
-        for j = 1, #self.otherShape.shape.vertices do
-            local axis = self.otherShape.axes[j]
-
-            if self.relativeDirection:dot(axis.normal) > 0 then
-                local b1 = false
-                do
-                    currentInterval:init()
-                    otherInterval:init()
-        
-                    self:_handleSegmentAxis(axis.normal, i, j)
-
-                    if currentInterval:overlaps(otherInterval) then
-                        local depth = currentInterval:distance(otherInterval)
-                        if depth < self.epsilon then
-                            b1 = true
-                        end
-                    end
-                end
-
-                local b2 = false
-                do
-                    axis.normal:left(_cachedOtherAxis)
-
-                    currentInterval:init()
-                    otherInterval:init()
-
-                    self:_handleSegmentAxis(_cachedOtherAxis, i, j)
-
-                    if currentInterval:overlaps(otherInterval) then
-                        local depth = currentInterval:distance(otherInterval)
-                        if depth < self.epsilon then
-                            b2 = true
-                        end
-                    end
-                end
-
-                if b1 and b2 then
-                    return false
-                end
-            end
-        end
-    end
-
-    return true
 end
 
 local _cachedRelativeVelocity = point.new()
@@ -297,7 +272,9 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
     end
 
     if hit and self.depth < self.epsilon and _cachedRelativeVelocity:lengthSquared() > 0 then
-        hit = not self:_isCurrentShapeMovingAwayFromOtherShape()
+        hit = not (
+            self:_isShapeMovingAwayFromShape(self.currentShape, self.otherShape, selfOffset, otherOffset, 1) or
+            self:_isShapeMovingAwayFromShape(self.otherShape, self.currentShape, otherOffset, selfOffset, -1))
     end
 
     if self.firstTime > 1 then
@@ -310,6 +287,17 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
 
     if self.firstTime == -math.huge and self.lastTime >= 0 and self.lastTime <= 1 then
         self.firstTime = 0
+    end
+
+    local isSelfMovingTowardsOther = false
+    if hit then
+        self.currentShape.shape.center:direction(self.otherShape.shape.center, _cachedDirection)
+        _cachedDirection:normalize(_cachedDirection)
+
+        isSelfMovingTowardsOther = _cachedDirection:dot(self.normal) < 0
+        if not isSelfMovingTowardsOther then
+            self.normal:negate(self.normal)
+        end
     end
 
     if not hit then

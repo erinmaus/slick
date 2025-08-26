@@ -23,7 +23,7 @@ local function defaultWorldShapeFilterQueryFunc()
     return true
 end
 
---- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, previousResponse: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc, result: slick.worldQuery): number, number, number, number, string?, slick.worldQueryResponse
+--- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc, result: slick.worldQuery): number, number, number, number, string?, slick.worldQueryResponse
 --- @alias slick.worldVisitFunc fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number): string
 
 --- @class slick.world
@@ -34,7 +34,6 @@ end
 --- @field private responses table<string, slick.worldResponseFunc>
 --- @field private entities slick.entity[]
 --- @field private itemToEntity table<any, number>
---- @field private previousEntityCollisions table<slick.entity, slick.worldQuery>
 --- @field private freeWorldQueries slick.worldQuery[]
 --- @field private freeList number[]
 --- @field private cachedQuery slick.worldQuery
@@ -91,7 +90,6 @@ function world.new(width, height, options)
         freeList = {},
         visited = {},
         responses = {},
-        previousEntityCollisions = {},
         freeWorldQueries = {}
     }, metatable)
 
@@ -160,8 +158,6 @@ function world:add(item, a, b, c)
     --- @type slick.worldQuery
     local query = table.remove(self.freeWorldQueries) or worldQuery.new(self)
     query:reset()
-
-    self.previousEntityCollisions[e] = query
 
     return e
 end
@@ -313,9 +309,6 @@ function world:remove(item)
     table.insert(self.freeList, entityIndex)
 
     self.itemToEntity[item] = nil
-
-    table.insert(self.freeWorldQueries, self.previousEntityCollisions[e])
-    self.previousEntityCollisions[e] = nil
 end
 
 --- @param item any
@@ -433,7 +426,6 @@ function world:check(item, goalX, goalY, filter, query)
     filter = filter or defaultWorldFilterQueryFunc
     
     local e = self:get(item)
-    local previousQuery = self.previousEntityCollisions[e]
     local x, y = e.transform.x, e.transform.y
     
     self:project(item, x, y, goalX, goalY, filter, cachedQuery)
@@ -453,14 +445,6 @@ function world:check(item, goalX, goalY, filter, query)
         repeat
             shape = result.shape
             otherShape = result.otherShape
-
-            local previousResponse
-            for _, response in ipairs(previousQuery.results) do
-                if response.shape == shape and response.otherShape == otherShape then
-                    previousResponse = response
-                    break
-                end
-            end
 
             --- @type string
             local responseName
@@ -484,7 +468,7 @@ function world:check(item, goalX, goalY, filter, query)
             local response = self:getResponse(responseName)
 
             local remappedResponseName, nextResult
-            x, y, goalX, goalY, remappedResponseName, nextResult = response(self, cachedQuery, result, previousResponse, x, y, goalX, goalY, filter, query)
+            x, y, goalX, goalY, remappedResponseName, nextResult = response(self, cachedQuery, result, x, y, goalX, goalY, filter, query)
 
             --- @cast otherShape slick.collision.shapelike
             _cachedRemappedHandlers[otherShape] = remappedResponseName
@@ -503,11 +487,6 @@ function world:check(item, goalX, goalY, filter, query)
             actualX = x
             actualY = y
         end
-    end
-
-    previousQuery:reset()
-    for _, response in ipairs(query.results) do
-        previousQuery:push(response, true)
     end
 
     return actualX, actualY, query.results, #query.results, query

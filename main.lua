@@ -90,9 +90,9 @@ function love.draw()
         love.graphics.pop()
 
         love.graphics.setColor(0, 0, 0, 1)
-        love.graphics.printf("press f1 for help", 1, 9, love.graphics.getWidth(), "center")
+        love.graphics.printf(("press f1 for help (%d FPS)"):format(love.timer.getFPS()), 1, 9, love.graphics.getWidth(), "center")
         love.graphics.setColor(1, 0, 1, 1)
-        love.graphics.printf("press f1 for help", 0, 8, love.graphics.getWidth(), "center")
+        love.graphics.printf(("press f1 for help (%d FPS)"):format(love.timer.getFPS()), 0, 8, love.graphics.getWidth(), "center")
     end
     love.graphics.pop()
 end
