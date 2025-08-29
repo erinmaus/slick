@@ -38,6 +38,7 @@ local SIDE_RIGHT = 1
 --- @field private lastTime number
 --- @field private currentShape slick.collision.shapeCollisionResolutionQueryShape
 --- @field private otherShape slick.collision.shapeCollisionResolutionQueryShape
+--- @field private relativeDirection slick.geometry.point
 local shapeCollisionResolutionQuery = {}
 local metatable = { __index = shapeCollisionResolutionQuery }
 
@@ -70,6 +71,7 @@ function shapeCollisionResolutionQuery.new(E)
         segment = segment.new(),
         currentShape = _newQueryShape(),
         otherShape = _newQueryShape(),
+        relativeDirection = point.new()
     }, metatable)
 end
 
@@ -113,6 +115,7 @@ function shapeCollisionResolutionQuery:_beginQuery()
     self.otherOffset:init(0, 0)
     self.normal:init(0, 0)
     self.contactPointsCount = 0
+    self.relativeDirection:init(0, 0)
 end
 
 function shapeCollisionResolutionQuery:addAxis()
@@ -127,12 +130,61 @@ function shapeCollisionResolutionQuery:addAxis()
     return axis
 end
 
+local _cachedOtherSegment = segment.new()
+local _cachedCurrentPoint = point.new()
+local _cachedOtherNormal = point.new()
+
+--- @private
+--- @param a slick.collision.shapeCollisionResolutionQueryShape
+--- @param b slick.collision.shapeCollisionResolutionQueryShape
+--- @param aOffset slick.geometry.point
+--- @param bOffset slick.geometry.point
+--- @param scalar number
+--- @return boolean
+function shapeCollisionResolutionQuery:_isShapeMovingAwayFromShape(a, b, aOffset, bOffset, scalar)
+    local currentVertexCount = a.shape.vertexCount
+    local currentVertices = a.shape.vertices
+
+    local otherVertexCount = b.shape.vertexCount
+    local otherVertices = b.shape.vertices
+
+    for i = 1, otherVertexCount do
+        local j = slickmath.wrap(i, 1, otherVertexCount)
+
+        otherVertices[i]:add(bOffset, _cachedOtherSegment.a)
+        otherVertices[j]:add(bOffset, _cachedOtherSegment.b)
+
+        _cachedOtherSegment.a:direction(_cachedOtherSegment.b, _cachedOtherNormal)
+        _cachedOtherNormal:normalize(_cachedOtherNormal)
+        _cachedOtherNormal:left(_cachedOtherNormal)
+
+        local sameSide = true
+        for k = 1, currentVertexCount do
+            currentVertices[k]:add(aOffset, _cachedCurrentPoint)
+
+            local direction = slickmath.direction(_cachedOtherSegment.a, _cachedOtherSegment.b, _cachedCurrentPoint, slickmath.EPSILON)
+            if direction < 0 then
+                sameSide = false
+                break
+            end
+        end
+        
+        if sameSide then
+            if (scalar * self.relativeDirection:dot(_cachedOtherNormal)) >= 0 then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local _cachedSelfVelocityDirection = point.new()
+local _cachedOtherVelocityDirection = point.new()
 local _cachedRelativeVelocity = point.new()
 local _cachedSelfFutureCenter = point.new()
 local _cachedSelfVelocityMinusOffset = point.new()
 local _cachedDirection = point.new()
-local _cachedSelfVelocityDirection = point.new()
-local _cachedOtherVelocityDirection = point.new()
 
 local _cachedSegmentA = segment.new()
 local _cachedSegmentB = segment.new()
@@ -159,6 +211,9 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
     selfVelocity:add(selfShape.center, _cachedSelfFutureCenter)
 
     selfVelocity:sub(selfOffset, _cachedSelfVelocityMinusOffset)
+
+    _cachedRelativeVelocity:normalize(self.relativeDirection)
+    self.relativeDirection:negate(self.relativeDirection)
     
     self.depth = math.huge
     
@@ -225,16 +280,10 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         end
     end
 
-    if isTouching and self.depth < self.epsilon then
-        isTouching = false
-    end
-
-    if not hit and isTouching then
-        hit = true
-    end
-
-    if not isTouching then
-        self.depth = 0
+    if hit and self.depth < self.epsilon and _cachedRelativeVelocity:lengthSquared() > 0 then
+        hit = not (
+            self:_isShapeMovingAwayFromShape(self.currentShape, self.otherShape, selfOffset, otherOffset, 1) or
+            self:_isShapeMovingAwayFromShape(self.otherShape, self.currentShape, otherOffset, selfOffset, -1))
     end
 
     if self.firstTime > 1 then
@@ -260,21 +309,22 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         end
     end
 
-    if hit and not isTouching and self.firstTime <= 0 and self.depth < math.huge then
+    if hit and self.firstTime <= 0 and self.depth < math.huge then
         local selfSpeed = selfVelocity:length()
         local otherSpeed = otherVelocity:length()
-        
+
         _cachedSelfVelocityDirection:init(selfVelocity.x, selfVelocity.y)
         if selfSpeed > 0 then
             _cachedSelfVelocityDirection:divideScalar(selfSpeed, _cachedSelfVelocityDirection)
         end
-        
+
         _cachedOtherVelocityDirection:init(otherVelocity.x, otherVelocity.y)
         if otherSpeed > 0 then
             _cachedOtherVelocityDirection:divideScalar(otherSpeed, _cachedOtherVelocityDirection)
         end
-        
-        local areShapesMovingApart = selfSpeed == 0 or otherSpeed == 0 or _cachedSelfVelocityDirection:dot(_cachedOtherVelocityDirection) <= self.epsilon
+
+        local areShapesMovingApart = selfSpeed == 0 or otherSpeed == 0 or
+        _cachedSelfVelocityDirection:dot(_cachedOtherVelocityDirection) <= self.epsilon
         local isOtherShapeMovingAwayFromEdge = _cachedSelfVelocityDirection:dot(self.normal) > -self.epsilon
         local isSelfShapeMovingFasterishThanOtherShape = selfSpeed >= otherSpeed
         local isMoving = selfSpeed > 0 or otherSpeed > 0
@@ -452,10 +502,6 @@ function shapeCollisionResolutionQuery:_compareIntervals(axis)
 
     return true
 end
-
-local _cachedProjectCircleBumpOffset = point.new()
-local _cachedProjectPolygonBumpOffset = point.new()
-local _cachedProjectScaledVelocity = point.new()
 
 --- @param selfShape slick.collision.shapeInterface
 --- @param otherShape slick.collision.shapeInterface
