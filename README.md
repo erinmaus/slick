@@ -68,6 +68,7 @@ world:remove(level)
 ## Table of Contents
 
 1. [Introduction](#introduction)
+   1. [Installation](#installation)
    1. [Adding & removing items](#adding--removing-items)
 2. [Documentation](#documentation)
    1. [slick.world](#slickworld)
@@ -107,6 +108,30 @@ world:remove(level)
 3. [License](#license)
 
 ## Introduction
+
+### Installation
+
+Copy the **`slick`** directory from the root of the release ZIP or the root of the **slick** Git repository and add it somewhere in your project!
+
+For example, to add the latest version of slick to an existing folder `libs/` in your project from the terminal / command line, do this:
+
+```sh
+git clone 'https://github.com/erinmaus/slick.git' slick-latest && cp -r ./slick-latest/slick ./libs/slick
+```
+
+Or on Windows (with PowerShell or the Command Prompt):
+
+```powershell
+git clone "https://github.com/erinmaus/slick.git" "slick-latest" && xcopy /e /k /h /i ".\slick-latest\slick" ".\libs\slick" && rd /s /q "slick-latest"
+```
+
+This command will:
+
+1. Clone **slick** into a folder in your current directory named `slick-latest` with the contents of the **slick** repo.
+2. Copy the **slick** library from `./slick-latest/slick` to `./libs/slick` in your project.
+3. Delete the `slick-latest` folder.
+
+**This is just an example.** It's assumed that you can modify the command to fit your needs if you'd rather use a terminal / command line over manually downloading **slick** from the releases page.
 
 ### Adding & removing items
 First, require **slick**:
