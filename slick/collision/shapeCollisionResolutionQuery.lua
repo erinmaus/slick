@@ -168,18 +168,6 @@ function shapeCollisionResolutionQuery:_isShapeMovingAwayFromShape(a, b, aOffset
                 break
             end
         end
-
-        local o = {}
-        for k = 1, otherVertexCount do
-            table.insert(o, otherVertices[k].x)
-            table.insert(o, otherVertices[k].y)
-        end
-
-        local c = {}
-        for k = 1, currentVertexCount do
-            table.insert(c, currentVertices[k].x)
-            table.insert(c, currentVertices[k].y)
-        end
         
         if sameSide then
             if (scalar * self.relativeDirection:dot(_cachedOtherNormal)) >= 0 then
