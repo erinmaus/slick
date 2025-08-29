@@ -191,6 +191,8 @@ function shapeCollisionResolutionQuery:_isShapeMovingAwayFromShape(a, b, aOffset
     return false
 end
 
+local _cachedSelfVelocityDirection = point.new()
+local _cachedOtherVelocityDirection = point.new()
 local _cachedRelativeVelocity = point.new()
 local _cachedSelfFutureCenter = point.new()
 local _cachedSelfVelocityMinusOffset = point.new()
@@ -313,6 +315,31 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         isSelfMovingTowardsOther = _cachedDirection:dot(self.normal) < 0
         if not isSelfMovingTowardsOther then
             self.normal:negate(self.normal)
+        end
+    end
+
+    if hit and self.firstTime <= 0 and self.depth < math.huge then
+        local selfSpeed = selfVelocity:length()
+        local otherSpeed = otherVelocity:length()
+
+        _cachedSelfVelocityDirection:init(selfVelocity.x, selfVelocity.y)
+        if selfSpeed > 0 then
+            _cachedSelfVelocityDirection:divideScalar(selfSpeed, _cachedSelfVelocityDirection)
+        end
+
+        _cachedOtherVelocityDirection:init(otherVelocity.x, otherVelocity.y)
+        if otherSpeed > 0 then
+            _cachedOtherVelocityDirection:divideScalar(otherSpeed, _cachedOtherVelocityDirection)
+        end
+
+        local areShapesMovingApart = selfSpeed == 0 or otherSpeed == 0 or
+        _cachedSelfVelocityDirection:dot(_cachedOtherVelocityDirection) <= self.epsilon
+        local isOtherShapeMovingAwayFromEdge = _cachedSelfVelocityDirection:dot(self.normal) > -self.epsilon
+        local isSelfShapeMovingFasterishThanOtherShape = selfSpeed >= otherSpeed
+        local isMoving = selfSpeed > 0 or otherSpeed > 0
+
+        if areShapesMovingApart and isOtherShapeMovingAwayFromEdge and isSelfShapeMovingFasterishThanOtherShape and isMoving then
+            hit = false
         end
     end
 
