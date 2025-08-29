@@ -112,8 +112,9 @@ end
 
 --- @param a slick.geometry.segment
 --- @param b slick.geometry.segment
+--- @param E number?
 --- @return slick.util.search.compareResult
-function segment.compare(a, b)
+function segment.compare(a, b, E)
     local aMinPoint, aMaxPoint
     if a.b:lessThan(a.a) then
         aMinPoint = a.b
@@ -132,12 +133,12 @@ function segment.compare(a, b)
         bMaxPoint = b.b
     end
 
-    local s = point.compare(aMinPoint, bMinPoint)
+    local s = point.compare(aMinPoint, bMinPoint, E)
     if s ~= 0 then
         return s
     end
 
-    return point.compare(aMaxPoint, bMaxPoint)
+    return point.compare(aMaxPoint, bMaxPoint, E)
 end
 
 --- @param a slick.geometry.segment

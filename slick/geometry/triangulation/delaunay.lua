@@ -288,7 +288,7 @@ function delaunay:_dedupePoints(dissolve, userdata)
             dissolve(self.dissolve)
 
             if self.dissolve.resultUserdata ~= nil then
-                userdata[nextPoint.id] = self.dissolve.resultUserdata
+                userdata[sortedPoint.id] = self.dissolve.resultUserdata
             end
 
             local pointEdges = self.pointsToEdges[nextPoint.id]
@@ -296,7 +296,12 @@ function delaunay:_dedupePoints(dissolve, userdata)
                 local e = pointEdges[i]
 
                 if e.a == nextPoint.id or e.b == nextPoint.id then
-                    table.insert(pendingEdges, e)
+                    local index = search.lessThanEqual(pendingEdges, e, edge.compare)
+
+                    --- @cast pendingEdges slick.geometry.triangulation.edge[]
+                    if not (index > 0 and edge.compare(pendingEdges[index], e) == 0) then
+                        table.insert(pendingEdges, index + 1, e)
+                    end
                 end
             end
 
@@ -310,27 +315,22 @@ function delaunay:_dedupePoints(dissolve, userdata)
         self:_debugVerifyEdges()
     end
 
-    table.sort(pendingEdges, edge.less)
+    for _, e in ipairs(pendingEdges) do
+        self.cachedSegment:init(points[e.a], points[e.b])
+        local pointA = sortedPoints[search.first(sortedPoints, points[e.a], delaunaySortedPoint.comparePoint)]
+        local pointB = sortedPoints[search.first(sortedPoints, points[e.b], delaunaySortedPoint.comparePoint)]
 
-    for index, e in ipairs(pendingEdges) do
-        local p = index > 1 and pendingEdges[index - 1]
-        if not p or not (p.min == e.min and p.max == e.max) then
-            self.cachedSegment:init(points[e.a], points[e.b])
-            local pointA = sortedPoints[search.first(sortedPoints, points[e.a], delaunaySortedPoint.comparePoint)]
-            local pointB = sortedPoints[search.first(sortedPoints, points[e.b], delaunaySortedPoint.comparePoint)]
+        if pointA and pointB then
+            self.cachedEdge:init(e.a, e.b)
+            local hasOldEdge = search.first(edges, self.cachedEdge, edge.compare) ~= nil
 
-            if pointA and pointB then
-                self.cachedEdge:init(e.a, e.b)
-                local hasOldEdge = search.first(edges, self.cachedEdge, edge.compare) ~= nil
+            self.cachedEdge:init(pointA.id, pointB.id)
+            local hasNewEdge = search.first(edges, self.cachedEdge, edge.compare) ~= nil
 
-                self.cachedEdge:init(pointA.id, pointB.id)
-                local hasNewEdge = search.first(edges, self.cachedEdge, edge.compare) ~= nil
-
-                self:_dissolveEdge(e.a, e.b)
-                if pointA.id ~= pointB.id and hasOldEdge and not hasNewEdge then
-                    self:_addEdge(pointA.id, pointB.id)
-                    self:_addSortedEdge(pointA.id, pointB.id)
-                end
+            self:_dissolveEdge(e.a, e.b)
+            if pointA.id ~= pointB.id and hasOldEdge and not hasNewEdge then
+                self:_addEdge(pointA.id, pointB.id)
+                self:_addSortedEdge(pointA.id, pointB.id)
             end
         end
     end
@@ -425,7 +425,7 @@ local function _greater(a, b)
 end
 
 --- @private
-function delaunay:_splitEdgesAgainstPoints()
+function delaunay:_splitEdgesAgainstPoints(intersect, userdata)
     local points = self.points
     local sortedPoints = self.sortedPoints
     local sortedEdges = self.sortedEdges
@@ -435,7 +435,7 @@ function delaunay:_splitEdgesAgainstPoints()
         local e = sortedEdge.edge
         local s = sortedEdge.segment
 
-        local start = search.lessThanEqual(sortedPoints, s.a, delaunaySortedPoint.comparePoint)
+        local start = math.max(search.lessThanEqual(sortedPoints, s.a, delaunaySortedPoint.comparePoint), 1)
         local stop = search.lessThanEqual(sortedPoints, s.b, delaunaySortedPoint.comparePoint, start)
 
         local dissolve = false
@@ -449,6 +449,30 @@ function delaunay:_splitEdgesAgainstPoints()
 
                     self:_addSortedEdge(e.a, sortedPoint.id)
                     self:_addSortedEdge(sortedPoint.id, e.b)
+
+                    self.intersection:init(sortedPoint.id)
+
+                    self.intersection:setLeftEdge(
+                        points[e.a], points[sortedPoint.id],
+                        e.a, sortedPoint.id,
+                        1,
+                        userdata and userdata[e.a],
+                        userdata and userdata[sortedPoint.id])
+
+                    self.intersection:setRightEdge(
+                        points[sortedPoint.id], points[e.b],
+                        sortedPoint.id, e.b,
+                        1,
+                        userdata and userdata[sortedPoint.id],
+                        userdata and userdata[e.b])
+
+                    self.intersection.result:init(sortedPoint.point.x, sortedPoint.point.y)
+
+                    intersect(self.intersection)
+
+                    if self.intersection.resultUserdata ~= nil then
+                        userdata[self.intersection.resultIndex] = self.intersection.resultUserdata
+                    end
 
                     dissolve = true
                 end
@@ -548,12 +572,12 @@ function delaunay:_splitEdgesAgainstEdges(intersect, userdata)
 
                     self.intersection.result:init(point.x, point.y)
 
+                    intersect(self.intersection)
+                    point:init(self.intersection.result.x, self.intersection.result.y)
+
                     if self.intersection.resultUserdata ~= nil then
                         userdata[self.intersection.resultIndex] = self.intersection.resultUserdata
                     end
-
-                    intersect(self.intersection)
-                    point:init(self.intersection.result.x, self.intersection.result.y)
 
                     table.insert(pendingEdges, search.first(edges, selfEdge.edge, edge.compare))
                     table.insert(pendingEdges, search.first(edges, otherEdge.edge, edge.compare))
@@ -626,12 +650,12 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
 
     if edges then
         for i = 1, #edges, 2 do
-            local p1 = edges[i]
-            local p2 = edges[i + 1]
+            local e1 = edges[i]
+            local e2 = edges[i + 1]
 
-            if p1 ~= p2 then
-                self:_addEdge(p1, p2)
-                self:_addSortedEdge(p1, p2)
+            if e1 ~= e2 then
+                self:_addEdge(e1, e2)
+                self:_addSortedEdge(e1, e2)
             end
         end
     end
@@ -642,7 +666,7 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
 
         self:_dedupePoints(dissolveFunc, userdata)
         self:_dedupeEdges()
-        self:_splitEdgesAgainstPoints()
+        self:_splitEdgesAgainstPoints(intersectFunc, userdata)
 
         continue = self:_splitEdgesAgainstEdges(intersectFunc, userdata)
     until not continue
@@ -1680,28 +1704,35 @@ function delaunay:_dissolveEdge(edgeA, edgeB)
 
     local edgeIndex = search.first(self.edges, self.cachedEdge, edge.compare)
     assert(edgeIndex)
-    local e = table.remove(self.edges, edgeIndex)
 
-    assert(e.min == math.min(edgeA, edgeB))
-    assert(e.max == math.max(edgeA, edgeB))
+    local e
+    while edgeIndex do
+        e = table.remove(self.edges, edgeIndex)
 
-    local a = self.pointsToEdges[e.a]
-    if a then
-        local index = search.first(a, e, edge.compare)
-        assert(index)
+        assert(e.min == math.min(edgeA, edgeB))
+        assert(e.max == math.max(edgeA, edgeB))
 
-        table.remove(a, index)
+        local a = self.pointsToEdges[e.a]
+        if a then
+            local index = search.first(a, e, edge.compare)
+            assert(index)
+
+            table.remove(a, index)
+        end
+
+        local b = self.pointsToEdges[e.b]
+        if b then
+            local index = search.first(b, e, edge.compare)
+            assert(index)
+
+            table.remove(b, index)
+        end
+
+        self:_dissolveSortedEdge(edgeA, edgeB)
+
+        edgeIndex = search.first(self.edges, self.cachedEdge, edge.compare)
     end
 
-    local b = self.pointsToEdges[e.b]
-    if b then
-        local index = search.first(b, e, edge.compare)
-        assert(index)
-
-        table.remove(b, index)
-    end
-
-    self:_dissolveSortedEdge(edgeA, edgeB)
     self.edgesPool:deallocate(e)
 end
 

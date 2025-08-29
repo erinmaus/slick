@@ -100,10 +100,6 @@
                 351.70,
                 457.20,
                 257.30
-            ],
-            "userdata": [
-                { "index": 14, "value": { "door": true } },
-                { "index": 41, "value": { "door": true } }
             ]
         }
     ],

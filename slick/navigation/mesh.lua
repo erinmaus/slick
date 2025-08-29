@@ -17,6 +17,8 @@ local slickmath = require "slick.util.slickmath"
 --- @field triangles slick.navigation.triangle[]
 --- @field inputPoints number[]
 --- @field inputEdges number[]
+--- @field inputExteriorEdges number[]
+--- @field inputInteriorEdges number[]
 --- @field inputUserdata any[]
 --- @field vertexToTriangle table<number, slick.navigation.triangle[]>
 --- @field triangleNeighbors table<number, slick.navigation.triangle[]>
@@ -48,12 +50,11 @@ local function _findSharedTriangle(aTriangles, bTriangles, e)
     return nil, nil
 end
 
---- @param points number[]
---- @param userdata any[]
---- @param edges number[]
---- @param triangles number[][]?
+--- @overload fun(points: number[], userdata: any[], edges: number[]): slick.navigation.mesh
+--- @overload fun(points: number[], userdata: any[], exteriorEdges: number[], interiorEdges: number[]): slick.navigation.mesh
+--- @overload fun(points: number[], userdata: any[], edges: number[], triangles: number[][]): slick.navigation.mesh
 --- @return slick.navigation.mesh
-function mesh.new(points, userdata, edges, triangles)
+function mesh.new(points, userdata, edges, z)
     local self = setmetatable({
         vertices = {},
         edges = {},
@@ -63,6 +64,8 @@ function mesh.new(points, userdata, edges, triangles)
         inputPoints = {},
         inputEdges = {},
         inputUserdata = {},
+        inputExteriorEdges = {},
+        inputInteriorEdges = {},
         vertexToTriangle = {},
         sharedTriangleEdges = {},
         edgeTriangles = {},
@@ -83,12 +86,15 @@ function mesh.new(points, userdata, edges, triangles)
         self.bounds:expand(points[i], points[i + 1])
     end
 
-    for i = 1, #edges do
+    for i = 1, #edges, 2 do
         table.insert(self.inputEdges, edges[i])
+        table.insert(self.inputEdges, edges[i + 1])
+        table.insert(self.inputExteriorEdges, edges[i])
+        table.insert(self.inputExteriorEdges, edges[i + 1])
     end
 
-    if triangles then
-        for _, t in ipairs(triangles) do
+    if z and type(z) == "table" and #z >= 1 and type(z[1]) == "table" and #z[1] == 3 then
+        for _, t in ipairs(z) do
             local n = triangle.new(self.vertices[t[1]], self.vertices[t[2]], self.vertices[t[3]], #self.triangles + 1)
 
             for i = 1, #t do
@@ -226,6 +232,13 @@ function mesh.new(points, userdata, edges, triangles)
                 end
             end
         end
+    elseif z and type(z) == "table" and #z >= 2 and #z % 2 == 0 and type(z[1]) == "number" then
+        for i = 1, #z, 2 do
+            table.insert(self.inputEdges, z[i])
+            table.insert(self.inputEdges, z[i + 1])
+            table.insert(self.inputInteriorEdges, z[i])
+            table.insert(self.inputInteriorEdges, z[i + 1])
+        end
     end
 
     return self
@@ -348,7 +361,7 @@ function mesh:cross(a, b)
             _insideTriangleSegment.a:init(vertex.point.x, vertex.point.y)
             _insideTriangleSegment.b:init(otherVertex.point.x, otherVertex.point.y)
 
-            local i, x, y, u, v = slickmath.intersection(vertex.a, otherVertex.b, a.point, b.point, slickmath.EPSILON)
+            local i, x, y, u, v = slickmath.intersection(vertex.point, otherVertex.point, a.point, b.point, slickmath.EPSILON)
             if i and u and v then
                 intersectedTriangle = true
 

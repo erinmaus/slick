@@ -61,7 +61,7 @@ function search.lessThan(array, value, compare, start, stop)
     
     local result = start - 1
     while start <= stop do
-        local midPoint = math.floor((start + stop) / 2)
+        local midPoint = math.floor((start + stop + 1) / 2)
         if compare(array[midPoint], value) < 0 then
             result = midPoint
             start = midPoint + 1
@@ -108,7 +108,7 @@ function search.greaterThan(array, value, compare, start, stop)
 
     local result = stop + 1
     while start <= stop do
-        local midPoint = math.floor((start + stop) / 2)
+        local midPoint = math.floor((start + stop + 1) / 2)
         if compare(array[midPoint], value) > 0 then
             result = midPoint
             stop = midPoint - 1
