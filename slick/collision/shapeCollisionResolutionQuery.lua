@@ -211,6 +211,9 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
     selfVelocity:add(selfShape.center, _cachedSelfFutureCenter)
 
     selfVelocity:sub(selfOffset, _cachedSelfVelocityMinusOffset)
+
+    _cachedRelativeVelocity:normalize(self.relativeDirection)
+    self.relativeDirection:negate(self.relativeDirection)
     
     self.depth = math.huge
     
