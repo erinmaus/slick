@@ -36,6 +36,15 @@ local function slide(world, query, response, x, y, goalX, goalY, filter, result)
     local touchX, touchY = response.touch.x, response.touch.y
     
     result:push(response)
+    for i = 2, #query.results do
+        local otherResponse = query.results[i]
+        if otherResponse.time > response.time then
+            break
+        end
+
+        result:push(otherResponse)
+    end
+
     world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
 
     return touchX, touchY, newGoalX, newGoalY, nil, nil
@@ -55,6 +64,14 @@ local function touch(world, query, response, x, y, goalX, goalY, filter, result)
     local touchX, touchY = response.touch.x, response.touch.y
     
     result:push(response)
+    for i = 2, #query.results do
+        local otherResponse = query.results[i]
+        if otherResponse.time > response.time then
+            break
+        end
+
+        result:push(otherResponse)
+    end
     world:project(response.item, x, y, response.touch.x, response.touch.y, filter, query)
     
     return touchX, touchY, touchX, touchY, nil, nil
@@ -113,17 +130,12 @@ local _cachedBounceNormal = point.new()
 local _cachedBounceNewGoalPosition = point.new()
 local _cachedBounceDirection = point.new()
 
---- @param world slick.world
---- @param query slick.worldQuery
 --- @param response slick.worldQueryResponse
 --- @param x number
 --- @param y number
 --- @param goalX number
 --- @param goalY number
---- @param filter slick.worldFilterQueryFunc
---- @param result slick.worldQuery
---- @return number, number, number, number, string?, slick.worldQueryResponse?
-local function bounce(world, query, response, x, y, goalX, goalY, filter, result)
+local function getBounceNormal(response, x, y, goalX, goalY)
     _cachedBounceCurrentPosition:init(x, y)
     _cachedBounceTouchPosition:init(response.touch.x, response.touch.y)
     _cachedBounceGoalPosition:init(goalX, goalY)
@@ -140,19 +152,46 @@ local function bounce(world, query, response, x, y, goalX, goalY, filter, result
         response.normal:negate(_cachedBounceNormal)
     end
 
+    return _cachedBounceNormal
+end
+
+--- @param world slick.world
+--- @param query slick.worldQuery
+--- @param response slick.worldQueryResponse
+--- @param x number
+--- @param y number
+--- @param goalX number
+--- @param goalY number
+--- @param filter slick.worldFilterQueryFunc
+--- @param result slick.worldQuery
+--- @return number, number, number, number, string?, slick.worldQueryResponse?
+local function bounce(world, query, response, x, y, goalX, goalY, filter, result)
+    local bounceNormal = getBounceNormal(response, x, y, goalX, goalY)
+
     local maxDistance = _cachedBounceCurrentPosition:distance(_cachedBounceGoalPosition)
     local currentDistance = _cachedBounceCurrentPosition:distance(_cachedBounceTouchPosition)
     local remainingDistance = maxDistance - currentDistance
 
-    _cachedBounceNormal:multiplyScalar(remainingDistance, _cachedBounceNewGoalPosition)
+    bounceNormal:multiplyScalar(remainingDistance, _cachedBounceNewGoalPosition)
     _cachedBounceNewGoalPosition:add(_cachedBounceTouchPosition, _cachedBounceNewGoalPosition)
 
     local newGoalX = _cachedBounceNewGoalPosition.x
     local newGoalY = _cachedBounceNewGoalPosition.y
     local touchX, touchY = response.touch.x, response.touch.y
 
-    response.extra.bounceNormal = query:allocate(point, _cachedBounceNormal.x, _cachedBounceNormal.y)
+    response.extra.bounceNormal = query:allocate(point, bounceNormal.x, bounceNormal.y)
     result:push(response)
+
+    for i = 2, #query.results do
+        local otherResponse = query.results[i]
+        if otherResponse.time > response.time then
+            break
+        end
+
+        local otherBounceNormal = getBounceNormal(response, x, y, goalX, goalY)
+        otherResponse.extra.bounceNormal = query:allocate(point, otherBounceNormal.x, otherBounceNormal.y)
+        result:push(otherResponse)
+    end
 
     world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
     return touchX, touchY, newGoalX, newGoalY
