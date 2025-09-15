@@ -1,5 +1,5 @@
 return {
-    _VERSION = "4.0.0",
+    _VERSION = "4.0.1",
     _DESCRIPTION = "slick is a simple to use polygon collision library inspired by bump.lua",
     _URL = "https://github.com/erinmaus/slick",
     _LICENSE = [[
