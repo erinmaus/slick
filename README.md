@@ -218,7 +218,7 @@ There are currently three built-in collision responses:
 * `"touch"`: stops moving as soon as a collision between entities occurs
 
   ![demo of slick touch respone](./assets/response_touch.gif)
-* `"cross"`: goes through another entity as if it the moving entity is a ghost
+* `"cross"`: goes through another entity as if it the moving entity is a ghost; entities "ghosted" through still be in the `slick.worldQueryResponse`, though they will not contribute to collision resolution.
 
   ![demo of slick cross respone](./assets/response_cross.gif)
 
@@ -231,7 +231,8 @@ There are currently three built-in collision responses:
 * `item`, `entity`, `shape`: The item, entity, and shape of the moving entity.
 * `other`, `otherEntity`, `otherShape`: The item, entity, and shape of the entity we collided with.
 * `response`: The name of the collision response handler that resolved this collision.
-* `normal.x. normal.y`: The surface normal of the collision.
+* `normal.x, normal.y`: The surface normal of the collision. This normal comes from an edge of `otherShape`.
+* `alternateNormal.x, alternateNormal.y`: The other surface normal of the collision. This normal comes from an edge of `shape`.
 * `depth`: The penetration depth. Usually this is 0 since collisions are swept, but other methods that return `slick.worldQueryResponse` for overlapping objects might have a `depth` value greater than zero.
 * `offset.x, offset.y`: The offset from the current position to the new position.
 * `touch.x, touch.y`: This is the sum of the current position before impact and `offset.x, offset.y`
@@ -466,12 +467,12 @@ Below is an API reference for **slick**.
       * `item`, `entity`, `shape`: The item, entity, and shape of the moving entity.
       * `other`, `otherEntity`, `otherShape`: The item, entity, and shape of the entity we collided with.
       * `response`: Either a `string`, `slick.worldVisitFunc`, or `boolean`. See `slick.worldFilterQueryFunc` for valid values.
-      * `normal.x. normal.y`: The surface normal of the collision.
+      * `normal.x, normal.y`: The surface normal of the collision. This normal will belong to an edge of `otherShape`.
+      * `alternateNormal.x, alternateNormal.y`: The other surface normal of the collision. This normal will belong to an edge of `shape`.
       * `depth`: The penetration depth. Usually this is 0 since collisions are swept, but other methods that return `slick.worldQueryResponse` for overlapping objects might have a `depth` value greater than zero.
       * `offset.x, offset.y`: The offset from the current position to the new position.
       * `touch.x, touch.y`: This is the sum of the current position before impact and `offset.x, offset.y`
       * `contactPoint.x, contactPoint.y`: The contact point closest to the center of the entity. For all contact points, use the `contactPoints` array.
-      * `segment.a, segment.b`: The points of the segment that was collided with.
 
   When re-using a `slick.worldQuery`, **all data from the previous usage will be considered invalid**. This is because `slick.worldQuery` re-uses the previous `slick.worldQueryResponse` objects. See advanced usage below. This only applies if you explicitly create a `slick.worldQuery` and pass it into methods like `slick.world.move` and `slick.world.project`.
 
