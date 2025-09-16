@@ -448,15 +448,13 @@ function world:check(item, goalX, goalY, filter, query)
 
             --- @type string
             local responseName
-            if not responseName then
-                if type(result.response) == "function" or type(result.response) == "table" then
-                    responseName = result.response(item, world, query, result, x, y, goalX, goalY)
-                elseif type(result.response) == "string" then
-                    --- @diagnostic disable-next-line: cast-local-type
-                    responseName = result.response
-                else
-                    responseName = "slide"
-                end
+            if type(result.response) == "function" or type(result.response) == "table" then
+                responseName = result.response(item, world, query, result, x, y, goalX, goalY)
+            elseif type(result.response) == "string" then
+                --- @diagnostic disable-next-line: cast-local-type
+                responseName = result.response
+            else
+                responseName = "slide"
             end
             result.response = responseName
 
