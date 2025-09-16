@@ -89,11 +89,6 @@ local function getPlayerGroundContactInfo(player)
             local normalX = -collision.normal.y
             local normalY = collision.normal.x
 
-            if normalX < 0 then
-                normalX = -normalX
-                normalY = -normalY
-            end
-
             return true, normalX, normalY
         end
     end
@@ -153,7 +148,7 @@ local function updatePlayer(player, deltaTime)
     local hitGround = false
     if not isOnGround and not didJump then
         for _, collision in ipairs(collisions) do
-            if math.abs(collision.normal.y) > 0 then
+            if math.abs(dot(collision.normal.x, collision.normal.y, 0, 1)) > 0.5 then
                 local direction = dot(collision.normal.x, collision.normal.y, xOffset, yOffset)
 
                 if not hitGround and direction < 0 and player.velocityY > 0 then
