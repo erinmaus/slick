@@ -1,11 +1,30 @@
 local point = require "slick.geometry.point"
 
+local _cachedSlideNormal = point.new()
 local _cachedSlideCurrentPosition = point.new()
 local _cachedSlideTouchPosition = point.new()
 local _cachedSlideGoalPosition = point.new()
 local _cachedSlideGoalDirection = point.new()
 local _cachedSlideNewGoalPosition = point.new()
 local _cachedSlideDirection = point.new()
+
+local function trySlide(normalX, normalY, touchX, touchY, x, y, goalX, goalY)
+    _cachedSlideCurrentPosition:init(x, y)
+    _cachedSlideTouchPosition:init(touchX, touchY)
+    _cachedSlideGoalPosition:init(goalX, goalY)
+
+    _cachedSlideNormal:init(normalX, normalY)
+    _cachedSlideNormal:left(_cachedSlideGoalDirection)
+
+    _cachedSlideCurrentPosition:direction(_cachedSlideGoalPosition, _cachedSlideNewGoalPosition)
+    _cachedSlideNewGoalPosition:normalize(_cachedSlideDirection)
+
+    local goalDotDirection = _cachedSlideNewGoalPosition:dot(_cachedSlideGoalDirection)
+    _cachedSlideGoalDirection:multiplyScalar(goalDotDirection, _cachedSlideGoalDirection)
+    _cachedSlideTouchPosition:add(_cachedSlideGoalDirection, _cachedSlideNewGoalPosition)
+
+    return _cachedSlideNewGoalPosition.x, _cachedSlideNewGoalPosition.y
+end
 
 --- @param world slick.world
 --- @param query slick.worldQuery
@@ -18,23 +37,6 @@ local _cachedSlideDirection = point.new()
 --- @param result slick.worldQuery
 --- @return number, number, number, number, string?, slick.worldQueryResponse?
 local function slide(world, query, response, x, y, goalX, goalY, filter, result)
-    _cachedSlideCurrentPosition:init(x, y)
-    _cachedSlideTouchPosition:init(response.touch.x, response.touch.y)
-    _cachedSlideGoalPosition:init(goalX, goalY)
-    
-    response.normal:left(_cachedSlideGoalDirection)
-    
-    _cachedSlideCurrentPosition:direction(_cachedSlideGoalPosition, _cachedSlideNewGoalPosition)
-    _cachedSlideNewGoalPosition:normalize(_cachedSlideDirection)
-    
-    local goalDotDirection = _cachedSlideNewGoalPosition:dot(_cachedSlideGoalDirection)
-    _cachedSlideGoalDirection:multiplyScalar(goalDotDirection, _cachedSlideGoalDirection)
-    _cachedSlideTouchPosition:add(_cachedSlideGoalDirection, _cachedSlideNewGoalPosition)
-    
-    local newGoalX = _cachedSlideNewGoalPosition.x
-    local newGoalY = _cachedSlideNewGoalPosition.y
-    local touchX, touchY = response.touch.x, response.touch.y
-    
     result:push(response)
     for i = 2, #query.results do
         local otherResponse = query.results[i]
@@ -45,7 +47,16 @@ local function slide(world, query, response, x, y, goalX, goalY, filter, result)
         result:push(otherResponse)
     end
 
+    local normalX, normalY = response.normal.x, response.normal.y
+    local alternateNormalX, alternateNormalY = response.alternateNormal.x, response.alternateNormal.y
+    local touchX, touchY = response.touch.x, response.touch.y
+
+    local newGoalX, newGoalY = trySlide(normalX, normalY, touchX, touchY, x, y, goalX, goalY)
     world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
+    if #query.results > 0 and query.results[1].time < world.options.epsilon then
+        newGoalX, newGoalY = trySlide(alternateNormalX, alternateNormalY, touchX, touchY, x, y, goalX, goalY)
+        world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
+    end
 
     return touchX, touchY, newGoalX, newGoalY, nil, nil
 end

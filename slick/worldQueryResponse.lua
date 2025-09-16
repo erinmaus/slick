@@ -8,12 +8,13 @@ local slicktable = require("slick.util.slicktable")
 --- @field query slick.worldQuery
 --- @field response string | slick.worldVisitFunc | true
 --- @field item any
---- @field entity slick.entity
+--- @field entity slick.entity | slick.cache
 --- @field shape slick.collision.shape
 --- @field other any?
---- @field otherEntity slick.entity?
+--- @field otherEntity slick.entity | slick.cache | nil
 --- @field otherShape slick.collision.shape?
 --- @field normal slick.geometry.point
+--- @field alternateNormal slick.geometry.point
 --- @field depth number
 --- @field time number
 --- @field offset slick.geometry.point
@@ -33,6 +34,7 @@ function worldQueryResponse.new(query)
         query = query,
         response = "slide",
         normal = point.new(),
+        alternateNormal = point.new(),
         depth = 0,
         time = 0,
         offset = point.new(),
@@ -78,6 +80,7 @@ function worldQueryResponse:init(shape, otherShape, response, position, query)
     self.other = self.otherEntity and self.otherEntity.item
 
     self.normal:init(query.normal.x, query.normal.y)
+    self.alternateNormal:init(query.currentNormal.x, query.currentNormal.y)
     self.depth = query.depth
     self.time = query.time
 

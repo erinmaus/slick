@@ -1,7 +1,6 @@
 local interval = require "slick.collision.interval"
 local point = require "slick.geometry.point"
 local segment = require "slick.geometry.segment"
-local util = require "slick.util"
 local slickmath = require "slick.util.slickmath"
 
 local SIDE_NONE  = 0
@@ -27,17 +26,23 @@ local SIDE_RIGHT = 1
 --- @field epsilon number
 --- @field collision boolean
 --- @field normal slick.geometry.point
+--- @field currentNormal slick.geometry.point
+--- @field otherNormal slick.geometry.point
 --- @field depth number
+--- @field private otherDepth number
+--- @field private currentDepth number
 --- @field time number
 --- @field currentOffset slick.geometry.point
 --- @field otherOffset slick.geometry.point
 --- @field contactPointsCount number
 --- @field contactPoints slick.geometry.point[]
---- @field segment slick.geometry.segment
 --- @field private firstTime number
 --- @field private lastTime number
 --- @field private currentShape slick.collision.shapeCollisionResolutionQueryShape
 --- @field private otherShape slick.collision.shapeCollisionResolutionQueryShape
+--- @field private axis slick.collision.shapeCollisionResolutionQueryAxis?
+--- @field private otherAxis slick.collision.shapeCollisionResolutionQueryAxis?
+--- @field private currentAxis slick.collision.shapeCollisionResolutionQueryAxis?
 --- @field private relativeDirection slick.geometry.point
 local shapeCollisionResolutionQuery = {}
 local metatable = { __index = shapeCollisionResolutionQuery }
@@ -60,7 +65,11 @@ function shapeCollisionResolutionQuery.new(E)
         epsilon = E or slickmath.EPSILON,
         collision = false,
         depth = 0,
+        currentDepth = 0,
+        otherDepth = 0,
         normal = point.new(),
+        currentNormal = point.new(),
+        otherNormal = point.new(),
         time = 0,
         firstTime = 0,
         lastTime = 0,
@@ -93,27 +102,36 @@ end
 function shapeCollisionResolutionQuery:reset()
     self.collision = false
     self.depth = 0
+    self.otherDepth = 0
+    self.currentDepth = 0
     self.time = math.huge
     self.currentOffset:init(0, 0)
     self.otherOffset:init(0, 0)
     self.normal:init(0, 0)
+    self.otherNormal:init(0, 0)
+    self.currentNormal:init(0, 0)
     self.contactPointsCount = 0
-    self.segment.a:init(0, 0)
-    self.segment.b:init(0, 0)
 end
 
 --- @private
 function shapeCollisionResolutionQuery:_beginQuery()
     self.currentShape.axesCount = 0
     self.otherShape.axesCount = 0
+    self.axis = nil
+    self.otherAxis = nil
+    self.currentAxis = nil
 
     self.collision = false
     self.depth = 0
+    self.otherDepth = 0
+    self.currentDepth = 0
     self.firstTime = -math.huge
     self.lastTime = math.huge
     self.currentOffset:init(0, 0)
     self.otherOffset:init(0, 0)
     self.normal:init(0, 0)
+    self.otherNormal:init(0, 0)
+    self.currentNormal:init(0, 0)
     self.contactPointsCount = 0
     self.relativeDirection:init(0, 0)
 end
@@ -162,7 +180,7 @@ function shapeCollisionResolutionQuery:_isShapeMovingAwayFromShape(a, b, aOffset
         for k = 1, currentVertexCount do
             currentVertices[k]:add(aOffset, _cachedCurrentPoint)
 
-            local direction = slickmath.direction(_cachedOtherSegment.a, _cachedOtherSegment.b, _cachedCurrentPoint, slickmath.EPSILON)
+            local direction = slickmath.direction(_cachedOtherSegment.a, _cachedOtherSegment.b, _cachedCurrentPoint, self.epsilon)
             if direction < 0 then
                 sameSide = false
                 break
@@ -216,6 +234,8 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
     self.relativeDirection:negate(self.relativeDirection)
     
     self.depth = math.huge
+    self.otherDepth = math.huge
+    self.currentDepth = math.huge
     
     local hit = true
     local side = SIDE_NONE
@@ -223,7 +243,6 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
     local currentInterval = self.currentShape.currentInterval
     local otherInterval = self.otherShape.currentInterval
 
-    local isTouching = true
     if _cachedRelativeVelocity:lengthSquared() == 0 then
         for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
             local axis = self:_getAxis(i)
@@ -234,20 +253,15 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
             self:_handleAxis(axis)
 
             if self:_compareIntervals(axis) then
-                isTouching = true
                 hit = true
             else
                 hit = false
-                isTouching = false
                 break
             end
         end
-
-        if hit and isTouching and self.depth < self.epsilon then
-            self:_clear()
-            return
-        end
     else
+        local isTouching = true
+
         for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
             local axis = self:_getAxis(i)
 
@@ -339,6 +353,16 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         return
     end
 
+    if hit and self.firstTime < 0 and self.depth <= self.epsilon and self.axis.parent == self.currentShape then
+        self.currentNormal:init(self.normal.x, self.normal.y)
+        self.normal:init(self.otherNormal.x, self.otherNormal.y)
+
+        local otherDirection = slickmath.direction(self.otherAxis.segment.a, self.otherAxis.segment.b, self.currentShape.shape.center, self.epsilon)
+        if otherDirection > 0 then
+            self.normal:negate(self.normal)
+        end
+    end
+
     self.time = math.max(self.firstTime, 0)
 
     if (self.firstTime == 0 and self.lastTime <= 1) or (self.firstTime == -math.huge and self.lastTime == math.huge) then
@@ -362,23 +386,66 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         otherInterval:sort()
 
         if side == SIDE_LEFT then
-            selfShape.vertices[currentInterval.indices[currentInterval.minIndex].index]:add(self.currentOffset, _cachedSegmentA.a)
-            selfShape.vertices[currentInterval.indices[currentInterval.minIndex + 1].index]:add(self.currentOffset, _cachedSegmentA.b)
+            local selfA = currentInterval.indices[currentInterval.minIndex].index
+            local selfB = currentInterval.indices[currentInterval.minIndex + 1].index
+            if ((selfA == 1 or selfB == 1) and (selfA == selfShape.vertexCount or selfB == selfShape.vertexCount)) then
+                selfA, selfB = math.max(selfA, selfB), math.min(selfA, selfB)
+            else
+                selfA, selfB = math.min(selfA, selfB), math.max(selfA, selfB)
+            end
 
-            otherShape.vertices[otherInterval.indices[otherInterval.maxIndex].index]:add(self.otherOffset, _cachedSegmentB.a)
-            otherShape.vertices[otherInterval.indices[otherInterval.maxIndex - 1].index]:add(self.otherOffset, _cachedSegmentB.b)
+            selfShape.vertices[selfA]:add(self.currentOffset, _cachedSegmentA.a)
+            selfShape.vertices[selfB]:add(self.currentOffset, _cachedSegmentA.b)
+
+            _cachedSegmentA.a:direction(_cachedSegmentA.b, self.currentNormal)
+            self.currentNormal:normalize(self.currentNormal)
+            self.currentNormal:left(self.currentNormal)
+
+            local otherA = otherInterval.indices[otherInterval.maxIndex].index
+            local otherB = otherInterval.indices[otherInterval.maxIndex - 1].index
+            if ((otherA == 1 or otherB == 1) and (otherA == otherShape.vertexCount or otherB == otherShape.vertexCount)) then
+                otherA, otherB = math.max(otherA, otherB), math.min(otherA, otherB)
+            else
+                otherA, otherB = math.min(otherA, otherB), math.max(otherA, otherB)
+            end
+            
+            otherShape.vertices[otherA]:add(self.otherOffset, _cachedSegmentB.a)
+            otherShape.vertices[otherB]:add(self.otherOffset, _cachedSegmentB.b)
+
             _cachedSegmentB.a:direction(_cachedSegmentB.b, self.normal)
+            self.normal:normalize(self.normal)
+            self.normal:left(self.normal)
         elseif side == SIDE_RIGHT then
-            otherShape.vertices[otherInterval.indices[otherInterval.minIndex].index]:add(self.otherOffset, _cachedSegmentA.a)
-            otherShape.vertices[otherInterval.indices[otherInterval.minIndex + 1].index]:add(self.otherOffset, _cachedSegmentA.b)
-            _cachedSegmentA.a:direction(_cachedSegmentA.b, self.normal)
+            local selfA = currentInterval.indices[currentInterval.maxIndex].index
+            local selfB = currentInterval.indices[currentInterval.maxIndex - 1].index
+            if ((selfA == 1 or selfB == 1) and (selfA == selfShape.vertexCount or selfB == selfShape.vertexCount)) then
+                selfA, selfB = math.max(selfA, selfB), math.min(selfA, selfB)
+            else
+                selfA, selfB = math.min(selfA, selfB), math.max(selfA, selfB)
+            end
 
-            selfShape.vertices[currentInterval.indices[currentInterval.maxIndex - 1].index]:add(self.currentOffset, _cachedSegmentB.a)
-            selfShape.vertices[currentInterval.indices[currentInterval.maxIndex].index]:add(self.currentOffset, _cachedSegmentB.b)
+            selfShape.vertices[selfA]:add(self.currentOffset, _cachedSegmentA.a)
+            selfShape.vertices[selfB]:add(self.currentOffset, _cachedSegmentA.b)
+
+            _cachedSegmentA.a:direction(_cachedSegmentA.b, self.currentNormal)
+            self.currentNormal:normalize(self.currentNormal)
+            self.currentNormal:left(self.currentNormal)
+
+            local otherA = otherInterval.indices[otherInterval.minIndex].index
+            local otherB = otherInterval.indices[otherInterval.minIndex + 1].index
+            if ((otherA == 1 or otherB == 1) and (otherA == otherShape.vertexCount or otherB == otherShape.vertexCount)) then
+                otherA, otherB = math.max(otherA, otherB), math.min(otherA, otherB)
+            else
+                otherA, otherB = math.min(otherA, otherB), math.max(otherA, otherB)
+            end
+
+            otherShape.vertices[otherA]:add(self.otherOffset, _cachedSegmentB.a)
+            otherShape.vertices[otherB]:add(self.otherOffset, _cachedSegmentB.b)
+
+            _cachedSegmentB.a:direction(_cachedSegmentB.b, self.normal)
+            self.normal:normalize(self.normal)
+            self.normal:left(self.normal)
         end
-        
-        self.normal:normalize(self.normal)
-        self.normal:left(self.normal)
 
         local intersection, x, y
         if _cachedSegmentA:overlap(_cachedSegmentB) then
@@ -490,10 +557,32 @@ function shapeCollisionResolutionQuery:_compareIntervals(axis)
         end
     end
 
+    if axis.parent == self.otherShape and depth < self.otherDepth then
+        self.otherDepth = depth
+        self.otherNormal:init(axis.normal.x, axis.normal.y)
+
+        if negate then
+            self.otherNormal:negate(self.otherNormal)
+        end
+
+        self.otherAxis = axis
+    end
+
+    if axis.parent == self.currentShape and depth < self.currentDepth then
+        self.currentDepth = depth
+        self.currentNormal:init(axis.normal.x, axis.normal.y)
+
+        if negate then
+            self.currentNormal:negate(self.currentNormal)
+        end
+
+        self.currentAxis = axis
+    end
+
     if depth < self.depth then
         self.depth = depth
         self.normal:init(axis.normal.x, axis.normal.y)
-        self.segment:init(axis.segment.a, axis.segment.b)
+        self.axis = axis
 
         if negate then
             self.normal:negate(self.normal)
@@ -527,8 +616,6 @@ function shapeCollisionResolutionQuery:_clear()
     self.time = 0
     self.normal:init(0, 0)
     self.contactPointsCount = 0
-    self.segment.a:init(0, 0)
-    self.segment.b:init(0, 0)
 end
 
 function shapeCollisionResolutionQuery:_handleAxis(axis)
