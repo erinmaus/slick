@@ -304,4 +304,12 @@ function worldQuery:push(response, copy)
     table.insert(self.results, result)
 end
 
+--- @param other slick.worldQuery
+--- @param copy boolean?
+function worldQuery:move(other, copy)
+    for _, response in ipairs(self.results) do
+        other:push(response, copy)
+    end
+end
+
 return worldQuery
