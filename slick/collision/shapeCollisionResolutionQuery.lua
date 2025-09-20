@@ -294,7 +294,7 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         end
     end
 
-    if hit and self.depth < self.epsilon and _cachedRelativeVelocity:lengthSquared() > 0 then
+    if hit and (self.depth == math.huge or self.depth < self.epsilon) and _cachedRelativeVelocity:lengthSquared() > 0 then
         hit = not (
             self:_isShapeMovingAwayFromShape(self.currentShape, self.otherShape, selfOffset, otherOffset, 1) or
             self:_isShapeMovingAwayFromShape(self.otherShape, self.currentShape, otherOffset, selfOffset, -1))
@@ -346,6 +346,10 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         if areShapesMovingApart and isOtherShapeMovingAwayFromEdge and isSelfShapeMovingFasterishThanOtherShape and isMoving then
             hit = false
         end
+    end
+
+    if self.firstTime <= self.epsilon and self.depth == 0 and _cachedRelativeVelocity:lengthSquared() < self.epsilon then
+        hit = false
     end
 
     if not hit then
