@@ -1,4 +1,17 @@
 local point = require "slick.geometry.point"
+local worldQuery = require "slick.worldQuery"
+
+local _workingQueries = setmetatable({}, { __mode = "k" })
+
+local function getWorkingQuery(world)
+    local workingQuery = _workingQueries[world]
+    if not _workingQueries[world] then
+        workingQuery = worldQuery.new(world)
+        _workingQueries[world] = workingQuery
+    end
+
+    return workingQuery
+end
 
 local _cachedSlideNormal = point.new()
 local _cachedSlideCurrentPosition = point.new()
@@ -37,25 +50,50 @@ end
 --- @param result slick.worldQuery
 --- @return number, number, number, number, string?, slick.worldQueryResponse?
 local function slide(world, query, response, x, y, goalX, goalY, filter, result)
-    result:push(response)
-    for i = 2, #query.results do
+    local q = getWorkingQuery(world)
+
+    local touchX, touchY = response.touch.x, response.touch.y
+    local newGoalX, newGoalY = response.touch.x, response.touch.y
+    local didSlide = false
+
+    for i = 1, #query.results do
         local otherResponse = query.results[i]
         if otherResponse.time > response.time then
             break
         end
 
         result:push(otherResponse)
+
+        if not didSlide then
+            local workingGoalX, workingGoalY = trySlide(otherResponse.normal.x, otherResponse.normal.y, otherResponse.touch.x, otherResponse.touch.y, x, y, goalX, goalY)
+            world:project(response.item, otherResponse.touch.x, otherResponse.touch.y, workingGoalX, workingGoalY, filter, q)
+            if #q.results == 0 or q.results[1].time > world.options.epsilon then
+                didSlide = true
+
+                touchX = otherResponse.touch.x
+                touchY = otherResponse.touch.y
+                newGoalX = workingGoalX
+                newGoalY = workingGoalY
+            else
+                workingGoalX, workingGoalY = trySlide(otherResponse.alternateNormal.x, otherResponse.alternateNormal.y, otherResponse.touch.x, otherResponse.touch.y, x, y, goalX, goalY)
+                world:project(response.item, otherResponse.touch.x, otherResponse.touch.y, workingGoalX, workingGoalY, filter, q)
+                if #q.results == 0 or q.results[1].time > world.options.epsilon then
+                    didSlide = true
+
+                    touchX = otherResponse.touch.x
+                    touchY = otherResponse.touch.y
+                    newGoalX = workingGoalX
+                    newGoalY = workingGoalY
+                end
+            end
+        end
     end
 
-    local normalX, normalY = response.normal.x, response.normal.y
-    local alternateNormalX, alternateNormalY = response.alternateNormal.x, response.alternateNormal.y
-    local touchX, touchY = response.touch.x, response.touch.y
-
-    local newGoalX, newGoalY = trySlide(normalX, normalY, touchX, touchY, x, y, goalX, goalY)
-    world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
-    if #query.results > 0 and query.results[1].time < world.options.epsilon then
-        newGoalX, newGoalY = trySlide(alternateNormalX, alternateNormalY, touchX, touchY, x, y, goalX, goalY)
-        world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
+    if didSlide then
+        query:reset()
+        q:move(query, true)
+    else
+        world:project(response.item, response.touch.x, response.touch.y, goalX, goalY, filter, query)
     end
 
     return touchX, touchY, newGoalX, newGoalY, nil, nil
