@@ -107,9 +107,18 @@ local function slide(world, query, response, x, y, goalX, goalY, filter, result)
             newGoalY = workingGoalY
         end
     end
-
     
     if didSlide then
+        for i = index + 1, #query.results do
+            local otherResponse = query.results[i]
+            if otherResponse.time > response.time then
+                break
+            end
+
+            world:respond(otherResponse, query, touchX, touchY, newGoalX, newGoalY, false)
+            result:push(otherResponse)
+        end
+
         world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
         return touchX, touchY, newGoalX, newGoalY, nil, nil
     else
