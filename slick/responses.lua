@@ -39,6 +39,37 @@ local function trySlide(normalX, normalY, touchX, touchY, x, y, goalX, goalY)
     return _cachedSlideNewGoalPosition.x, _cachedSlideNewGoalPosition.y
 end
 
+
+--- @param world slick.world
+--- @param response slick.worldQueryResponse
+--- @param query slick.worldQuery
+--- @param x number
+--- @param y number
+--- @param goalX number
+--- @param goalY number
+--- @return boolean
+local function findDidSlide(world, response, query, x, y, goalX, goalY)
+    if #query.results == 0 or query.results[1].time > 0 then
+        return true
+    end
+
+    local didSlide = true
+    for _, otherResponse in ipairs(query.results) do
+        if otherResponse.time > 0 then
+            didSlide = false
+            break
+        end
+
+        local otherResponseName = world:respond(otherResponse, query, x, y, goalX, goalY, true)
+        if (otherResponse.shape == response.shape and otherResponse.otherShape == response.otherShape) or otherResponseName == "slide" then
+            didSlide = false
+            break
+        end
+    end
+
+    return didSlide
+end
+
 --- @param world slick.world
 --- @param query slick.worldQuery
 --- @param response slick.worldQueryResponse
@@ -50,53 +81,41 @@ end
 --- @param result slick.worldQuery
 --- @return number, number, number, number, string?, slick.worldQueryResponse?
 local function slide(world, query, response, x, y, goalX, goalY, filter, result)
-    local q = getWorkingQuery(world)
+    result:push(response)
 
     local touchX, touchY = response.touch.x, response.touch.y
-    local newGoalX, newGoalY = response.touch.x, response.touch.y
+    local newGoalX, newGoalY = goalX, goalY
+
+    local index = query:getResponseIndex(response)
     local didSlide = false
+    local q = getWorkingQuery(world)
 
-    for i = 1, #query.results do
-        local otherResponse = query.results[i]
-        if otherResponse.time > response.time then
-            break
-        end
-
-        result:push(otherResponse)
-
-        if not didSlide then
-            local workingGoalX, workingGoalY = trySlide(otherResponse.normal.x, otherResponse.normal.y, otherResponse.touch.x, otherResponse.touch.y, x, y, goalX, goalY)
-            world:project(response.item, otherResponse.touch.x, otherResponse.touch.y, workingGoalX, workingGoalY, filter, q)
-            if #q.results == 0 or q.results[1].time > world.options.epsilon then
-                didSlide = true
-
-                touchX = otherResponse.touch.x
-                touchY = otherResponse.touch.y
-                newGoalX = workingGoalX
-                newGoalY = workingGoalY
-            else
-                workingGoalX, workingGoalY = trySlide(otherResponse.alternateNormal.x, otherResponse.alternateNormal.y, otherResponse.touch.x, otherResponse.touch.y, x, y, goalX, goalY)
-                world:project(response.item, otherResponse.touch.x, otherResponse.touch.y, workingGoalX, workingGoalY, filter, q)
-                if #q.results == 0 or q.results[1].time > world.options.epsilon then
-                    didSlide = true
-
-                    touchX = otherResponse.touch.x
-                    touchY = otherResponse.touch.y
-                    newGoalX = workingGoalX
-                    newGoalY = workingGoalY
-                end
-            end
-        end
-    end
-
+    local workingGoalX, workingGoalY = trySlide(response.normal.x, response.normal.y, response.touch.x, response.touch.y, x, y, goalX, goalY)
+    world:project(response.item, response.touch.x, response.touch.y, workingGoalX, workingGoalY, filter, q)
+    didSlide = findDidSlide(world, response, q, response.touch.x, response.touch.y, workingGoalX, workingGoalY)
+    
     if didSlide then
-        query:reset()
-        q:move(query, true)
+        newGoalX = workingGoalX
+        newGoalY = workingGoalY
     else
-        world:project(response.item, response.touch.x, response.touch.y, goalX, goalY, filter, query)
+        workingGoalX, workingGoalY = trySlide(response.alternateNormal.x, response.alternateNormal.y, response.touch.x, response.touch.y, x, y, goalX, goalY)
+        world:project(response.item, response.touch.x, response.touch.y, workingGoalX, workingGoalY, filter, q)
+
+        didSlide = findDidSlide(world, response, q, response.touch.x, response.touch.y, workingGoalX, workingGoalY)
+        if didSlide then
+            newGoalX = workingGoalX
+            newGoalY = workingGoalY
+        end
     end
 
-    return touchX, touchY, newGoalX, newGoalY, nil, nil
+    
+    if didSlide then
+        world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
+        return touchX, touchY, newGoalX, newGoalY, nil, nil
+    else
+        local nextResponse = query.results[index + 1]
+        return touchX, touchY, goalX, goalY, nil, nextResponse
+    end
 end
 
 --- @param world slick.world
@@ -110,20 +129,13 @@ end
 --- @param result slick.worldQuery
 --- @return number, number, number, number, string?, slick.worldQueryResponse?
 local function touch(world, query, response, x, y, goalX, goalY, filter, result)
-    local touchX, touchY = response.touch.x, response.touch.y
-    
     result:push(response)
-    for i = 2, #query.results do
-        local otherResponse = query.results[i]
-        if otherResponse.time > response.time then
-            break
-        end
 
-        result:push(otherResponse)
-    end
-    world:project(response.item, x, y, response.touch.x, response.touch.y, filter, query)
-    
-    return touchX, touchY, touchX, touchY, nil, nil
+    local touchX, touchY = response.touch.x, response.touch.y
+
+    local index = query:getResponseIndex(response)
+    local nextResponse = query.results[index + 1]
+    return touchX, touchY, touchX, touchY, nil, nextResponse
 end
 
 --- @param world slick.world
@@ -139,36 +151,14 @@ end
 local function cross(world, query, response, x, y, goalX, goalY, filter, result)
     result:push(response)
 
-    local index = 1
-    local nextResponseName
-    for i = 2, #query.results do
-        local otherResponse = query.results[i]
+    local index = query:getResponseIndex(response)
+    local nextResponse = query.results[index + 1]
 
-        if type(otherResponse.response) == "function" or type(otherResponse.response) == "table" then
-            nextResponseName = otherResponse.response(otherResponse.item, world, query, otherResponse, x, y, goalX, goalY)
-        elseif type(otherResponse.response) == "string" then
-            --- @diagnostic disable-next-line: cast-local-type
-            nextResponseName = otherResponse.response
-        else
-            nextResponseName = "slide"
-        end
-
-        otherResponse.response = nextResponseName
-
-        if nextResponseName == "cross" then
-            result:push(otherResponse)
-            index = i
-        else
-            break
-        end
-    end
-
-    if index == #query.results or #query.results == 0 then
-        world:project(response.item, x, y, goalX, goalY, filter, query)
+    if not nextResponse then
+        world:project(response.item, goalX, goalY, goalX, goalY, filter, query)
         return goalX, goalY, goalX, goalY, nil, nil
     end
 
-    local nextResponse = query.results[index + 1]
     return nextResponse.touch.x, nextResponse.touch.y, goalX, goalY, nil, nextResponse
 end
 
@@ -231,19 +221,8 @@ local function bounce(world, query, response, x, y, goalX, goalY, filter, result
     response.extra.bounceNormal = query:allocate(point, bounceNormal.x, bounceNormal.y)
     result:push(response)
 
-    for i = 2, #query.results do
-        local otherResponse = query.results[i]
-        if otherResponse.time > response.time then
-            break
-        end
-
-        local otherBounceNormal = getBounceNormal(response, x, y, goalX, goalY)
-        otherResponse.extra.bounceNormal = query:allocate(point, otherBounceNormal.x, otherBounceNormal.y)
-        result:push(otherResponse)
-    end
-
     world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
-    return touchX, touchY, newGoalX, newGoalY
+    return touchX, touchY, newGoalX, newGoalY, nil, nil
 end
 
 return {

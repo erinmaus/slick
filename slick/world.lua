@@ -24,7 +24,7 @@ local function defaultWorldShapeFilterQueryFunc()
 end
 
 --- @alias slick.worldResponseFunc fun(world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, filter: slick.worldFilterQueryFunc, result: slick.worldQuery): number, number, number, number, string?, slick.worldQueryResponse
---- @alias slick.worldVisitFunc fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number): string
+--- @alias slick.worldVisitFunc fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, projection: boolean): string
 
 --- @class slick.world
 --- @field cache slick.cache
@@ -328,6 +328,16 @@ function world:project(item, x, y, goalX, goalY, filter, query)
     return query.results, #query.results, query
 end
 
+--- @param item any
+--- @param x number
+--- @param y number
+--- @param filter slick.worldFilterQueryFunc?
+--- @param query slick.worldQuery?
+--- @return slick.worldQueryResponse[], number, slick.worldQuery
+function world:test(item, x, y, filter, query)
+    return self:project(item, x, y, x, y, filter, query)
+end
+
 local _cachedQueryRectangle = rectangle.new()
 
 --- @param x number
@@ -404,6 +414,31 @@ function world:queryPoint(x, y, filter, query)
     return query.results, #query.results, query
 end
 
+--- @param result slick.worldQueryResponse
+--- @param query slick.worldQuery
+--- @param x number
+--- @param y number
+--- @param goalX number
+--- @param goalY number
+--- @param projection? boolean
+--- @return string
+function world:respond(result, query, x, y, goalX, goalY, projection)
+    --- @type string
+    local responseName
+    if type(result.response) == "function" or type(result.response) == "table" then
+        responseName = result.response(result.item, self, query, result, x, y, goalX, goalY, not not projection)
+    elseif type(result.response) == "string" then
+        --- @diagnostic disable-next-line: cast-local-type
+        responseName = result.response
+    else
+        responseName = "slide"
+    end
+    result.response = responseName
+
+    --- @cast responseName string
+    return responseName
+end
+
 local _cachedRemappedHandlers = {}
 
 --- @param item any
@@ -432,13 +467,16 @@ function world:check(item, goalX, goalY, filter, query)
     if #cachedQuery.results == 0 then
         return goalX, goalY, query.results, #query.results, query
     end
-    
+
+    local previousX, previousY
+
     local actualX, actualY
     local bounces = 0
     while bounces < self.options.maxBounces and #cachedQuery.results > 0 do
         bounces = bounces + 1
 
         local result = cachedQuery.results[1]
+        local time = result.time
 
         --- @type slick.collision.shape
         local shape, otherShape
@@ -447,18 +485,7 @@ function world:check(item, goalX, goalY, filter, query)
             otherShape = result.otherShape
 
             --- @type string
-            local responseName
-            if type(result.response) == "function" or type(result.response) == "table" then
-                responseName = result.response(item, world, query, result, x, y, goalX, goalY)
-            elseif type(result.response) == "string" then
-                --- @diagnostic disable-next-line: cast-local-type
-                responseName = result.response
-            else
-                responseName = "slide"
-            end
-            result.response = responseName
-
-            --- @cast responseName string
+            local responseName = self:respond(result, query, x, y, goalX, goalY, false)
             responseName = _cachedRemappedHandlers[otherShape] or responseName
 
             assert(type(responseName) == "string", "expect name of response handler as string")
@@ -472,12 +499,30 @@ function world:check(item, goalX, goalY, filter, query)
             _cachedRemappedHandlers[otherShape] = remappedResponseName
 
             result = nextResult
-        until not result
+        until not result or result.time > time
 
         local isStationary = x == goalX and y == goalY
+        local didNotMove = x == previousX and y == previousY
+
         local isSameCollision = #cachedQuery.results >= 1 and cachedQuery.results[1].shape == shape and cachedQuery.results[1].otherShape == otherShape
+        for i = 2, #cachedQuery.results do
+            if isSameCollision then
+                break
+            end
+
+            if cachedQuery.results[i].time > cachedQuery.results[1].time then
+                break
+            end
+            
+            if cachedQuery.results[i].shape == shape and cachedQuery.results[i].otherShape == otherShape then
+                isSameCollision = true
+                break
+            end
+        end
+
         local hasNoCollisions = #cachedQuery.results == 0
-        if hasNoCollisions or (isSameCollision and isStationary) then
+
+        if hasNoCollisions or isStationary then
             actualX = goalX
             actualY = goalY
             break
@@ -485,6 +530,12 @@ function world:check(item, goalX, goalY, filter, query)
             actualX = x
             actualY = y
         end
+
+        if didNotMove and isSameCollision then
+            break
+        end
+
+        previousX, previousY = x, y
     end
 
     return actualX, actualY, query.results, #query.results, query

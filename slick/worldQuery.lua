@@ -291,6 +291,18 @@ function worldQuery:_addCollision(shape, otherShape, response, offset, primitive
 end
 
 --- @param response slick.worldQueryResponse
+--- @return number
+function worldQuery:getResponseIndex(response)
+    for i, otherResponse in ipairs(self.results) do
+        if otherResponse == response then
+            return i
+        end
+    end
+
+    return #self.results + 1
+end
+
+--- @param response slick.worldQueryResponse
 --- @param copy boolean?
 function worldQuery:push(response, copy)
     local index = #self.results + 1
