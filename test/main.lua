@@ -28,7 +28,7 @@ local deltaFuncs = {
     end,
 
     function ()
-        return 1 / 1000
+        return 1 / 100000
     end,
 
     function()
@@ -42,7 +42,7 @@ local deltaFuncNames = {
     "random() <= 1 / 60",
     "0, then 1/60, then 0, then 1/60... and so on",
     "0.25",
-    "1 / 1000",
+    "1 / 100000",
     "random() <= 1 / 1000",
 }
 

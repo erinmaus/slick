@@ -321,7 +321,7 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         end
     end
 
-    if self.firstTime <= self.epsilon and self.depth == 0 and _cachedRelativeVelocity:lengthSquared() < self.epsilon then
+    if self.firstTime <= 0 and self.depth == 0 and _cachedRelativeVelocity:lengthSquared() == 0 then
         hit = false
     end
 
