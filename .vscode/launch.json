@@ -21,7 +21,7 @@
 			"request": "launch",
 			"name": "Test",
 			"program": {
-				"command": "./tests.sh"
+				"command": "./test.sh"
 			},
 			"args": [
 				".",

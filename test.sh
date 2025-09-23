@@ -6,4 +6,4 @@ if [ -f "./.vscode/.env" ]; then
     set -a && source ./.vscode/.env && set +a
 fi
 
-"${LOVE_BINARY:-love}" sheepo2.lua
+"${LOVE_BINARY:-love}" test.lua

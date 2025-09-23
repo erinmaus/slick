@@ -145,6 +145,7 @@ function worldQueryResponse:move(other, copy)
     other.other = self.other
 
     other.normal:init(self.normal.x, self.normal.y)
+    other.alternateNormal:init(self.alternateNormal.x, self.alternateNormal.y)
     other.depth = self.depth
     other.time = self.time
     other.offset:init(self.offset.x, self.offset.y)

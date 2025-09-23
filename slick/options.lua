@@ -1,5 +1,3 @@
-local slickmath = require "slick.util.slickmath"
-
 --- @class slick.options
 --- @field epsilon number?
 --- @field maxBounces number?

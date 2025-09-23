@@ -80,6 +80,7 @@ world:remove(level)
        * [slick.world.move](#slickworldmove): Move an item in the world performing collision response
        * [slick.world.check](#slickworldcheck): Simulate moving an item in the world performing collision response
        * [slick.world.project](#slickworldproject): Project an item in the world from one position to another position without collision response
+       * [slick.world.test](#slickworldproject): Tests an item in the world at the specified position without collision response
        * [slick.world.push](#slickworldpush): Attempt to push a potentially penetrating item in the world
        * [slick.world.rotate](#slickworldrotate): Attempt to rotate an item in the world and then push potentially penetrating items out
        * [slick.world.queryPoint](#slickworldquerypoint): Query all items under the point in the world
@@ -335,6 +336,29 @@ Below is an API reference for **slick**.
 
   This can be used to build custom collision response handlers and other advanced functionality.
 
+<a id="slickworldtest"></a>
+
+* `slick.world:test(item, x: number, y: number, filter: slick.worldFilterQueryFunc?, query: slick.worldQuery?): slick.worldQueryResponse[], number, slick.worldQuery`
+
+  Tests all collisions as if `item` were at (`x`, `y`) and **is not moving.** Returns all **current collisions** in no particular order since `time` will always be 0.
+
+  For advanced usage with the `query` parameter, see `slick.world.move` above.
+
+  This can be used to build custom "move then collide" response handlers and other advanced functionality while still utilizing **slick**'s broadphase and polygon collision features. For example, instead of `move` you could do something like this:
+
+  ```lua
+  local collisions = world:test(item, goalX, goalY)
+  for _, collision in ipairs(collisions) do
+    world:update(item, goalX + collision.normal.x * collision.depth, goalY + collision.normal.y * collision.depth)
+  end
+  ```
+
+  This will effectively **move** an object to (`goalX`, `goalY`) and then **push** it out of any collisions. You'd obviously want something a little more robust than this... But that's the idea!
+
+  Only use **small movement values** or you might just skip over objects between your current position and next position! `slick.world.project` is better if you want to handle all collisions between the current position and next position.
+
+  Also... This method isn't special! `slick.world:test` is just a shortcut for `slick.world:project(item, x, y, x, y, filter, query)`.
+
 <a id="slickworldpush"></a>
 
 * `slick.world:push(item, filter: slick.worldFilterQueryFunc, x: number, y: number, shape: slick.collision.shapelike?): number, number` **or** `slick.world:push(item, filter: slick.worldFilterQueryFunc, transform: slick.geometry.transform, shape: slick.collision.shapelike?): number, number`
@@ -441,11 +465,17 @@ Below is an API reference for **slick**.
 
 * `slick.worldVisitFunc`
 
+  **This is a very advanced feature.** Prefer returning a string or boolean from `slick.worldFilterQueryFunc` and handling actions based on the `collision` return value of `project`, `check`, `move`, etc. You might use this function if you want to immediately remove an `item` from the world during the collision response so it no longer is considered. Similarly, say `response.other` is an enemy and you want to return `touch` on the first collision with `item` (e.g., a player) and `cross` on each one after; you can do this using a `slick.worldVisitFunc`.
+
   This represents a "visitor" function (or table with a `__call` metatable method) that is called when two entities collide, but before the collision response happens.
 
   The signature of this function is:
 
-  `fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number): string`
+  `fun(item: any, world: slick.world, query: slick.worldQuery, response: slick.worldQueryResponse, x: number, y: number, goalX: number, goalY: number, projection: boolean): string`
+
+  If `projection` is true, then this collision may not actually occur; if `projection` is false, then this collision definitely did occur. Keep this in mind if you're doing any logic during the visit (e.g., deleting entities based on collisions, handling damage, that sort of thing; you would **only** want to perform an action if `projection` is **`true`**). When `projection` is **true**, then the collision will also be returned in the collisions returned by `move`, `check`, etc.
+  
+  The (`x`, `y`) and (`goalX`, `goalY`) might not be what you passed into `move`, or `check`. Instead, (`x`, `y`) will be **current** of position of the collision response system. Similarly, (`goalX`, `goalY`) will the be the **current** goal of the collision response system. These can change over time, as collisions are resolved. For example, `slide` might cause a new (`goalX`, `goalY`) to be evaluated.
 
   The return value is expected to be the name of a collision response handler; if nothing is returned, this defaults to `slide`.
 

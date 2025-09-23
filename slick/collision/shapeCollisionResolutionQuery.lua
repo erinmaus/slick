@@ -188,7 +188,7 @@ function shapeCollisionResolutionQuery:_isShapeMovingAwayFromShape(a, b, aOffset
         end
         
         if sameSide then
-            if (scalar * self.relativeDirection:dot(_cachedOtherNormal)) >= 0 then
+            if (scalar * self.relativeDirection:dot(_cachedOtherNormal)) >= -self.epsilon then
                 return true
             end
         end
@@ -197,8 +197,6 @@ function shapeCollisionResolutionQuery:_isShapeMovingAwayFromShape(a, b, aOffset
     return false
 end
 
-local _cachedSelfVelocityDirection = point.new()
-local _cachedOtherVelocityDirection = point.new()
 local _cachedRelativeVelocity = point.new()
 local _cachedSelfFutureCenter = point.new()
 local _cachedSelfVelocityMinusOffset = point.new()
@@ -323,31 +321,6 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         end
     end
 
-    if hit and self.firstTime <= 0 and self.depth < math.huge then
-        local selfSpeed = selfVelocity:length()
-        local otherSpeed = otherVelocity:length()
-
-        _cachedSelfVelocityDirection:init(selfVelocity.x, selfVelocity.y)
-        if selfSpeed > 0 then
-            _cachedSelfVelocityDirection:divideScalar(selfSpeed, _cachedSelfVelocityDirection)
-        end
-
-        _cachedOtherVelocityDirection:init(otherVelocity.x, otherVelocity.y)
-        if otherSpeed > 0 then
-            _cachedOtherVelocityDirection:divideScalar(otherSpeed, _cachedOtherVelocityDirection)
-        end
-
-        local areShapesMovingApart = selfSpeed == 0 or otherSpeed == 0 or
-        _cachedSelfVelocityDirection:dot(_cachedOtherVelocityDirection) <= self.epsilon
-        local isOtherShapeMovingAwayFromEdge = _cachedSelfVelocityDirection:dot(self.normal) > -self.epsilon
-        local isSelfShapeMovingFasterishThanOtherShape = selfSpeed >= otherSpeed
-        local isMoving = selfSpeed > 0 or otherSpeed > 0
-
-        if areShapesMovingApart and isOtherShapeMovingAwayFromEdge and isSelfShapeMovingFasterishThanOtherShape and isMoving then
-            hit = false
-        end
-    end
-
     if self.firstTime <= self.epsilon and self.depth == 0 and _cachedRelativeVelocity:lengthSquared() < self.epsilon then
         hit = false
     end
@@ -364,6 +337,7 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         local otherDirection = slickmath.direction(self.otherAxis.segment.a, self.otherAxis.segment.b, self.currentShape.shape.center, self.epsilon)
         if otherDirection > 0 then
             self.normal:negate(self.normal)
+            self.currentNormal:negate(self.currentNormal)
         end
     end
 
@@ -609,6 +583,8 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
     if self.collision then
         self.normal:round(self.normal, self.epsilon)
         self.normal:normalize(self.normal)
+        self.currentNormal:round(self.currentNormal, self.epsilon)
+        self.currentNormal:normalize(self.currentNormal)
     end
 
     return self.collision
