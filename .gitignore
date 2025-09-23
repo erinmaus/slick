@@ -3,3 +3,6 @@
 *.zip
 *.tar.gz
 *.love
+*.AppImage
+artifacts.json
+./bin

@@ -337,6 +337,7 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         local otherDirection = slickmath.direction(self.otherAxis.segment.a, self.otherAxis.segment.b, self.currentShape.shape.center, self.epsilon)
         if otherDirection > 0 then
             self.normal:negate(self.normal)
+            self.currentNormal:negate(self.currentNormal)
         end
     end
 
@@ -582,6 +583,8 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
     if self.collision then
         self.normal:round(self.normal, self.epsilon)
         self.normal:normalize(self.normal)
+        self.currentNormal:round(self.currentNormal, self.epsilon)
+        self.currentNormal:normalize(self.currentNormal)
     end
 
     return self.collision
