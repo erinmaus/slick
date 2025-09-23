@@ -30,7 +30,7 @@ local SIDE_RIGHT = 1
 --- @field otherNormal slick.geometry.point
 --- @field depth number
 --- @field private otherDepth number
---- @field private currentDepth number
+--- @field currentDepth number
 --- @field time number
 --- @field currentOffset slick.geometry.point
 --- @field otherOffset slick.geometry.point
@@ -330,8 +330,11 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         return
     end
 
-    if hit and self.firstTime < 0 and self.depth <= self.epsilon and self.axis.parent == self.currentShape then
+    if hit and self.firstTime < 0 and self.axis.parent == self.currentShape then
+        self.currentDepth = self.depth
         self.currentNormal:init(self.normal.x, self.normal.y)
+
+        self.depth = self.otherDepth
         self.normal:init(self.otherNormal.x, self.otherNormal.y)
 
         local otherDirection = slickmath.direction(self.otherAxis.segment.a, self.otherAxis.segment.b, self.currentShape.shape.center, self.epsilon)

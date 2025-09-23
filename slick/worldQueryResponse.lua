@@ -16,6 +16,7 @@ local slicktable = require("slick.util.slicktable")
 --- @field normal slick.geometry.point
 --- @field alternateNormal slick.geometry.point
 --- @field depth number
+--- @field alternateDepth number
 --- @field time number
 --- @field offset slick.geometry.point
 --- @field touch slick.geometry.point
@@ -36,6 +37,7 @@ function worldQueryResponse.new(query)
         normal = point.new(),
         alternateNormal = point.new(),
         depth = 0,
+        alternateDepth = 0,
         time = 0,
         offset = point.new(),
         touch = point.new(),
@@ -81,6 +83,7 @@ function worldQueryResponse:init(shape, otherShape, response, position, query)
 
     self.normal:init(query.normal.x, query.normal.y)
     self.alternateNormal:init(query.currentNormal.x, query.currentNormal.y)
+    self.alternateDepth = query.currentDepth
     self.depth = query.depth
     self.time = query.time
 
@@ -147,6 +150,7 @@ function worldQueryResponse:move(other, copy)
     other.normal:init(self.normal.x, self.normal.y)
     other.alternateNormal:init(self.alternateNormal.x, self.alternateNormal.y)
     other.depth = self.depth
+    other.alternateDepth = self.alternateDepth
     other.time = self.time
     other.offset:init(self.offset.x, self.offset.y)
     other.touch:init(self.touch.x, self.touch.y)
