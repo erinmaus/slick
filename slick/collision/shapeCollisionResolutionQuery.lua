@@ -476,6 +476,14 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
 
     self.time = math.max(self.firstTime, 0)
     self.collision = true
+
+    if self.depth == math.huge then
+        self.depth = 0
+    end
+
+    if self.currentDepth == math.huge then
+        self.currentDepth = 0
+    end
 end
 
 --- @private
