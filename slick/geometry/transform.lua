@@ -86,14 +86,14 @@ end
 --- @return number x
 --- @return number y
 function transform:transformPoint(x, y)
-    local ox = x + self.offsetX
-    local oy = y + self.offsetY
+    local ox = x - self.offsetX
+    local oy = y - self.offsetY
     local rx = ox * self.rotationCos - oy * self.rotationSin
     local ry = ox * self.rotationSin + oy * self.rotationCos
     local sx = rx * self.scaleX
     local sy = ry * self.scaleY
-    local resultX = sx + self.x - self.offsetX
-    local resultY = sy + self.y - self.offsetY
+    local resultX = sx + self.x
+    local resultY = sy + self.y
 
     return resultX, resultY
 end
@@ -119,14 +119,14 @@ end
 --- @return number x
 --- @return number y
 function transform:inverseTransformPoint(x, y)
-    local tx = x + self.offsetX - self.x
-    local ty = y + self.offsetY - self.y
+    local tx = x - self.x
+    local ty = y - self.y
     local sx = tx / self.scaleX
     local sy = ty / self.scaleY
-    local rx = sx * self.rotationCos - sy * self.rotationSin
-    local ry = -sx * -self.rotationSin + sy * self.rotationCos
-    local resultX = rx - self.offsetX
-    local resultY = ry - self.offsetY
+    local rx = sx * self.rotationCos + sy * self.rotationSin
+    local ry = sy * self.rotationCos - sx * self.rotationSin
+    local resultX = rx + self.offsetX
+    local resultY = ry + self.offsetY
 
     return resultX, resultY
 end
