@@ -1,5 +1,6 @@
 local slick = require("slick")
 local test = require("test.common.test")
+local util = require("test.common.util")
 
 test("should handle cross & slide interactions", function(t)
     local world = slick.newWorld(800, 600)
@@ -22,6 +23,7 @@ test("should handle cross & slide interactions", function(t)
     assert(collisions[1].other == b, "expected collision with b")
     assert(collisions[1].normal.x == -1 and collisions[1].normal.y == 0, "normal for first collision should be equal to (-1, 0)")
     assert(collisions[1].alternateNormal.x == 1 and collisions[1].alternateNormal.y == 0, "alt normal for first collision should be equal to (1, 0)")
+    assert(util.equalish(collisions[1].contactPoint.x, 300) and util.equalish(collisions[1].contactPoint.y, 75), "expected contact point of (300, 75)")
 
     collisions = t:moveUntilCollision(function(delta)
         local c
