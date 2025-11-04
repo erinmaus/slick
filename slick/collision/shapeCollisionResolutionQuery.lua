@@ -441,6 +441,16 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
                 if intersection then
                     self:_addContactPoint(_cachedSegmentA.b.x, _cachedSegmentB.b.y)
                 end
+
+                intersection = slickmath.intersection(_cachedSegmentB.a, _cachedSegmentB.a, _cachedSegmentA.a, _cachedSegmentA.b, self.epsilon)
+                if intersection then
+                    self:_addContactPoint(_cachedSegmentB.a.x, _cachedSegmentB.a.y)
+                end
+
+                intersection = slickmath.intersection(_cachedSegmentB.b, _cachedSegmentB.b, _cachedSegmentA.a, _cachedSegmentA.b, self.epsilon)
+                if intersection then
+                    self:_addContactPoint(_cachedSegmentB.b.x, _cachedSegmentB.b.y)
+                end
             elseif intersection and x and y then
                 self:_addContactPoint(x, y)
             end
