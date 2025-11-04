@@ -690,6 +690,8 @@ The complete list of of shape definitions are:
   Creates a polygon from a list of vertices. The vertices are in the order `{ x1, y1, x2, y2, x3, y3, ..., xn, yn }`.
 
   The polygon **must** be a valid convex polygon. This means no self-intersections; all interior angles are less than 180 degrees; no holes; and no duplicate points. To create a polygon that might self-intersect, have holes, or be concave, use `slick.newPolygonMeshShape`.
+  
+  The order of vertices otherwise does not matter; they can be clockwise or counterclockwise. They might be converted into a specific order internally, however - currently, **slick** works with clockwise polygons. This is an implementation detail, however.
 
 * `slick.newPolygonMeshShape(...contours: number[], tag: slick.tag | slick.enum | nil)`
 
