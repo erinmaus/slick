@@ -1,5 +1,4 @@
 local point = require("slick.geometry.point")
-local segment = require("slick.geometry.segment")
 local util = require("slick.util")
 local pool = require("slick.util.pool")
 local slicktable = require("slick.util.slicktable")
@@ -23,7 +22,6 @@ local slicktable = require("slick.util.slicktable")
 --- @field isProjection boolean
 --- @field contactPoint slick.geometry.point
 --- @field contactPoints slick.geometry.point[]
---- @field segment slick.geometry.segment
 --- @field distance number
 --- @field extra table
 local worldQueryResponse = {}
@@ -44,7 +42,6 @@ function worldQueryResponse.new(query)
         isProjection = false,
         contactPoint = point.new(),
         contactPoints = {},
-        segment = segment.new(),
         extra = {}
     }, metatable)
 end
@@ -117,7 +114,6 @@ function worldQueryResponse:init(shape, otherShape, response, position, query)
     end
 
     self.distance = self.shape:distance(self.touch)
-    self.segment:init(query.segment.a, query.segment.b)
 
     slicktable.clear(self.extra)
 end
@@ -158,7 +154,6 @@ function worldQueryResponse:move(other, copy)
     
     other.contactPoint:init(self.contactPoint.x, self.contactPoint.y)
     other.distance = self.distance
-    other.segment:init(self.segment.a, self.segment.b)
     
     slicktable.clear(other.contactPoints)
     for i, inputContactPoint in ipairs(self.contactPoints) do

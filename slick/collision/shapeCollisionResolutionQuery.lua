@@ -77,7 +77,6 @@ function shapeCollisionResolutionQuery.new(E)
         otherOffset = point.new(),
         contactPointsCount = 0,
         contactPoints = { point.new() },
-        segment = segment.new(),
         currentShape = _newQueryShape(),
         otherShape = _newQueryShape(),
         relativeDirection = point.new()
