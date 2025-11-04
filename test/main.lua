@@ -1,6 +1,7 @@
 local testRunner = require("test.common.testRunner")
 
 require("test.bobble")
+require("test.clockwise")
 require("test.contactPoints")
 require("test.sheepo")
 require("test.sheepo2")

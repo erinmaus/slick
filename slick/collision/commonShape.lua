@@ -39,12 +39,55 @@ function commonShape:init()
     self.normalCount = 0
 end
 
+function commonShape:makeClockwise()
+    -- Line segments don't have a winding.
+    -- And points nor empty polygons do either.
+    if self.vertexCount < 3 then
+        return
+    end
+
+    local winding
+    for i = 1, self.vertexCount do
+        local j = slickmath.wrap(i, 1, self.vertexCount)
+        local k = slickmath.wrap(j, 1, self.vertexCount)
+
+        local side = slickmath.direction(
+            self.preTransformedVertices[i],
+            self.preTransformedVertices[j],
+            self.preTransformedVertices[k])
+        
+        if side ~= 0 then
+            winding = side
+            break
+        end
+    end
+
+    if not winding then
+        return
+    end
+
+    if winding <= 0 then
+        return
+    end
+
+    local i = self.vertexCount
+    local j = 1
+
+    while i > j do
+        self.preTransformedVertices[i], self.preTransformedVertices[j] = self.preTransformedVertices[j], self.preTransformedVertices[i]
+
+        i = i - 1
+        j = j + 1
+    end
+end
+
 --- @protected
 --- @param x1 number?
 --- @param y1 number?
 --- @param ... number?
 function commonShape:addPoints(x1, y1, ...)
     if not (x1 and y1) then
+        self:makeClockwise()
         return
     end
 

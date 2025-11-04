@@ -19,6 +19,13 @@ function test.new(name)
 end
 
 --- @param func slick.test.updateFunc
+function test:moveForOneFrame(func)
+    --- @type number
+    local dt = coroutine.yield({ test = self, reason = "step" })
+    return func(dt)
+end
+
+--- @param func slick.test.updateFunc
 --- @param count number?
 --- @return slick.worldQueryResponse[]
 function test:moveUntilCollision(func, count)
