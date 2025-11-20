@@ -2,6 +2,7 @@ local interval = require "slick.collision.interval"
 local point = require "slick.geometry.point"
 local segment = require "slick.geometry.segment"
 local slickmath = require "slick.util.slickmath"
+local slicktable = require "slick.util.slicktable"
 
 local SIDE_NONE  = 0
 local SIDE_LEFT  = -1
@@ -36,6 +37,12 @@ local SIDE_RIGHT = 1
 --- @field otherOffset slick.geometry.point
 --- @field contactPointsCount number
 --- @field contactPoints slick.geometry.point[]
+--- @field normals slick.geometry.point[]
+--- @field alternateNormals slick.geometry.point[]
+--- @field private allNormals slick.geometry.point[]
+--- @field private allNormalsCount number
+--- @field private depths number[]
+--- @field private normalsShape slick.collision.shapeCollisionResolutionQueryShape[]
 --- @field private firstTime number
 --- @field private lastTime number
 --- @field private currentShape slick.collision.shapeCollisionResolutionQueryShape
@@ -77,6 +84,12 @@ function shapeCollisionResolutionQuery.new(E)
         otherOffset = point.new(),
         contactPointsCount = 0,
         contactPoints = { point.new() },
+        normals = {},
+        alternateNormals = {},
+        depths = {},
+        normalsShape = {},
+        allNormals = {},
+        allNormalsCount = 0,
         currentShape = _newQueryShape(),
         otherShape = _newQueryShape(),
         relativeDirection = point.new()
@@ -110,6 +123,7 @@ function shapeCollisionResolutionQuery:reset()
     self.otherNormal:init(0, 0)
     self.currentNormal:init(0, 0)
     self.contactPointsCount = 0
+    self.allNormalsCount = 0
 end
 
 --- @private
@@ -133,6 +147,7 @@ function shapeCollisionResolutionQuery:_beginQuery()
     self.currentNormal:init(0, 0)
     self.contactPointsCount = 0
     self.relativeDirection:init(0, 0)
+    self.allNormalsCount = 0
 end
 
 function shapeCollisionResolutionQuery:addAxis()
@@ -509,6 +524,28 @@ function shapeCollisionResolutionQuery:_getAxis(index)
 end
 
 --- @private
+--- @param depth number
+--- @param shape slick.collision.shapeCollisionResolutionQueryShape
+--- @param x number
+--- @param y number
+function shapeCollisionResolutionQuery:_addNormal(depth, shape, x, y)
+    local nextCount = self.allNormalsCount + 1
+    local normal = self.allNormals[nextCount]
+    if not normal then
+        normal = point.new()
+        self.allNormals[nextCount] = normal
+    end
+
+    normal:init(x, y)
+    normal:round(normal, self.epsilon)
+    normal:normalize(normal)
+
+    self.depths[nextCount] = depth
+    self.normalsShape[nextCount] = shape
+    self.allNormalsCount = nextCount
+end
+
+--- @private
 --- @param x number
 --- @param y number
 function shapeCollisionResolutionQuery:_addContactPoint(x, y)
@@ -528,6 +565,8 @@ function shapeCollisionResolutionQuery:_addContactPoint(x, y)
     end
     self.contactPointsCount = nextCount
 end
+
+local _intervalAxisNormal = point.new()
 
 --- @private
 --- @param axis slick.collision.shapeCollisionResolutionQueryAxis
@@ -554,36 +593,35 @@ function shapeCollisionResolutionQuery:_compareIntervals(axis)
         end
     end
 
-    if axis.parent == self.otherShape and depth < self.otherDepth then
-        self.otherDepth = depth
-        self.otherNormal:init(axis.normal.x, axis.normal.y)
-
-        if negate then
-            self.otherNormal:negate(self.otherNormal)
-        end
-
-        self.otherAxis = axis
+    _intervalAxisNormal:init(axis.normal.x, axis.normal.y)
+    if negate then
+        _intervalAxisNormal:negate(_intervalAxisNormal)
     end
 
-    if axis.parent == self.currentShape and depth < self.currentDepth then
-        self.currentDepth = depth
-        self.currentNormal:init(axis.normal.x, axis.normal.y)
-
-        if negate then
-            self.currentNormal:negate(self.currentNormal)
+    if axis.parent == self.otherShape and slickmath.less(depth, self.otherDepth, self.epsilon) then
+        if depth < self.otherDepth then
+            self.otherDepth = depth
+            self.otherNormal:init(_intervalAxisNormal.x, _intervalAxisNormal.y)
+            self.otherAxis = axis
         end
 
-        self.currentAxis = axis
+        self:_addNormal(depth, self.otherShape, _intervalAxisNormal.x, _intervalAxisNormal.y)
+    end
+
+    if axis.parent == self.currentShape and slickmath.less(depth, self.currentDepth, self.epsilon) then
+        if depth < self.currentDepth then
+            self.currentDepth = depth
+            self.currentNormal:init(_intervalAxisNormal.x, _intervalAxisNormal.y)
+            self.currentAxis = axis
+        end
+
+        self:_addNormal(depth, self.currentShape, _intervalAxisNormal.x, _intervalAxisNormal.y)
     end
 
     if depth < self.depth then
         self.depth = depth
-        self.normal:init(axis.normal.x, axis.normal.y)
+        self.normal:init(_intervalAxisNormal.x, _intervalAxisNormal.y)
         self.axis = axis
-
-        if negate then
-            self.normal:negate(self.normal)
-        end
     end
 
     return true
@@ -604,6 +642,37 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
         self.normal:normalize(self.normal)
         self.currentNormal:round(self.currentNormal, self.epsilon)
         self.currentNormal:normalize(self.currentNormal)
+
+        slicktable.clear(self.normals)
+        slicktable.clear(self.alternateNormals)
+
+        for i = 1, self.allNormalsCount do
+            --- @type slick.geometry.point[]?
+            local normals, depth
+            if self.normalsShape[i] == self.otherShape then
+                normals = self.normals
+                depth = self.otherDepth
+            elseif self.normalsShape[i] == self.currentShape then
+                normals = self.alternateNormals
+                depth = self.currentDepth
+            end
+
+            if normals and slickmath.equal(depth, self.depths[i], self.epsilon) then
+                local normal = self.allNormals[i]
+
+                local hasNormal = false
+                for _, otherNormal in ipairs(normals) do
+                    if otherNormal.x == normal.x and otherNormal.y == normal.y then
+                        hasNormal = true
+                        break
+                    end
+                end
+
+                if not hasNormal then
+                    table.insert(normals, normal)
+                end
+            end
+        end
     end
 
     return self.collision

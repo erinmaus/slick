@@ -305,6 +305,10 @@ end
 --- @param response slick.worldQueryResponse
 --- @param copy boolean?
 function worldQuery:push(response, copy)
+    if copy == nil then
+        copy = true
+    end
+
     local index = #self.results + 1
     local result = self.cachedResults[index]
     if not result then
