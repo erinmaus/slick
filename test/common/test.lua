@@ -45,6 +45,21 @@ function test:moveUntilCollision(func, count)
     return c
 end
 
+--- @param func slick.test.updateFunc
+function test:moveUntilNoCollision(func)
+    local time = 0
+
+    local c, dt
+    repeat
+        --- @type number
+        dt = coroutine.yield({ test = self, reason = "step" })
+        time = time + dt
+
+        assert(time < self.timeout, "test timeout")
+        c = func(dt)
+    until (#c == 0 and dt > 0)
+end
+
 --- comment
 --- @param name string
 --- @param func slick.test.testFunc

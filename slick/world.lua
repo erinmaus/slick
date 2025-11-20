@@ -499,10 +499,10 @@ function world:check(item, goalX, goalY, filter, query)
             _cachedRemappedHandlers[otherShape] = remappedResponseName
 
             result = nextResult
-        until not result or result.time > time
+        until not result or result.time > time or (shape == result.shape and otherShape == result.otherShape)
 
         local isStationary = x == goalX and y == goalY
-        local didNotMove = x == previousX and y == previousY
+        local didMove = not (x == previousX and y == previousY)
 
         local isSameCollision = #cachedQuery.results >= 1 and cachedQuery.results[1].shape == shape and cachedQuery.results[1].otherShape == otherShape
         for i = 2, #cachedQuery.results do
@@ -531,7 +531,11 @@ function world:check(item, goalX, goalY, filter, query)
             actualY = y
         end
 
-        if didNotMove and isSameCollision then
+        if didMove and not result then
+            break
+        end
+
+        if not didMove and isSameCollision then
             break
         end
 

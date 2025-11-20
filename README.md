@@ -499,6 +499,8 @@ Below is an API reference for **slick**.
       * `response`: Either a `string`, `slick.worldVisitFunc`, or `boolean`. See `slick.worldFilterQueryFunc` for valid values.
       * `normal.x, normal.y`: The surface normal of the collision. This normal will belong to an edge of `otherShape`.
       * `alternateNormal.x, alternateNormal.y`: The other surface normal of the collision. This normal will belong to an edge of `shape`.
+      * `normals`: A list of all normals from the collision that belong to `otherShape`. There might be more than one normal if a corner or edge from `shape` hit a corner of `otherShape.
+      * `alternateNormals`: Like `normals`, except the normals belong to `shape`.
       * `depth`: The penetration depth. Usually this is 0 since collisions are swept, but other methods that return `slick.worldQueryResponse` for overlapping objects might have a `depth` value greater than zero.
       * `offset.x, offset.y`: The offset from the current position to the new position.
       * `touch.x, touch.y`: This is the sum of the current position before impact and `offset.x, offset.y`

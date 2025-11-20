@@ -14,6 +14,8 @@ local slicktable = require("slick.util.slicktable")
 --- @field otherShape slick.collision.shape?
 --- @field normal slick.geometry.point
 --- @field alternateNormal slick.geometry.point
+--- @field normals slick.geometry.point[]
+--- @field alternateNormals slick.geometry.point[]
 --- @field depth number
 --- @field alternateDepth number
 --- @field time number
@@ -34,6 +36,8 @@ function worldQueryResponse.new(query)
         response = "slide",
         normal = point.new(),
         alternateNormal = point.new(),
+        normals = {},
+        alternateNormals = {},
         depth = 0,
         alternateDepth = 0,
         time = 0,
@@ -107,6 +111,18 @@ function worldQueryResponse:init(shape, otherShape, response, position, query)
         end
     end
 
+    slicktable.clear(self.normals)
+    for _, inputNormal in ipairs(query.normals) do
+        local outputNormal = self.query:allocate(point, inputNormal.x, inputNormal.y)
+        table.insert(self.normals, outputNormal)
+    end
+
+    slicktable.clear(self.alternateNormals)
+    for _, inputNormal in ipairs(query.alternateNormals) do
+        local outputNormal = self.query:allocate(point, inputNormal.x, inputNormal.y)
+        table.insert(self.alternateNormals, outputNormal)
+    end
+
     if closestContactPoint then
         self.contactPoint:init(closestContactPoint.x, closestContactPoint.y)
     else
@@ -160,9 +176,22 @@ function worldQueryResponse:move(other, copy)
         local outputContactPoint = self.query:allocate(point, inputContactPoint.x, inputContactPoint.y)
         table.insert(other.contactPoints, outputContactPoint)
     end
-    
+
+    slicktable.clear(other.normals)
+    for i, inputNormal in ipairs(self.normals) do
+        local outputNormal = self.query:allocate(point, inputNormal.x, inputNormal.y)
+        table.insert(other.normals, outputNormal)
+    end
+
+    slicktable.clear(other.alternateNormals)
+    for i, inputNormal in ipairs(self.alternateNormals) do
+        local outputNormal = self.query:allocate(point, inputNormal.x, inputNormal.y)
+        table.insert(other.alternateNormals, outputNormal)
+    end
+
     if not copy then
         slicktable.clear(self.contactPoints)
+        slicktable.clear(self.normals)
 
         other.extra, self.extra = self.extra, other.extra
         slicktable.clear(self.extra)

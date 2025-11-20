@@ -5,6 +5,7 @@ require("test.clockwise")
 require("test.contactPoints")
 require("test.sheepo")
 require("test.sheepo2")
+require("test.slopes")
 require("test.transform")
 
 local c = 0
@@ -18,7 +19,7 @@ local deltaFuncs = {
     end,
 
     function ()
-        return love.math.random() * (1 / 60)
+        return (love.math.random() * 0.5 + 0.5) * (1 / 60)
     end,
 
     function ()
@@ -35,18 +36,18 @@ local deltaFuncs = {
     end,
 
     function()
-        return love.math.random() * (1 / 1000)
+        return (love.math.random() * 0.5 + 0.5) * (1 / 100000)
     end
 }
 
 local deltaFuncNames = {
     "1 / 60",
     "1 / 60 + random() <= 1/120",
-    "random() <= 1 / 60",
+    "random(0.5, 1.0) <= 1 / 60",
     "0, then 1/60, then 0, then 1/60... and so on",
     "0.25",
     "1 / 100000",
-    "random() <= 1 / 1000",
+    "random(0.5, 1.0) <= 1 / 1000",
 }
 
 local exitCode = 0

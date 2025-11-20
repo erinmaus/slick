@@ -1,6 +1,6 @@
 local slickmath = {}
 
-slickmath.EPSILON = 1e-10
+slickmath.EPSILON = 1e-5
 
 --- @param value number
 --- @param increment number
@@ -293,6 +293,24 @@ function slickmath.withinRange(value, min, max, E)
     E = E or slickmath.EPSILON
 
     return value > min - E and value < max + E
+end
+
+function slickmath.equal(a, b, E)
+    E = E or slickmath.EPSILON
+
+    return math.abs(a - b) < E
+end
+
+function slickmath.less(a, b, E)
+    E = E or slickmath.EPSILON
+
+    return a < b + E
+end
+
+function slickmath.greater(a, b, E)
+    E = E or slickmath.EPSILON
+
+    return a > b - E
 end
 
 return slickmath

@@ -39,7 +39,6 @@ local function trySlide(normalX, normalY, touchX, touchY, x, y, goalX, goalY)
     return _cachedSlideNewGoalPosition.x, _cachedSlideNewGoalPosition.y
 end
 
-
 --- @param world slick.world
 --- @param response slick.worldQueryResponse
 --- @param query slick.worldQuery
@@ -70,6 +69,12 @@ local function findDidSlide(world, response, query, x, y, goalX, goalY)
     return didSlide
 end
 
+local function didMove(x, y, goalX, goalY)
+    return not (x == goalX and y == goalY)
+end
+
+local _slideNormals = {}
+
 --- @param world slick.world
 --- @param query slick.worldQuery
 --- @param response slick.worldQueryResponse
@@ -90,24 +95,28 @@ local function slide(world, query, response, x, y, goalX, goalY, filter, result)
     local didSlide = false
     local q = getWorkingQuery(world)
 
-    local workingGoalX, workingGoalY = trySlide(response.normal.x, response.normal.y, response.touch.x, response.touch.y, x, y, goalX, goalY)
-    world:project(response.item, response.touch.x, response.touch.y, workingGoalX, workingGoalY, filter, q)
-    didSlide = findDidSlide(world, response, q, response.touch.x, response.touch.y, workingGoalX, workingGoalY)
-    
-    if didSlide then
-        newGoalX = workingGoalX
-        newGoalY = workingGoalY
-    else
-        workingGoalX, workingGoalY = trySlide(response.alternateNormal.x, response.alternateNormal.y, response.touch.x, response.touch.y, x, y, goalX, goalY)
-        world:project(response.item, response.touch.x, response.touch.y, workingGoalX, workingGoalY, filter, q)
+    _slideNormals[1], _slideNormals[2] = response.normals, response.alternateNormals
 
-        didSlide = findDidSlide(world, response, q, response.touch.x, response.touch.y, workingGoalX, workingGoalY)
+    for _, normals in ipairs(_slideNormals) do
+        for _, normal in ipairs(normals) do
+            local workingGoalX, workingGoalY = trySlide(normal.x, normal.y, response.touch.x, response.touch.y, x, y, goalX, goalY)
+            if didMove(response.touch.x, response.touch.y, workingGoalX, workingGoalY) then
+                world:project(response.item, response.touch.x, response.touch.y, workingGoalX, workingGoalY, filter, q)
+                didSlide = findDidSlide(world, response, q, response.touch.x, response.touch.y, workingGoalX, workingGoalY)
+
+                if didSlide then
+                    newGoalX = workingGoalX
+                    newGoalY = workingGoalY
+                    break
+                end
+            end
+        end
+
         if didSlide then
-            newGoalX = workingGoalX
-            newGoalY = workingGoalY
+            break
         end
     end
-    
+
     if didSlide then
         for i = index + 1, #query.results do
             local otherResponse = query.results[i]
@@ -120,7 +129,7 @@ local function slide(world, query, response, x, y, goalX, goalY, filter, result)
         end
 
         world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
-        return touchX, touchY, newGoalX, newGoalY, nil, nil
+        return touchX, touchY, newGoalX, newGoalY, nil, query.results[1]
     else
         local nextResponse = query.results[index + 1]
         return touchX, touchY, goalX, goalY, nil, nextResponse
@@ -164,7 +173,6 @@ local function cross(world, query, response, x, y, goalX, goalY, filter, result)
     local nextResponse = query.results[index + 1]
 
     if not nextResponse then
-        world:project(response.item, goalX, goalY, goalX, goalY, filter, query)
         return goalX, goalY, goalX, goalY, nil, nil
     end
 
@@ -228,10 +236,10 @@ local function bounce(world, query, response, x, y, goalX, goalY, filter, result
     local touchX, touchY = response.touch.x, response.touch.y
 
     response.extra.bounceNormal = query:allocate(point, bounceNormal.x, bounceNormal.y)
-    result:push(response)
+    result:push(response, false)
 
     world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
-    return touchX, touchY, newGoalX, newGoalY, nil, nil
+    return touchX, touchY, newGoalX, newGoalY, nil, query.results[1]
 end
 
 return {
