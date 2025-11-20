@@ -124,6 +124,9 @@ function shapeCollisionResolutionQuery:reset()
     self.currentNormal:init(0, 0)
     self.contactPointsCount = 0
     self.allNormalsCount = 0
+
+    slicktable.clear(self.normals)
+    slicktable.clear(self.alternateNormals)
 end
 
 --- @private
