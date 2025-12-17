@@ -6,6 +6,7 @@ local hull = require("slick.geometry.triangulation.hull")
 local intersection = require("slick.geometry.triangulation.intersection")
 local delaunaySortedEdge = require("slick.geometry.triangulation.delaunaySortedEdge")
 local delaunaySortedPoint = require("slick.geometry.triangulation.delaunaySortedPoint")
+local map = require("slick.geometry.triangulation.map")
 local sweep = require("slick.geometry.triangulation.sweep")
 local pool = require("slick.util.pool")
 local search = require("slick.util.search")
@@ -28,13 +29,16 @@ local defaultTriangulationOptions = {
 
 --- @alias slick.geometry.triangulation.intersectFunction fun(intersection: slick.geometry.triangulation.intersection)
 --- @alias slick.geometry.triangulation.dissolveFunction fun(dissolve: slick.geometry.triangulation.dissolve)
+--- @alias slick.geometry.triangulation.mapFunction fun(map: slick.geometry.triangulation.map)
 
 --- @class slick.geometry.triangulation.delaunayCleanupOptions
 --- @field public intersect slick.geometry.triangulation.intersectFunction?
 --- @field public dissolve slick.geometry.triangulation.dissolveFunction?
+--- @field public map slick.geometry.triangulation.mapFunction?
 local defaultCleanupOptions = {
     intersect = intersection.default,
     dissolve = dissolve.default,
+    map = map.default
 }
 
 --- @alias slick.geometry.triangulation.delaunayWorkingPolygon { vertices: number[], merged: boolean? }
@@ -49,6 +53,7 @@ local defaultCleanupOptions = {
 --- @field private sortedPoints slick.geometry.triangulation.delaunaySortedPoint[]
 --- @field private intersection slick.geometry.triangulation.intersection
 --- @field private dissolve slick.geometry.triangulation.dissolve
+--- @field private map slick.geometry.triangulation.map
 --- @field private segmentsPool slick.util.pool
 --- @field private edgesPool slick.util.pool
 --- @field private sortedEdgesPool slick.util.pool
@@ -182,6 +187,7 @@ function delaunay.new(options)
         
         intersection = intersection.new(),
         dissolve = dissolve.new(),
+        map = map.new(),
         
         sortedPointsPool = pool.new(delaunaySortedPoint),
         sortedPoints = {},
@@ -633,9 +639,12 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
 
     local dissolveFunc = options.dissolve == nil and defaultCleanupOptions.dissolve or options.dissolve
     dissolveFunc = dissolveFunc or dissolve.default
-    
+
     local intersectFunc = options.intersect == nil and defaultCleanupOptions.intersect or options.intersect
     intersectFunc = intersectFunc or intersection.default
+
+    local mapFunc = options.map == nil and defaultCleanupOptions.map or options.map
+    mapFunc = mapFunc or map.default
 
     self:reset()
 
@@ -695,6 +704,11 @@ function delaunay:clean(points, edges, userdata, options, outPoints, outEdges, o
 
         if userdata and outUserdata then
             outUserdata[sortedPoint.newID] = userdata[sortedPoint.id]
+        end
+
+        if mapFunc then
+            self.map:init(sortedPoint.point, sortedPoint.id, sortedPoint.newID)
+            mapFunc(self.map)
         end
     end
 
