@@ -476,8 +476,15 @@ function delaunay:_splitEdgesAgainstPoints(intersect, userdata)
 
                     intersect(self.intersection)
 
-                    if self.intersection.resultUserdata ~= nil then
-                        userdata[self.intersection.resultIndex] = self.intersection.resultUserdata
+                    if userdata then
+                        if self.intersection.resultUserdata ~= nil then
+                            userdata[self.intersection.resultIndex] = self.intersection.resultUserdata
+                        end
+
+                        userdata[self.intersection.a1Index] = self.intersection.a1Userdata
+                        userdata[self.intersection.b1Index] = self.intersection.b1Userdata
+                        userdata[self.intersection.a2Index] = self.intersection.a2Userdata
+                        userdata[self.intersection.b2Index] = self.intersection.b2Userdata
                     end
 
                     dissolve = true
@@ -581,8 +588,15 @@ function delaunay:_splitEdgesAgainstEdges(intersect, userdata)
                     intersect(self.intersection)
                     point:init(self.intersection.result.x, self.intersection.result.y)
 
-                    if self.intersection.resultUserdata ~= nil then
-                        userdata[self.intersection.resultIndex] = self.intersection.resultUserdata
+                    if userdata then
+                        if self.intersection.resultUserdata ~= nil then
+                            userdata[self.intersection.resultIndex] = self.intersection.resultUserdata
+                        end
+
+                        userdata[self.intersection.a1Index] = self.intersection.a1Userdata
+                        userdata[self.intersection.b1Index] = self.intersection.b1Userdata
+                        userdata[self.intersection.a2Index] = self.intersection.a2Userdata
+                        userdata[self.intersection.b2Index] = self.intersection.b2Userdata
                     end
 
                     table.insert(pendingEdges, search.first(edges, selfEdge.edge, edge.compare))
