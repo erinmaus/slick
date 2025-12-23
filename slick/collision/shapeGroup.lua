@@ -55,7 +55,7 @@ function shapeGroup:_addShapeDefinitions(tagInstance, shapeDefinition, ...)
     shape.tag = tagValue
 
     self:_addShapes(shape)
-    self:_addShapeDefinitions(tagInstance, ...)
+    return self:_addShapeDefinitions(tagInstance, ...)
 end
 
 --- @private
@@ -68,10 +68,10 @@ function shapeGroup:_addShapes(shape, ...)
 
     if util.is(shape, shapeGroup) then
         --- @cast shape slick.collision.shapeGroup
-        self:_addShapes(unpack(shape.shapes))
+        return self:_addShapes(unpack(shape.shapes))
     else
         table.insert(self.shapes, shape)
-        self:_addShapes(...)
+        return self:_addShapes(...)
     end
 end
 
