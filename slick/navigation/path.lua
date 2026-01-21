@@ -1,4 +1,5 @@
 local point  = require "slick.geometry.point"
+local segment = require "slick.geometry.segment"
 local edge = require "slick.navigation.edge"
 local vertex = require "slick.navigation.vertex"
 local slicktable = require "slick.util.slicktable"
@@ -10,7 +11,8 @@ local slickmath  = require "slick.util.slickmath"
 --- @field neighbors nil | fun(mesh: slick.navigation.mesh, triangle: slick.navigation.triangle): slick.navigation.triangle[] | nil
 --- @field distance nil | fun(from: slick.navigation.triangle, to: slick.navigation.triangle, e: slick.navigation.edge): number
 --- @field heuristic nil | fun(triangle: slick.navigation.triangle, goalX: number, goalY: number): number
---- @field yield fun() | nil
+--- @field visit nil | fun(from: slick.navigation.triangle, to: slick.navigation.triangle, e: slick.navigation.edge): boolean?
+--- @field yield nil | fun(): boolean?
 local defaultPathOptions = {
     optimize = true
 }
@@ -30,11 +32,15 @@ function defaultPathOptions.neighbors(mesh, triangle)
     return mesh:getTriangleNeighbors(triangle.index)
 end
 
+local _distanceEdgeSegment = segment.new()
+local _distanceEdgeCenter = point.new()
 --- @param from slick.navigation.triangle
 --- @param to slick.navigation.triangle
 --- @param e slick.navigation.edge
 function defaultPathOptions.distance(from, to, e)
-    return from.centroid:distance(to.centroid)
+    _distanceEdgeSegment:init(e.a.point, e.b.point)
+    _distanceEdgeSegment:lerp(0.5, _distanceEdgeCenter)
+    return from.centroid:distance(_distanceEdgeCenter) + to.centroid:distance(_distanceEdgeCenter)
 end
 
 
@@ -50,6 +56,10 @@ function defaultPathOptions.yield()
     -- Nothing.
 end
 
+function defaultPathOptions.visit(triangle, e)
+    -- Nothing.
+end
+
 --- @class slick.navigation.impl.pathBehavior
 --- @field start slick.navigation.triangle | nil
 --- @field goal slick.navigation.triangle | nil
@@ -61,7 +71,8 @@ local internalPathBehavior = {}
 --- @field private fScores table<slick.navigation.triangle, number>
 --- @field private gScores table<slick.navigation.triangle, number>
 --- @field private hScores table<slick.navigation.triangle, number>
---- @field private visited table<slick.navigation.triangle, true>
+--- @field private visitedEdges table<slick.navigation.edge, true>
+--- @field private visitedTriangles table<slick.navigation.triangle, true>
 --- @field private pending slick.navigation.triangle[]
 --- @field private closed slick.navigation.triangle[]
 --- @field private neighbors slick.navigation.triangle[]
@@ -91,6 +102,7 @@ function path.new(options)
             neighbors = options.neighbors or defaultPathOptions.neighbors,
             distance = options.distance or defaultPathOptions.distance,
             heuristic = options.heuristic or defaultPathOptions.heuristic,
+            visit = options.visit or defaultPathOptions.visit,
             yield = options.yield or defaultPathOptions.yield,
         },
 
@@ -99,7 +111,8 @@ function path.new(options)
         fScores = {},
         gScores = {},
         hScores = {},
-        visited = {},
+        visitedEdges = {},
+        visitedTriangles = {},
         pending = {},
         closed = {},
         neighbors = {},
@@ -154,7 +167,8 @@ function path:_reset()
     slicktable.clear(self.fScores)
     slicktable.clear(self.gScores)
     slicktable.clear(self.hScores)
-    slicktable.clear(self.visited)
+    slicktable.clear(self.visitedEdges)
+    slicktable.clear(self.visitedTriangles)
     slicktable.clear(self.pending)
     slicktable.clear(self.graph)
 end
@@ -260,14 +274,39 @@ function path:_find(mesh, startX, startY, goalX, goalY, nearest, result)
     self.fScores[self.behavior.start] = 0
     self.gScores[self.behavior.start] = 0
 
+    self.startVertex.point:init(startX, startY)
+    self.goalVertex.point:init(goalX, goalY)
+
+    local pending = true
     local current = self.behavior.start
-    while current and current ~= self.behavior.goal do
-        self.visited[current] = true
-        table.insert(self.closed, current)
+    while pending and current and current ~= self.behavior.goal do
+        if current == self.behavior.start then
+            self.visitedEdges[self.startEdge] = true
+        else
+            assert(current ~= self.behavior.goal, "cannot visit goal")
+            assert(self.graph[current], "current has no previous")
+
+            local edge = mesh:getSharedTriangleEdge(self.graph[current], current)
+            assert(edge, "missing edge between previous and current")
+
+            self.visitedEdges[edge] = true
+        end
+
+        if not self.visitedTriangles[current] then
+            table.insert(self.closed, current)
+            self.visitedTriangles[current] = true
+        end
 
         for _, neighbor in ipairs(self:_neighbors(mesh, current)) do
-            if not self.visited[neighbor] then
-                local distance = self.options.distance(current, neighbor, mesh:getSharedTriangleEdge(current, neighbor))
+            local edge = mesh:getSharedTriangleEdge(current, neighbor)
+            if not self.visitedEdges[edge] then
+                local continuePathfinding = self.options.visit(current, neighbor, edge)
+                if continuePathfinding == false then
+                    pending = false
+                    break
+                end
+
+                local distance = self.options.distance(current, neighbor, edge)
                 local pendingGScore = (self.gScores[current] or math.huge) + distance
                 if pendingGScore < (self.gScores[neighbor] or math.huge) then
                     local heuristic = self.options.heuristic(neighbor, goalX, goalY)
@@ -283,7 +322,11 @@ function path:_find(mesh, startX, startY, goalX, goalY, nearest, result)
             end
         end
 
-        self.options.yield()
+        local continuePathfinding = self.options.yield()
+        if continuePathfinding == false then
+            pending = false
+        end
+
         current = table.remove(self.pending)
     end
 

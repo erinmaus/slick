@@ -214,6 +214,88 @@ function shapeCollisionResolutionQuery:_isShapeMovingAwayFromShape(a, b, aOffset
     return false
 end
 
+local _lineSegmentDirection = point.new()
+local _lineSegmentRelativePosition = point.new()
+local _lineSegmentShapePosition = point.new()
+local _lineSegmentShapeVertexPosition = point.new()
+
+--- @private
+--- @param shape slick.collision.shapeInterface
+--- @param offset slick.geometry.point
+--- @param direction slick.geometry.point
+--- @param point slick.geometry.point
+--- @param fun fun(number, number): number
+--- @return number
+function shapeCollisionResolutionQuery:_dotShapeSegment(shape, offset, direction, point, fun)
+    offset:sub(point, _lineSegmentRelativePosition)
+
+    local dot
+    for i = 1, shape.vertexCount do
+        local vertex = shape.vertices[i]
+        vertex:add(_lineSegmentRelativePosition, _lineSegmentShapeVertexPosition)
+        local d = direction:dot(_lineSegmentShapeVertexPosition)
+        dot = fun(d, dot or d)
+    end
+
+    return dot
+end
+
+--- @private
+--- @param lineSegmentShape slick.collision.shapeCollisionResolutionQueryShape
+--- @param otherShape slick.collision.shapeCollisionResolutionQueryShape
+--- @param otherOffset slick.geometry.point
+--- @param worldOffset slick.geometry.point
+function shapeCollisionResolutionQuery:_correctLineSegmentNormals(lineSegmentShape, otherShape, otherOffset, worldOffset)
+    assert(lineSegmentShape.shape.vertexCount == 2, "shape must be line segment")
+
+    worldOffset:add(otherOffset, _lineSegmentShapePosition)
+    
+    local a = lineSegmentShape.shape.vertices[1]
+    local b = lineSegmentShape.shape.vertices[2]
+    a:direction(b, _lineSegmentDirection)
+
+    -- Check if we're behind a (the beginning of the segment) or in front of b (the end of the segment)
+    local dotA = self:_dotShapeSegment(otherShape.shape, _lineSegmentShapePosition, _lineSegmentDirection, a, math.max)
+    local dotB = self:_dotShapeSegment(otherShape.shape, _lineSegmentShapePosition, _lineSegmentDirection, b, math.min)
+
+    local normal, depth
+    if lineSegmentShape == self.currentShape then
+        normal = self.currentNormal
+        depth = self.currentDepth
+    elseif lineSegmentShape == self.otherShape then
+        normal = self.otherNormal
+        depth = self.otherDepth
+    end
+    assert(normal and depth, "incorrect shape; couldn't determine normal")
+
+    if not (dotA > 0 and dotB < 0) then
+        -- If we're not to the side of the segment, we need to swap the normal.
+        self:_addNormal(depth, lineSegmentShape, normal.x, normal.y)
+        normal:left(normal)
+
+        if dotA >= 0 and dotB >= 0 then
+            normal:negate(normal)
+        end
+    else
+        otherShape.shape.center:add(_lineSegmentShapePosition, _lineSegmentShapePosition)
+        local side = slickmath.direction(
+            lineSegmentShape.shape.vertices[1],
+            lineSegmentShape.shape.vertices[2],
+            _lineSegmentShapePosition)
+
+        if side == 0 then
+            self:_addNormal(depth, lineSegmentShape, -normal.x, -normal.y)
+        else
+            normal:multiplyScalar(side, normal)
+        end
+    end
+
+    normal:negate(normal)
+    if normal == self.otherNormal then
+        self.normal:init(normal.x, normal.y)
+    end
+end
+
 local _cachedRelativeVelocity = point.new()
 local _cachedSelfFutureCenter = point.new()
 local _cachedSelfVelocityMinusOffset = point.new()
@@ -391,14 +473,14 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
             else
                 selfA, selfB = math.min(selfA, selfB), math.max(selfA, selfB)
             end
-
+            
             selfShape.vertices[selfA]:add(self.currentOffset, _cachedSegmentA.a)
             selfShape.vertices[selfB]:add(self.currentOffset, _cachedSegmentA.b)
-
+            
             _cachedSegmentA.a:direction(_cachedSegmentA.b, self.currentNormal)
             self.currentNormal:normalize(self.currentNormal)
             self.currentNormal:left(self.currentNormal)
-
+            
             local otherA = otherInterval.indices[otherInterval.maxIndex].index
             local otherB = otherInterval.indices[otherInterval.maxIndex - 1].index
             if ((otherA == 1 or otherB == 1) and (otherA == otherShape.vertexCount or otherB == otherShape.vertexCount)) then
@@ -409,10 +491,10 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
             
             otherShape.vertices[otherA]:add(self.otherOffset, _cachedSegmentB.a)
             otherShape.vertices[otherB]:add(self.otherOffset, _cachedSegmentB.b)
-
-            _cachedSegmentB.a:direction(_cachedSegmentB.b, self.normal)
-            self.normal:normalize(self.normal)
-            self.normal:left(self.normal)
+            
+            _cachedSegmentB.a:direction(_cachedSegmentB.b, self.otherNormal)
+            self.otherNormal:normalize(self.otherNormal)
+            self.otherNormal:left(self.otherNormal)
         elseif side == SIDE_RIGHT then
             local selfA = currentInterval.indices[currentInterval.maxIndex].index
             local selfB = currentInterval.indices[currentInterval.maxIndex - 1].index
@@ -440,10 +522,12 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
             otherShape.vertices[otherA]:add(self.otherOffset, _cachedSegmentB.a)
             otherShape.vertices[otherB]:add(self.otherOffset, _cachedSegmentB.b)
 
-            _cachedSegmentB.a:direction(_cachedSegmentB.b, self.normal)
-            self.normal:normalize(self.normal)
-            self.normal:left(self.normal)
+            _cachedSegmentB.a:direction(_cachedSegmentB.b, self.otherNormal)
+            self.otherNormal:normalize(self.otherNormal)
+            self.otherNormal:left(self.otherNormal)
         end
+
+        self.normal:init(self.otherNormal.x, self.otherNormal.y)
 
         local intersection, x, y
         if _cachedSegmentA:overlap(_cachedSegmentB) then
@@ -509,6 +593,14 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
 
     if self.currentDepth == math.huge then
         self.currentDepth = 0
+    end
+
+    if self.currentShape.shape.vertexCount == 2 then
+        self:_correctLineSegmentNormals(self.currentShape, self.otherShape, self.otherOffset, otherOffset)
+    end
+    
+    if self.otherShape.shape.vertexCount == 2 then
+        self:_correctLineSegmentNormals(self.otherShape, self.currentShape, self.currentOffset, selfOffset)
     end
 end
 
@@ -648,6 +740,9 @@ function shapeCollisionResolutionQuery:performProjection(selfShape, otherShape, 
 
         slicktable.clear(self.normals)
         slicktable.clear(self.alternateNormals)
+
+        table.insert(self.normals, self.normal)
+        table.insert(self.alternateNormals, self.currentNormal)
 
         for i = 1, self.allNormalsCount do
             --- @type slick.geometry.point[]?

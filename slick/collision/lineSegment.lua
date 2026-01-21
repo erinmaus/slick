@@ -39,12 +39,18 @@ function lineSegment:init(x1, y1, x2, y2)
     self.preTransformedSegment.a:init(x1, y1)
     self.preTransformedSegment.b:init(x2, y2)
 
-    self:addPoints(x1, y1, x2, y2)
-
-    _cachedInitNormal:init(x2 - x1, y2 - y1)
-    if _cachedInitNormal:lengthSquared() > 0 then
-        _cachedInitNormal:normalize(_cachedInitNormal)
+    if not self.preTransformedSegment.a:lessThanOrEqual(self.preTransformedSegment.b) then
+        self.preTransformedSegment.a, self.preTransformedSegment.b = self.preTransformedSegment.b, self.preTransformedSegment.a
     end
+
+    self:addPoints(
+        self.preTransformedSegment.a.x,
+        self.preTransformedSegment.a.y,
+        self.preTransformedSegment.b.x,
+        self.preTransformedSegment.b.y)
+    
+    self.preTransformedSegment.a:direction(self.preTransformedSegment.b, _cachedInitNormal)
+    _cachedInitNormal:normalize(_cachedInitNormal)
 
     self:addNormal(_cachedInitNormal.x, _cachedInitNormal.y)
 
