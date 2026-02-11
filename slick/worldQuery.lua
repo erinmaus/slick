@@ -1,6 +1,6 @@
 local worldQueryResponse = require("slick.worldQueryResponse")
 local box = require("slick.collision.box")
-local lineSegment = require("slick.collision.lineSegment")
+local commonShape = require("slick.collision.commonShape")
 local quadTreeQuery = require("slick.collision.quadTreeQuery")
 local ray = require("slick.geometry.ray")
 local shapeCollisionResolutionQuery = require("slick.collision.shapeCollisionResolutionQuery")
@@ -8,10 +8,10 @@ local point = require("slick.geometry.point")
 local rectangle = require("slick.geometry.rectangle")
 local segment = require("slick.geometry.segment")
 local transform = require("slick.geometry.transform")
-local slicktable = require("slick.util.slicktable")
 local util = require("slick.util")
 local pool = require ("slick.util.pool")
-local commonShape = require("slick.collision.commonShape")
+local slickmath = require("slick.util.slickmath")
+local slicktable = require("slick.util.slicktable")
 
 --- @class slick.worldQuery
 --- @field world slick.world
@@ -58,7 +58,6 @@ end
 
 local _cachedQueryTransform = transform.new()
 local _cachedQueryBoxShape = box.new(nil, 0, 0, 1, 1)
-local _cachedQueryLineSegmentShape = lineSegment.new(nil, 0, 0, 1, 1)
 local _cachedQueryVelocity = point.new()
 local _cachedQueryOffset = point.new()
 
@@ -113,12 +112,16 @@ function worldQuery:_performPrimitiveRayQuery(r, filter)
             local inside, x, y = otherShape:raycast(r, _cachedRayNormal)
             if inside and x and y then
                 _cachedRayQueryTouch:init(x, y)
-                self:_addCollision(otherShape, nil, response, _cachedRayQueryTouch, true)
 
-                local result = self.results[#self.results]
+                local result = self:_addCollision(otherShape, nil, response, _cachedRayQueryTouch, true)
                 result.contactPoint:init(x, y)
                 result.distance = _cachedRayQueryTouch:distance(r.origin)
-                result.normal:init(_cachedRayNormal.x, _cachedRayNormal.y)
+
+                if otherShape.vertexCount == 2 then
+                    self:_correctLineSegmentNormals(r.origin, otherShape.vertices[1], otherShape.vertices[2], result.normal)
+                else
+                    result.normal:init(_cachedRayNormal.x, _cachedRayNormal.y)
+                end
             end
         end
     end
@@ -134,12 +137,144 @@ function worldQuery:_performPrimitiveRectangleQuery(r, filter)
     self:_performShapeQuery(_cachedQueryBoxShape, filter)
 end
 
+local _lineSegmentRelativePosition = point.new()
+
 --- @private
---- @param s slick.geometry.segment
+--- @param point slick.geometry.point
+--- @param a slick.geometry.point
+--- @param b slick.geometry.point
+--- @param normal slick.geometry.point
+function worldQuery:_correctLineSegmentNormals(point, a, b, normal)
+    a:direction(b, normal)
+    normal:normalize(normal)
+    
+    local side = slickmath.direction(a, b, point, self.world.options.epsilon)
+    if side == 0 then
+        point:sub(a, _lineSegmentRelativePosition)
+        local dotA = normal:dot(_lineSegmentRelativePosition)
+
+        point:sub(b, _lineSegmentRelativePosition)
+        local dotB = normal:dot(_lineSegmentRelativePosition)
+
+        if dotA < 0 and dotB < 0 then
+            normal:negate(normal)
+        end
+    else
+        normal:left(normal)
+        normal:multiplyScalar(side, normal)
+    end
+end
+
+--- @private
+--- @param segment slick.geometry.segment
+--- @param result slick.worldQueryResponse
+--- @param x number
+--- @param y number
+function worldQuery:_addLineSegmentContactPoint(segment, result, x, y)
+    for _, c in ipairs(result.contactPoints) do
+        if c.x == x and c.y == y then
+            return
+        end
+    end
+
+    local contactPoint = self:allocate(point, x, y)
+    table.insert(result.contactPoints, contactPoint)
+
+    local distance = contactPoint:distance(segment.a)
+    if distance < result.distance then
+        result.distance = distance
+        result.contactPoint:init(x, y)
+        result.touch:init(x, y)
+    end
+end
+
+local _cachedLineSegmentIntersectionPoint = point.new()
+
+--- @private
+--- @param otherShape slick.collision.commonShape
+--- @param segment slick.geometry.segment
+--- @param a slick.geometry.point
+--- @param b slick.geometry.point
+--- @param response boolean
+--- @param result slick.worldQueryResponse
+function worldQuery:_lineSegmentLineSegmentIntersection(otherShape, segment, a, b, response, result)
+    local intersection, x, y, u, v = slickmath.intersection(segment.a, segment.b, a, b, self.world.options.epsilon)
+    if not intersection or not (u >= 0 and u <= 1 and v >= 0 and v <= 1) then
+        return false, result
+    end
+
+    if not result then
+        _cachedLineSegmentIntersectionPoint:init(x or 0, y or 0)
+        result = self:_addCollision(otherShape, nil, response, _cachedLineSegmentIntersectionPoint, true)
+        result.distance = math.huge
+    end
+
+    if x and y then
+        self:_addLineSegmentContactPoint(segment, result, x, y)
+    else
+        intersection = slickmath.intersection(segment.a, segment.a, a, b, self.world.options.epsilon)
+        if intersection then
+            self:_addLineSegmentContactPoint(segment, result, segment.a.x, segment.a.y)
+        end
+
+        intersection = slickmath.intersection(segment.b, segment.b, a, b, self.world.options.epsilon)
+        if intersection then
+            self:_addLineSegmentContactPoint(segment, result, segment.b.x, segment.b.y)
+        end
+
+        intersection = slickmath.intersection(a, a, segment.a, segment.b, self.world.options.epsilon)
+        if intersection then
+            self:_addLineSegmentContactPoint(segment, result, a.x, a.y)
+        end
+
+        intersection = slickmath.intersection(b, b, segment.a, segment.b, self.world.options.epsilon)
+        if intersection then
+            self:_addLineSegmentContactPoint(segment, result, b.x, b.y)
+        end
+    end
+
+    return true, result
+end
+
+--- @private
+--- @param segment slick.geometry.segment
 --- @param filter slick.worldShapeFilterQueryFunc
-function worldQuery:_performPrimitiveSegmentQuery(s, filter)
-    _cachedQueryLineSegmentShape:init(s.a.x, s.a.y, s.b.x, s.b.y)
-    self:_performShapeQuery(_cachedQueryLineSegmentShape, filter)
+function worldQuery:_performPrimitiveSegmentQuery(segment, filter)
+    self.collisionQuery:reset()
+
+    for _, otherShape in ipairs(self.quadTreeQuery.results) do
+        --- @cast otherShape slick.collision.shapeInterface
+        local response = filter(otherShape.entity.item, otherShape)
+        if response then
+            --- @type slick.worldQueryResponse
+            local result
+            local intersection = false
+            if otherShape.vertexCount == 2 then
+                local a = otherShape.vertices[1]
+                local b = otherShape.vertices[2]
+                
+                intersection, result = self:_lineSegmentLineSegmentIntersection(otherShape, segment, a, b, response, result)
+                if intersection then
+                    self:_correctLineSegmentNormals(segment.a, a, b, result.normal)
+                end
+            else
+                for i = 1, otherShape.vertexCount do
+                    local a = otherShape.vertices[i]
+                    local b = otherShape.vertices[slickmath.wrap(i, 1, otherShape.vertexCount)]
+
+                    local distance = result and result.distance or math.huge
+                    intersection, result = self:_lineSegmentLineSegmentIntersection(otherShape, segment, a, b, response, result)
+                    if intersection then
+                        if result.distance < distance then
+                            a:direction(b, result.normal)
+                            result.normal:normalize(result.normal)
+                            result.normal:left(result.normal)
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 --- @param shape slick.geometry.point | slick.geometry.rectangle | slick.geometry.segment | slick.geometry.ray | slick.collision.commonShape
@@ -278,6 +413,7 @@ end
 --- @param otherShape slick.collision.shapeInterface?
 --- @param response string | slick.worldVisitFunc | boolean
 --- @param primitive boolean
+--- @return slick.worldQueryResponse
 function worldQuery:_addCollision(shape, otherShape, response, offset, primitive)
     local index = #self.results + 1
     local result = self.cachedResults[index]
@@ -288,6 +424,8 @@ function worldQuery:_addCollision(shape, otherShape, response, offset, primitive
 
     result:init(shape, otherShape, response, offset, self.collisionQuery)
     table.insert(self.results, result)
+
+    return self.results[#self.results]
 end
 
 --- @param response slick.worldQueryResponse
