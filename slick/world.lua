@@ -476,7 +476,6 @@ function world:check(item, goalX, goalY, filter, query)
         bounces = bounces + 1
 
         local result = cachedQuery.results[1]
-        local time = result.time
 
         --- @type slick.collision.shape
         local shape, otherShape
@@ -499,7 +498,7 @@ function world:check(item, goalX, goalY, filter, query)
             _cachedRemappedHandlers[otherShape] = remappedResponseName
 
             result = nextResult
-        until not result or result.time > time or (shape == result.shape and otherShape == result.otherShape)
+        until not result or (shape == result.shape and otherShape == result.otherShape)
 
         local isStationary = x == goalX and y == goalY
         local didMove = not (x == previousX and y == previousY)

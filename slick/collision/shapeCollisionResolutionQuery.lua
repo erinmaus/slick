@@ -340,6 +340,7 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
     local currentInterval = self.currentShape.currentInterval
     local otherInterval = self.otherShape.currentInterval
 
+    local isTouching = true
     if _cachedRelativeVelocity:lengthSquared() == 0 then
         for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
             local axis = self:_getAxis(i)
@@ -356,9 +357,11 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
                 break
             end
         end
-    else
-        local isTouching = true
 
+        if not hit then
+            isTouching = false
+        end
+    else
         for i = 1, self.currentShape.axesCount + self.otherShape.axesCount do
             local axis = self:_getAxis(i)
 
@@ -409,14 +412,16 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
         self.firstTime = 0
     end
 
-    local isSelfMovingTowardsOther = false
-    if hit then
+    if hit and isTouching then
         self.currentShape.shape.center:direction(self.otherShape.shape.center, _cachedDirection)
         _cachedDirection:normalize(_cachedDirection)
 
-        isSelfMovingTowardsOther = _cachedDirection:dot(self.normal) < 0
-        if not isSelfMovingTowardsOther then
+        if _cachedDirection:dot(self.normal) > 0 then
             self.normal:negate(self.normal)
+        end
+
+        if _cachedDirection:dot(self.currentNormal) < 0 then
+            self.currentNormal:negate(self.currentNormal)
         end
     end
 
@@ -427,20 +432,6 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
     if not hit then
         self:_clear()
         return
-    end
-
-    if hit and self.firstTime < 0 and self.axis.parent == self.currentShape then
-        self.currentDepth = self.depth
-        self.currentNormal:init(self.normal.x, self.normal.y)
-
-        self.depth = self.otherDepth
-        self.normal:init(self.otherNormal.x, self.otherNormal.y)
-
-        local otherDirection = slickmath.direction(self.otherAxis.segment.a, self.otherAxis.segment.b, self.currentShape.shape.center, self.epsilon)
-        if otherDirection > 0 then
-            self.normal:negate(self.normal)
-            self.currentNormal:negate(self.currentNormal)
-        end
     end
 
     self.time = math.max(self.firstTime, 0)
@@ -459,6 +450,10 @@ function shapeCollisionResolutionQuery:_performPolygonPolygonProjection(selfShap
     end
 
     if side == SIDE_RIGHT or side == SIDE_LEFT then
+        if not isTouching then
+            self.allNormalsCount = 0
+        end
+
         local currentInterval = self.currentShape.minInterval
         local otherInterval = self.otherShape.minInterval
 

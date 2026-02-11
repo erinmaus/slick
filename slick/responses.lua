@@ -1,5 +1,6 @@
 local point = require "slick.geometry.point"
 local worldQuery = require "slick.worldQuery"
+local slickmath = require "slick.util.slickmath"
 
 local _workingQueries = setmetatable({}, { __mode = "k" })
 
@@ -120,7 +121,7 @@ local function slide(world, query, response, x, y, goalX, goalY, filter, result)
     if didSlide then
         for i = index + 1, #query.results do
             local otherResponse = query.results[i]
-            if otherResponse.time > response.time then
+            if not slickmath.lessThanEqual(otherResponse.time, response.time) then
                 break
             end
 
@@ -131,7 +132,23 @@ local function slide(world, query, response, x, y, goalX, goalY, filter, result)
         world:project(response.item, touchX, touchY, newGoalX, newGoalY, filter, query)
         return touchX, touchY, newGoalX, newGoalY, nil, query.results[1]
     else
-        local nextResponse = query.results[index + 1]
+        local shape, otherShape = response.shape, response.otherShape
+        world:project(response.item, touchX, touchY, goalX, goalY, filter, query)
+
+        --- @cast otherShape slick.collision.shape
+        local index = query:getShapeResponseIndex(shape, otherShape)
+        local nextIndex = index and (index + 1) or 1
+
+        --- @type slick.worldQueryResponse?
+        local nextResponse = query.results[nextIndex]
+
+        if index and nextResponse then
+            local currentResponse = query.results[index]
+            if nextResponse.time > currentResponse.time then
+                nextResponse = nil
+            end
+        end
+
         return touchX, touchY, goalX, goalY, nil, nextResponse
     end
 end
