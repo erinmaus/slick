@@ -313,4 +313,12 @@ function slickmath.greater(a, b, E)
     return a > b - E
 end
 
+function slickmath.lessThanEqual(a, b, E)
+    return slickmath.less(a, b, E) or slickmath.equal(a, b, E)
+end
+
+function slickmath.greaterThanEqual(a, b, E)
+    return slickmath.greater(a, b, E) or slickmath.equal(a, b, E)
+end
+
 return slickmath

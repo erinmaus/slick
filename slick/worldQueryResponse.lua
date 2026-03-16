@@ -173,19 +173,19 @@ function worldQueryResponse:move(other, copy)
     
     slicktable.clear(other.contactPoints)
     for i, inputContactPoint in ipairs(self.contactPoints) do
-        local outputContactPoint = self.query:allocate(point, inputContactPoint.x, inputContactPoint.y)
+        local outputContactPoint = other.query:allocate(point, inputContactPoint.x, inputContactPoint.y)
         table.insert(other.contactPoints, outputContactPoint)
     end
 
     slicktable.clear(other.normals)
     for i, inputNormal in ipairs(self.normals) do
-        local outputNormal = self.query:allocate(point, inputNormal.x, inputNormal.y)
+        local outputNormal = other.query:allocate(point, inputNormal.x, inputNormal.y)
         table.insert(other.normals, outputNormal)
     end
 
     slicktable.clear(other.alternateNormals)
     for i, inputNormal in ipairs(self.alternateNormals) do
-        local outputNormal = self.query:allocate(point, inputNormal.x, inputNormal.y)
+        local outputNormal = other.query:allocate(point, inputNormal.x, inputNormal.y)
         table.insert(other.alternateNormals, outputNormal)
     end
 

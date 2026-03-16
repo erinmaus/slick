@@ -302,6 +302,19 @@ function worldQuery:getResponseIndex(response)
     return #self.results + 1
 end
 
+--- @param shape slick.collision.shape
+--- @param otherShape slick.collision.shape
+--- @return integer?
+function worldQuery:getShapeResponseIndex(shape, otherShape)
+    for i, response in ipairs(self.results) do
+        if response.shape == shape and response.otherShape == otherShape then
+            return i
+        end
+    end
+
+    return nil
+end
+
 --- @param response slick.worldQueryResponse
 --- @param copy boolean?
 function worldQuery:push(response, copy)
