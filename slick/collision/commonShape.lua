@@ -125,8 +125,7 @@ end
 --- @param p slick.geometry.point
 --- @return boolean
 function commonShape:inside(p)
-    local inside = false
-    local currentSide = 0
+    local winding
     for i = 1, self.vertexCount do
         local side = slickmath.direction(self.vertices[i], self.vertices[i % self.vertexCount + 1], p)
 
@@ -136,13 +135,16 @@ function commonShape:inside(p)
             return true
         end
 
-        if side ~= currentSide then
-            currentSide = side
-            inside = not inside
+        if winding and side ~= winding then
+            return false
+        end
+
+        if not winding and side ~= 0 then
+            winding = side
         end
     end
 
-    return inside
+    return true
 end
 
 local _cachedNormal = point.new()
