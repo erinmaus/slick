@@ -215,6 +215,7 @@ function shapeCollisionResolutionQuery:_isShapeMovingAwayFromShape(a, b, aOffset
 end
 
 local _lineSegmentDirection = point.new()
+local _lineSegmentNormal = point.new()
 local _lineSegmentRelativePosition = point.new()
 local _lineSegmentShapePosition = point.new()
 local _lineSegmentShapeVertexPosition = point.new()
@@ -266,14 +267,16 @@ function shapeCollisionResolutionQuery:_correctLineSegmentNormals(lineSegmentSha
         normal = self.otherNormal
         depth = self.otherDepth
     end
-    assert(normal and depth, "incorrect shape; couldn't determine normal")
+
+    _lineSegmentDirection:normalize(normal)
+    normal:left(normal)
 
     if not (dotA > 0 and dotB < 0) then
         -- If we're not to the side of the segment, we need to swap the normal.
         self:_addNormal(depth, lineSegmentShape, normal.x, normal.y)
         normal:left(normal)
 
-        if dotA >= 0 and dotB >= 0 then
+        if not (dotA >= 0 and dotB >= 0) then
             normal:negate(normal)
         end
     else
@@ -286,7 +289,7 @@ function shapeCollisionResolutionQuery:_correctLineSegmentNormals(lineSegmentSha
         if side == 0 then
             self:_addNormal(depth, lineSegmentShape, -normal.x, -normal.y)
         else
-            normal:multiplyScalar(side, normal)
+            normal:multiplyScalar(-side, normal)
         end
     end
 
