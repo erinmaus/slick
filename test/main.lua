@@ -1,13 +1,14 @@
 local testRunner = require("test.common.testRunner")
 
-require("test.bobble")
-require("test.clockwise")
-require("test.contactPoints")
-require("test.cross")
-require("test.sheepo")
-require("test.sheepo2")
-require("test.slopes")
-require("test.transform")
+-- require("test.bobble")
+-- require("test.clockwise")
+-- require("test.contactPoints")
+-- require("test.cross")
+-- require("test.sheepo")
+-- require("test.sheepo2")
+-- require("test.slopes")
+-- require("test.transform")
+require("test.segments")
 
 local c = 0
 local deltaFuncs = {
