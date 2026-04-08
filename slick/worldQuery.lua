@@ -199,7 +199,7 @@ local _cachedLineSegmentIntersectionPoint = point.new()
 --- @param result slick.worldQueryResponse
 function worldQuery:_lineSegmentLineSegmentIntersection(otherShape, segment, a, b, response, result)
     local intersection, x, y, u, v = slickmath.intersection(segment.a, segment.b, a, b, self.world.options.epsilon)
-    if not intersection or not (u >= 0 and u <= 1 and v >= 0 and v <= 1) then
+    if not intersection or not (u and v and u >= 0 and u <= 1 and v >= 0 and v <= 1) then
         return false, result
     end
 
